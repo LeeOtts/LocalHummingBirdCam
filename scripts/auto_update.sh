@@ -4,7 +4,7 @@
 #
 # Runs via systemd timer every 2 minutes.
 
-PROJECT_DIR="/home/pi/LocalHummingBirdCam"
+PROJECT_DIR="/home/admin/LocalHummingBirdCam"
 BRANCH="main"
 LOG_TAG="hummingbird-updater"
 

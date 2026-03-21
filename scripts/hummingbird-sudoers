@@ -1,4 +1,4 @@
-# Allow the pi user to restart the hummingbird service without a password
-pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart hummingbird
-pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop hummingbird
-pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl start hummingbird
+# Allow the admin user to restart the hummingbird service without a password
+admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart hummingbird
+admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop hummingbird
+admin ALL=(ALL) NOPASSWD: /usr/bin/systemctl start hummingbird
