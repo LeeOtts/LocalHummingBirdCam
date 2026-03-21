@@ -5,3 +5,6 @@ requests
 python-dotenv
 Pillow
 flask
+transformers
+torch
+torchvision

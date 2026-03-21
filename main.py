@@ -20,6 +20,7 @@ import config
 from camera.recorder import ClipRecorder
 from camera.stream import CameraStream
 from detection.motion_color import MotionColorDetector
+from detection.vision_verify import verify_hummingbird
 from social.comment_generator import generate_comment
 from social.facebook_poster import FacebookPoster
 from web.dashboard import start_web_server
@@ -114,9 +115,24 @@ class HummingbirdMonitor:
             detected = self.detector.detect(frame)
 
             if detected and self._cooldown_elapsed():
+                # Motion+color passed — now verify with bird classifier
+                logger.info("Motion+color triggered — verifying with bird classifier...")
+
+                # Get a full-res frame for the classifier
+                verify_frame = frame
+                if hasattr(self.camera, '_usb_lock'):
+                    with self.camera._usb_lock:
+                        if self.camera._usb_latest_frame is not None:
+                            verify_frame = self.camera._usb_latest_frame.copy()
+
+                if not verify_hummingbird(verify_frame):
+                    logger.info("Bird classifier rejected — skipping recording")
+                    self.detector.reset()
+                    continue
+
                 self._last_detection_time = time.time()
                 self._detections_today += 1
-                logger.info("Hummingbird detected! Starting recording...")
+                logger.info("Hummingbird confirmed! Starting recording...")
 
                 # Reset detector state during recording
                 self.detector.reset()
