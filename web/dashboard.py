@@ -75,12 +75,73 @@ DASHBOARD_HTML = """\
             border: 1px solid #0f3460;
         }
         .live-feed h2 { color: #e94560; margin-bottom: 15px; }
-        .live-feed img {
-            width: 100%;
+        .feed-container {
+            position: relative;
             max-width: 640px;
+            margin: 0 auto;
+        }
+        .feed-container img {
+            width: 100%;
             border-radius: 8px;
             display: block;
-            margin: 0 auto;
+        }
+        .feed-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 8px;
+            border: 4px solid transparent;
+            pointer-events: none;
+            transition: border-color 0.3s;
+        }
+        .feed-overlay.state-idle { border-color: transparent; }
+        .feed-overlay.state-motion { border-color: #f0c040; }
+        .feed-overlay.state-verifying { border-color: #58a6ff; }
+        .feed-overlay.state-confirmed { border-color: #4ecca3; box-shadow: 0 0 20px #4ecca3; }
+        .feed-overlay.state-rejected { border-color: #e94560; }
+        .feed-overlay .state-label {
+            position: absolute;
+            top: 10px; left: 10px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+        .feed-controls {
+            text-align: center;
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-mark-yes {
+            background: #4ecca3;
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+        .btn-mark-yes:hover { background: #3db890; }
+        .btn-mark-no {
+            background: #e94560;
+            color: white;
+        }
+        .btn-mark-no:hover { background: #c73650; }
+        .training-stats {
+            color: #a0a0b0;
+            font-size: 0.85em;
+        }
+        .detection-legend {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.8em;
+            color: #a0a0b0;
+        }
+        .legend-dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin: 0 4px 0 12px;
+            vertical-align: middle;
         }
 
         .section {
@@ -227,7 +288,7 @@ DASHBOARD_HTML = """\
 <body>
     <header>
         <h1>Backyard Hummers</h1>
-        <p>Hummingbird Feeder Camera Dashboard</p>
+        <p>Where the birds are fast and the jokes are faster</p>
     </header>
 
     <div class="container">
@@ -263,6 +324,10 @@ DASHBOARD_HTML = """\
                 <div class="value">{{ status.camera_type }}</div>
             </div>
             <div class="status-card">
+                <div class="label">Rejected Today</div>
+                <div class="value red">{{ status.rejected_today }}</div>
+            </div>
+            <div class="status-card">
                 <div class="label">Cooldown</div>
                 <div class="value {{ 'red' if status.in_cooldown else 'green' }}">
                     {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
@@ -293,7 +358,23 @@ DASHBOARD_HTML = """\
 
         <div class="live-feed">
             <h2>Live Camera Feed</h2>
-            <img src="/feed" alt="Live camera feed">
+            <div class="feed-container">
+                <img src="/feed" alt="Live camera feed" id="liveFeed">
+                <div class="feed-overlay" id="feedOverlay"></div>
+            </div>
+            <div class="feed-controls">
+                <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
+                <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
+                <span class="training-stats">
+                    Training samples: {{ status.training_count }}
+                </span>
+            </div>
+            <div class="detection-legend">
+                <span class="legend-dot" style="background:#4ecca3;"></span> Confirmed
+                <span class="legend-dot" style="background:#f0c040;"></span> Motion detected
+                <span class="legend-dot" style="background:#e94560;"></span> Rejected
+                <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
+            </div>
         </div>
 
         <div class="section">
@@ -350,6 +431,73 @@ DASHBOARD_HTML = """\
     <script>
         // Pause auto-refresh while user is interacting
         let autoRefresh = setTimeout(() => location.reload(), 10000);
+
+        // Poll detection state for live overlay
+        function pollDetectionState() {
+            fetch('/api/detection-state')
+                .then(r => r.json())
+                .then(data => {
+                    const overlay = document.getElementById('feedOverlay');
+                    overlay.className = 'feed-overlay state-' + data.state;
+
+                    // Update or create state label
+                    let label = overlay.querySelector('.state-label');
+                    if (data.state !== 'idle') {
+                        if (!label) {
+                            label = document.createElement('div');
+                            label.className = 'state-label';
+                            overlay.appendChild(label);
+                        }
+                        const labels = {
+                            'motion': 'MOTION',
+                            'verifying': 'VERIFYING...',
+                            'confirmed': 'HUMMINGBIRD!',
+                            'rejected': 'NOT A BIRD',
+                        };
+                        const colors = {
+                            'motion': '#f0c040',
+                            'verifying': '#58a6ff',
+                            'confirmed': '#4ecca3',
+                            'rejected': '#e94560',
+                        };
+                        label.textContent = labels[data.state] || data.state;
+                        label.style.background = colors[data.state] || '#555';
+                        label.style.color = data.state === 'motion' ? '#1a1a2e' : 'white';
+                    } else if (label) {
+                        label.remove();
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollDetectionState, 500);
+
+        function markHummingbird() {
+            fetch('/api/training/mark', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({label: 'hummingbird'})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Saved as hummingbird (' + data.filename + ')');
+                else showToast('Error: ' + data.error);
+            })
+            .catch(() => showToast('Mark failed'));
+        }
+
+        function markNotHummingbird() {
+            fetch('/api/training/mark', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({label: 'not_hummingbird'})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Saved as NOT hummingbird (' + data.filename + ')');
+                else showToast('Error: ' + data.error);
+            })
+            .catch(() => showToast('Mark failed'));
+        }
 
         function showToast(msg) {
             const t = document.getElementById('toast');
@@ -491,6 +639,14 @@ def _get_status():
     s.uptime = uptime
     s.camera_type = _monitor.camera.camera_type.upper() if _monitor and _monitor.camera.camera_type else "N/A"
     s.test_mode = _monitor.test_mode if _monitor else True
+    s.rejected_today = getattr(_monitor, '_rejected_today', 0) if _monitor else 0
+
+    # Training sample count
+    training_dir = config.TRAINING_DIR
+    if training_dir.exists():
+        s.training_count = len(list(training_dir.glob("*.jpg")))
+    else:
+        s.training_count = 0
 
     # Git commit
     try:
@@ -738,6 +894,64 @@ def trigger_update():
 
     except Exception as e:
         logger.exception("Update failed")
+        return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/api/detection-state")
+def detection_state():
+    """Return the current detection state for live overlay."""
+    if _monitor is None:
+        return {"state": "idle"}
+    return {"state": _monitor.detection_state}
+
+
+@app.route("/api/training/mark", methods=["POST"])
+def mark_training():
+    """Save the current frame with a label for training data."""
+    import cv2
+    from datetime import datetime
+
+    if _monitor is None or not _monitor.running:
+        return {"ok": False, "error": "Camera not running"}, 503
+
+    data = request.get_json() or {}
+    label = data.get("label", "unknown")
+
+    if label not in ("hummingbird", "not_hummingbird"):
+        return {"ok": False, "error": "Invalid label"}, 400
+
+    try:
+        # Create training subdirectories
+        label_dir = config.TRAINING_DIR / label
+        label_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get current frame
+        frame = None
+        if hasattr(_monitor.camera, '_usb_lock'):
+            with _monitor.camera._usb_lock:
+                if _monitor.camera._usb_latest_frame is not None:
+                    frame = _monitor.camera._usb_latest_frame.copy()
+
+        if frame is None:
+            frame = _monitor.camera.capture_lores_array()
+
+        # Convert YUV if needed
+        if frame.shape[0] > frame.shape[1] * 1.2:
+            frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_I420)
+
+        # Save with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"{label}_{timestamp}.jpg"
+        filepath = label_dir / filename
+        cv2.imwrite(str(filepath), frame)
+
+        total = len(list(config.TRAINING_DIR.glob("**/*.jpg")))
+        logger.info("Training sample saved: %s (%d total)", filename, total)
+
+        return {"ok": True, "filename": filename, "total": total}
+
+    except Exception as e:
+        logger.exception("Failed to save training sample")
         return {"ok": False, "error": str(e)}, 500
 
 

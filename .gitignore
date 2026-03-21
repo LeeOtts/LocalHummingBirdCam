@@ -13,8 +13,10 @@ venv/
 # Project artifacts
 clips/*.mp4
 clips/*.h264
+clips/*.txt
 logs/*.log
 models/*.tflite
+training/
 
 # OS
 .DS_Store

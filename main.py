@@ -70,6 +70,12 @@ class HummingbirdMonitor:
         self._start_time = 0.0
         self.test_mode = config.TEST_MODE
 
+        # Detection state for live feed overlay
+        # "idle" | "motion" | "verifying" | "confirmed" | "rejected"
+        self.detection_state = "idle"
+        self._detection_state_time = 0.0
+        self._rejected_today = 0
+
     def start(self):
         """Start all components."""
         self.running = True
@@ -114,8 +120,15 @@ class HummingbirdMonitor:
 
             detected = self.detector.detect(frame)
 
+            # Clear stale detection state after 3 seconds
+            if self.detection_state in ("confirmed", "rejected") and \
+               time.time() - self._detection_state_time > 3:
+                self.detection_state = "idle"
+
             if detected and self._cooldown_elapsed():
                 # Motion+color passed — now verify with bird classifier
+                self.detection_state = "verifying"
+                self._detection_state_time = time.time()
                 logger.info("Motion+color triggered — verifying with bird classifier...")
 
                 # Get a full-res frame for the classifier
@@ -126,13 +139,21 @@ class HummingbirdMonitor:
                             verify_frame = self.camera._usb_latest_frame.copy()
 
                 if not verify_hummingbird(verify_frame):
+                    self.detection_state = "rejected"
+                    self._detection_state_time = time.time()
+                    self._rejected_today += 1
                     logger.info("Bird classifier rejected — skipping recording")
                     self.detector.reset()
                     continue
 
+                self.detection_state = "confirmed"
+                self._detection_state_time = time.time()
                 self._last_detection_time = time.time()
                 self._detections_today += 1
                 logger.info("Hummingbird confirmed! Starting recording...")
+
+            elif self.detector._consecutive_detections > 0 and self.detection_state == "idle":
+                self.detection_state = "motion"
 
                 # Reset detector state during recording
                 self.detector.reset()

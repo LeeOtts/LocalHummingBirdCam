@@ -52,6 +52,7 @@ LORES_HEIGHT = 240
 CLIPS_DIR = BASE_DIR / os.getenv("CLIPS_DIR", "clips")
 LOGS_DIR = BASE_DIR / os.getenv("LOGS_DIR", "logs")
 RETRY_QUEUE_FILE = BASE_DIR / "retry_queue.json"
+TRAINING_DIR = BASE_DIR / "training"
 
 # Test mode — records clips and generates captions but skips Facebook posting
 TEST_MODE = os.getenv("TEST_MODE", "true").lower() in ("true", "1", "yes")
