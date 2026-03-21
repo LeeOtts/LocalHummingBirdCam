@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Environment
+.env
+
+# Project artifacts
+clips/*.mp4
+clips/*.h264
+logs/*.log
+models/*.tflite
+
+# OS
+.DS_Store
+Thumbs.db
