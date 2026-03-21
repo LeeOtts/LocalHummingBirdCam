@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for Backyard Hummers updates every 2 minutes
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=120
+AccuracySec=30
+
+[Install]
+WantedBy=timers.target

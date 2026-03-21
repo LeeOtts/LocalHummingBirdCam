@@ -1,0 +1,9 @@
+[Unit]
+Description=Backyard Hummers - Auto Update Check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/LocalHummingBirdCam/scripts/auto_update.sh

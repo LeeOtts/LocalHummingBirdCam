@@ -46,12 +46,35 @@ fi
 # Create directories
 mkdir -p clips logs models
 
+# Install systemd services
+echo "Installing systemd services..."
+sudo cp scripts/hummingbird.service /etc/systemd/system/
+sudo cp scripts/hummingbird-updater.service /etc/systemd/system/
+sudo cp scripts/hummingbird-updater.timer /etc/systemd/system/
+
+# Allow passwordless restart for the auto-updater
+sudo cp scripts/hummingbird-sudoers /etc/sudoers.d/hummingbird
+sudo chmod 440 /etc/sudoers.d/hummingbird
+
+# Make auto-update script executable
+chmod +x scripts/auto_update.sh
+
+# Enable services
+sudo systemctl daemon-reload
+sudo systemctl enable hummingbird
+sudo systemctl enable hummingbird-updater.timer
+sudo systemctl start hummingbird-updater.timer
+
 echo ""
 echo "=== Installation complete! ==="
 echo ""
+echo "Services installed:"
+echo "  - hummingbird          : main camera service (auto-starts on boot)"
+echo "  - hummingbird-updater  : checks GitHub every 2 min, auto-restarts on new commits"
+echo ""
 echo "Next steps:"
-echo "  1. Edit .env with your OpenAI and Facebook API keys"
-echo "  2. Test the camera: libcamera-hello"
-echo "  3. Run the app: source venv/bin/activate && python main.py"
-echo "  4. Install as service: sudo cp scripts/hummingbird.service /etc/systemd/system/"
-echo "     sudo systemctl enable hummingbird && sudo systemctl start hummingbird"
+echo "  1. Edit .env with your API keys:  nano $PROJECT_DIR/.env"
+echo "  2. Test the camera:               libcamera-hello"
+echo "  3. Start the app:                 sudo systemctl start hummingbird"
+echo "  4. View dashboard:                http://$(hostname -I | awk '{print $1}'):8080"
+echo "  5. Check updater status:          systemctl status hummingbird-updater.timer"
