@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(chmod +x \"C:\\\\Users\\\\leeot\\\\OneDrive\\\\Documents\\\\Projects\\\\LocalHummingBirdCam\\\\scripts\\\\install_dependencies.sh\")",
-      "Bash(chmod +x \"C:\\\\Users\\\\leeot\\\\OneDrive\\\\Documents\\\\Projects\\\\LocalHummingBirdCam\\\\scripts\\\\auto_update.sh\")"
+      "Bash(chmod +x \"C:\\\\Users\\\\leeot\\\\OneDrive\\\\Documents\\\\Projects\\\\LocalHummingBirdCam\\\\scripts\\\\auto_update.sh\")",
+      "WebSearch",
+      "WebFetch(domain:hughevans.dev)"
     ]
   }
 }
