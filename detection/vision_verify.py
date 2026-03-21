@@ -27,21 +27,9 @@ logger = logging.getLogger(__name__)
 _pipe = None
 _model_loaded = False
 
-# All hummingbird-related labels in the 525-species dataset (case-insensitive check)
+# Only Ruby-throated Hummingbirds in this area
 HUMMINGBIRD_KEYWORDS = [
-    "HUMMINGBIRD",
-    "SUNGEM",       # Horned Sungem is a hummingbird
-    "SUNANGEL",
-    "WOODSTAR",
-    "HERMIT",       # some hermit species are hummingbirds — check context
-    "MANGO",        # Green-throated Mango is a hummingbird
-    "SYLPH",
-    "SAPPHIRE",
-    "EMERALD",
-    "VIOLETEAR",
-    "TOPAZ",
-    "JACOBIN",
-    "COQUETTE",
+    "RUBY THROATED HUMMINGBIRD",
 ]
 
 
