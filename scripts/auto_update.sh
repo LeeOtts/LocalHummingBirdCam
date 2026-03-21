@@ -1,10 +1,9 @@
 #!/bin/bash
 # Auto-update Backyard Hummers from GitHub
-# Checks for new commits, pulls changes, reinstalls deps if needed, and restarts the service.
-#
+# Detects project directory dynamically from script location.
 # Runs via systemd timer every 2 minutes.
 
-PROJECT_DIR="/home/admin/LocalHummingBirdCam"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BRANCH="main"
 LOG_TAG="hummingbird-updater"
 
@@ -39,6 +38,12 @@ if git diff "$LOCAL" "$REMOTE" --name-only | grep -q "requirements.txt"; then
     logger -t "$LOG_TAG" "requirements.txt changed, reinstalling dependencies..."
     source "$PROJECT_DIR/venv/bin/activate"
     pip install -r requirements.txt --quiet
+fi
+
+# Re-run install script if install_dependencies.sh changed (updates service files)
+if git diff "$LOCAL" "$REMOTE" --name-only | grep -q "install_dependencies.sh"; then
+    logger -t "$LOG_TAG" "install script changed, re-running installer..."
+    bash "$PROJECT_DIR/scripts/install_dependencies.sh"
 fi
 
 # Restart the service
