@@ -143,6 +143,11 @@ class HummingbirdMonitor:
                 logger.info("Generating caption for %s...", clip_path.name)
                 caption = generate_comment()
 
+                # Save caption alongside the clip
+                caption_path = clip_path.with_suffix(".txt")
+                caption_path.write_text(caption)
+                logger.info("Caption saved: %s", caption_path.name)
+
                 logger.info("Posting to Facebook: %s", clip_path.name)
                 success = self.poster.post_video(clip_path, caption)
 

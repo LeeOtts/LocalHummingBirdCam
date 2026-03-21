@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, Response, render_template_string, send_from_directory
+from flask import Flask, Response, render_template_string, send_from_directory, request, redirect, url_for
 
 import config
 
@@ -91,10 +91,13 @@ DASHBOARD_HTML = """\
             border: 1px solid #0f3460;
         }
         .section h2 { color: #e94560; margin-bottom: 15px; }
+        .section .section-actions {
+            float: right;
+        }
 
         .clip-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 15px;
         }
         .clip-card {
@@ -111,6 +114,68 @@ DASHBOARD_HTML = """\
             padding: 10px;
             font-size: 0.85em;
             color: #a0a0b0;
+        }
+        .clip-card .clip-caption {
+            padding: 8px 10px;
+            font-size: 0.9em;
+            color: #e0e0e0;
+            background: #0f3460;
+            border-top: 1px solid #16213e;
+            font-style: italic;
+            line-height: 1.4;
+        }
+        .clip-card .clip-actions {
+            padding: 8px 10px;
+            display: flex;
+            gap: 8px;
+            border-top: 1px solid #0f3460;
+        }
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-delete {
+            background: #e94560;
+            color: white;
+        }
+        .btn-delete:hover { background: #c73650; }
+        .btn-delete-all {
+            background: #e94560;
+            color: white;
+            font-size: 0.85em;
+            padding: 6px 16px;
+        }
+        .btn-delete-all:hover { background: #c73650; }
+
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .confirm-overlay.active { display: flex; }
+        .confirm-box {
+            background: #16213e;
+            border: 2px solid #e94560;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
+        .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
+        .btn-cancel {
+            background: #0f3460;
+            color: #e0e0e0;
         }
 
         .log-box {
@@ -136,6 +201,21 @@ DASHBOARD_HTML = """\
             font-size: 0.85em;
         }
         .refresh-bar a { color: #4ecca3; text-decoration: none; }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4ecca3;
+            color: #1a1a2e;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 200;
+            display: none;
+        }
+        .toast.active { display: block; }
     </style>
 </head>
 <body>
@@ -190,22 +270,32 @@ DASHBOARD_HTML = """\
         </div>
 
         <div class="section">
-            <h2>Recent Clips</h2>
+            <h2 style="display:inline-block;">Recent Clips</h2>
             {% if clips %}
+            <span class="section-actions">
+                <button class="btn btn-delete-all" onclick="showDeleteAll()">Delete All Clips</button>
+            </span>
+            <div style="clear:both; margin-bottom: 15px;"></div>
             <div class="clip-grid">
                 {% for clip in clips %}
-                <div class="clip-card">
+                <div class="clip-card" id="clip-{{ loop.index }}">
                     <video controls preload="metadata">
                         <source src="/clips/{{ clip.name }}" type="video/mp4">
                     </video>
+                    {% if clip.caption %}
+                    <div class="clip-caption">"{{ clip.caption }}"</div>
+                    {% endif %}
                     <div class="clip-info">
                         {{ clip.name }} &mdash; {{ clip.size }} &mdash; {{ clip.time }}
+                    </div>
+                    <div class="clip-actions">
+                        <button class="btn btn-delete" onclick="deleteClip('{{ clip.name }}', 'clip-{{ loop.index }}')">Delete Clip</button>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #a0a0b0;">No clips recorded yet. Waiting for hummingbirds...</p>
+            <p style="color: #a0a0b0; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
             {% endif %}
         </div>
 
@@ -219,8 +309,77 @@ DASHBOARD_HTML = """\
         </div>
     </div>
 
+    <!-- Delete All confirmation -->
+    <div class="confirm-overlay" id="deleteAllOverlay">
+        <div class="confirm-box">
+            <p>Delete ALL clips and their captions?</p>
+            <button class="btn btn-cancel" onclick="hideDeleteAll()">Cancel</button>
+            <button class="btn btn-delete" onclick="deleteAll()">Delete All</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
     <script>
-        setTimeout(() => location.reload(), 10000);
+        // Pause auto-refresh while user is interacting
+        let autoRefresh = setTimeout(() => location.reload(), 10000);
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('active');
+            setTimeout(() => t.classList.remove('active'), 3000);
+        }
+
+        function deleteClip(filename, cardId) {
+            if (!confirm('Delete ' + filename + ' and its caption?')) return;
+            clearTimeout(autoRefresh);
+
+            fetch('/api/clips/' + filename, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        document.getElementById(cardId).remove();
+                        showToast('Deleted ' + filename);
+                    } else {
+                        showToast('Error: ' + data.error);
+                    }
+                    autoRefresh = setTimeout(() => location.reload(), 10000);
+                })
+                .catch(() => {
+                    showToast('Delete failed');
+                    autoRefresh = setTimeout(() => location.reload(), 10000);
+                });
+        }
+
+        function showDeleteAll() {
+            clearTimeout(autoRefresh);
+            document.getElementById('deleteAllOverlay').classList.add('active');
+        }
+
+        function hideDeleteAll() {
+            document.getElementById('deleteAllOverlay').classList.remove('active');
+            autoRefresh = setTimeout(() => location.reload(), 10000);
+        }
+
+        function deleteAll() {
+            fetch('/api/clips', { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Deleted ' + data.deleted + ' clips');
+                        hideDeleteAll();
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showToast('Error: ' + data.error);
+                        hideDeleteAll();
+                    }
+                })
+                .catch(() => {
+                    showToast('Delete failed');
+                    hideDeleteAll();
+                });
+        }
     </script>
 </body>
 </html>
@@ -263,8 +422,8 @@ def _get_status():
     return s
 
 
-def _get_recent_clips(limit=6):
-    """Get the most recent clips."""
+def _get_recent_clips(limit=12):
+    """Get the most recent clips with their captions."""
     if not config.CLIPS_DIR.exists():
         return []
 
@@ -273,7 +432,22 @@ def _get_recent_clips(limit=6):
     for p in mp4s:
         size_mb = p.stat().st_size / 1_048_576
         mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-        clips.append({"name": p.name, "size": f"{size_mb:.1f} MB", "time": mtime})
+
+        # Load caption if it exists
+        caption_path = p.with_suffix(".txt")
+        caption = ""
+        if caption_path.exists():
+            try:
+                caption = caption_path.read_text().strip()
+            except OSError:
+                pass
+
+        clips.append({
+            "name": p.name,
+            "size": f"{size_mb:.1f} MB",
+            "time": mtime,
+            "caption": caption,
+        })
     return clips
 
 
@@ -313,6 +487,52 @@ def dashboard():
 @app.route("/clips/<filename>")
 def serve_clip(filename):
     return send_from_directory(str(config.CLIPS_DIR), filename)
+
+
+@app.route("/api/clips/<filename>", methods=["DELETE"])
+def delete_clip(filename):
+    """Delete a single clip and its caption file."""
+    # Sanitize filename — only allow expected patterns
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return {"ok": False, "error": "Invalid filename"}, 400
+
+    mp4_path = config.CLIPS_DIR / filename
+    if not mp4_path.exists():
+        return {"ok": False, "error": "Clip not found"}, 404
+
+    try:
+        mp4_path.unlink()
+        # Also delete caption and any h264 leftover
+        caption_path = mp4_path.with_suffix(".txt")
+        h264_path = mp4_path.with_suffix(".h264")
+        caption_path.unlink(missing_ok=True)
+        h264_path.unlink(missing_ok=True)
+
+        logger.info("Deleted clip: %s", filename)
+        return {"ok": True, "deleted": filename}
+    except OSError as e:
+        logger.error("Failed to delete %s: %s", filename, e)
+        return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/api/clips", methods=["DELETE"])
+def delete_all_clips():
+    """Delete all clips and their captions."""
+    if not config.CLIPS_DIR.exists():
+        return {"ok": True, "deleted": 0}
+
+    count = 0
+    try:
+        for f in config.CLIPS_DIR.iterdir():
+            if f.suffix in (".mp4", ".h264", ".txt"):
+                f.unlink()
+                count += 1
+
+        logger.info("Deleted all clips (%d files)", count)
+        return {"ok": True, "deleted": count}
+    except OSError as e:
+        logger.error("Failed to delete all clips: %s", e)
+        return {"ok": False, "error": str(e)}, 500
 
 
 @app.route("/feed")
