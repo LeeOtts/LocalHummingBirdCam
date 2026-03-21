@@ -17,7 +17,9 @@ sudo apt install -y \
     python3-dev \
     ffmpeg \
     v4l-utils \
-    libatlas-base-dev
+    libatlas-base-dev \
+    alsa-utils \
+    pulseaudio
 
 # Try to install picamera2 packages (optional, for Pi Camera Module)
 echo "Attempting to install Pi Camera packages (optional)..."

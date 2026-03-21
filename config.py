@@ -33,8 +33,13 @@ CLIP_TOTAL_SECONDS = CLIP_PRE_SECONDS + CLIP_POST_SECONDS
 CIRCULAR_BUFFER_SIZE = int(VIDEO_FPS * CLIP_PRE_SECONDS * 1.1)  # 10% margin
 
 # Camera type: "auto", "picamera", or "usb"
-CAMERA_TYPE = os.getenv("CAMERA_TYPE", "auto")
+CAMERA_TYPE = os.getenv("CAMERA_TYPE", "usb")
 USB_CAMERA_INDEX = int(os.getenv("USB_CAMERA_INDEX", "0"))
+
+# Audio — set AUDIO_DEVICE to the ALSA device (e.g. "hw:1,0" or "default")
+# Use "arecord -l" on the Pi to list available audio devices
+AUDIO_ENABLED = os.getenv("AUDIO_ENABLED", "true").lower() in ("true", "1", "yes")
+AUDIO_DEVICE = os.getenv("AUDIO_DEVICE", "default")
 
 # Lores stream for detection
 LORES_WIDTH = 320
