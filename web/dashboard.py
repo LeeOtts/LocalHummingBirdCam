@@ -173,6 +173,10 @@ DASHBOARD_HTML = """\
                 <div class="value">{{ status.uptime }}</div>
             </div>
             <div class="status-card">
+                <div class="label">Camera</div>
+                <div class="value">{{ status.camera_type }}</div>
+            </div>
+            <div class="status-card">
                 <div class="label">Cooldown</div>
                 <div class="value {{ 'red' if status.in_cooldown else 'green' }}">
                     {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
@@ -255,6 +259,7 @@ def _get_status():
     s.posts_today = posts_today
     s.total_clips = total_clips
     s.uptime = uptime
+    s.camera_type = _monitor.camera.camera_type.upper() if _monitor and _monitor.camera.camera_type else "N/A"
     return s
 
 

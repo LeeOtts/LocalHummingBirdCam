@@ -79,7 +79,7 @@ class HummingbirdMonitor:
 
         # Start web dashboard
         start_web_server(self, host=config.WEB_HOST, port=config.WEB_PORT)
-        recorder = ClipRecorder(self.camera.circular_output)
+        recorder = ClipRecorder(self.camera)
 
         # Start the posting worker in a background thread
         post_thread = threading.Thread(target=self._post_worker, daemon=True)

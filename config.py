@@ -31,6 +31,10 @@ VIDEO_BITRATE = int(os.getenv("VIDEO_BITRATE", "1500000"))
 CLIP_TOTAL_SECONDS = CLIP_PRE_SECONDS + CLIP_POST_SECONDS
 CIRCULAR_BUFFER_SIZE = int(VIDEO_FPS * CLIP_PRE_SECONDS * 1.1)  # 10% margin
 
+# Camera type: "auto", "picamera", or "usb"
+CAMERA_TYPE = os.getenv("CAMERA_TYPE", "auto")
+USB_CAMERA_INDEX = int(os.getenv("USB_CAMERA_INDEX", "0"))
+
 # Lores stream for detection
 LORES_WIDTH = 320
 LORES_HEIGHT = 240
