@@ -152,6 +152,12 @@ DASHBOARD_HTML = """\
             padding: 6px 16px;
         }
         .btn-delete-all:hover { background: #c73650; }
+        .btn-update {
+            background: #4ecca3;
+            color: #1a1a2e;
+        }
+        .btn-update:hover { background: #3db890; }
+        .btn-update:disabled { background: #555; color: #999; cursor: wait; }
 
         .confirm-overlay {
             display: none;
@@ -273,6 +279,16 @@ DASHBOARD_HTML = """\
                     {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
                 </button>
             </div>
+            <div class="status-card">
+                <div class="label">Version</div>
+                <div class="value" style="font-size: 0.9em;">{{ status.git_commit }}</div>
+                <button class="btn btn-update"
+                        style="margin-top: 10px; font-size: 0.7em;"
+                        id="updateBtn"
+                        onclick="checkForUpdate()">
+                    Check for Update
+                </button>
+            </div>
         </div>
 
         <div class="live-feed">
@@ -385,6 +401,38 @@ DASHBOARD_HTML = """\
                 .catch(() => showToast('Toggle failed'));
         }
 
+        function checkForUpdate() {
+            const btn = document.getElementById('updateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Checking...';
+            clearTimeout(autoRefresh);
+
+            fetch('/api/update', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.updated) {
+                        showToast('Updated to ' + data.new_commit + ' — restarting...');
+                        setTimeout(() => location.reload(), 5000);
+                    } else if (data.ok) {
+                        showToast('Already up to date');
+                        btn.disabled = false;
+                        btn.textContent = 'Check for Update';
+                        autoRefresh = setTimeout(() => location.reload(), 10000);
+                    } else {
+                        showToast('Update failed: ' + (data.error || 'unknown'));
+                        btn.disabled = false;
+                        btn.textContent = 'Check for Update';
+                        autoRefresh = setTimeout(() => location.reload(), 10000);
+                    }
+                })
+                .catch(() => {
+                    showToast('Update request failed');
+                    btn.disabled = false;
+                    btn.textContent = 'Check for Update';
+                    autoRefresh = setTimeout(() => location.reload(), 10000);
+                });
+        }
+
         function deleteAll() {
             fetch('/api/clips', { method: 'DELETE' })
                 .then(r => r.json())
@@ -443,6 +491,19 @@ def _get_status():
     s.uptime = uptime
     s.camera_type = _monitor.camera.camera_type.upper() if _monitor and _monitor.camera.camera_type else "N/A"
     s.test_mode = _monitor.test_mode if _monitor else True
+
+    # Git commit
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(config.BASE_DIR),
+        )
+        s.git_commit = result.stdout.strip() if result.returncode == 0 else "unknown"
+    except Exception:
+        s.git_commit = "unknown"
+
     return s
 
 
@@ -601,6 +662,83 @@ def toggle_test_mode():
     state = "TEST MODE" if _monitor.test_mode else "LIVE"
     logger.info("Facebook posting toggled to: %s", state)
     return {"ok": True, "test_mode": _monitor.test_mode}
+
+
+@app.route("/api/update", methods=["POST"])
+def trigger_update():
+    """Pull latest from GitHub and restart if there are changes."""
+    import subprocess
+
+    try:
+        project_dir = str(config.BASE_DIR)
+
+        # Fetch latest
+        subprocess.run(
+            ["git", "fetch", "origin", "main", "--quiet"],
+            capture_output=True, text=True, timeout=30,
+            cwd=project_dir,
+        )
+
+        # Compare
+        local = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=project_dir,
+        ).stdout.strip()
+
+        remote = subprocess.run(
+            ["git", "rev-parse", "origin/main"],
+            capture_output=True, text=True, timeout=5,
+            cwd=project_dir,
+        ).stdout.strip()
+
+        if local == remote:
+            return {"ok": True, "updated": False, "message": "Already up to date"}
+
+        # Pull
+        pull_result = subprocess.run(
+            ["git", "pull", "origin", "main", "--ff-only"],
+            capture_output=True, text=True, timeout=60,
+            cwd=project_dir,
+        )
+
+        if pull_result.returncode != 0:
+            logger.error("Git pull failed: %s", pull_result.stderr)
+            return {"ok": False, "error": "git pull failed"}, 500
+
+        new_commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=project_dir,
+        ).stdout.strip()
+
+        logger.info("Updated from %s to %s, restarting...", local[:7], new_commit)
+
+        # Check if requirements changed
+        diff_result = subprocess.run(
+            ["git", "diff", local, remote, "--name-only"],
+            capture_output=True, text=True, timeout=10,
+            cwd=project_dir,
+        )
+        if "requirements.txt" in diff_result.stdout:
+            logger.info("requirements.txt changed, reinstalling deps...")
+            subprocess.run(
+                [str(config.BASE_DIR / "venv" / "bin" / "pip"), "install", "-r", "requirements.txt", "--quiet"],
+                capture_output=True, text=True, timeout=120,
+                cwd=project_dir,
+            )
+
+        # Restart service in background (this will kill our process)
+        subprocess.Popen(
+            ["sudo", "systemctl", "restart", "hummingbird"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+        return {"ok": True, "updated": True, "new_commit": new_commit}
+
+    except Exception as e:
+        logger.exception("Update failed")
+        return {"ok": False, "error": str(e)}, 500
 
 
 @app.route("/api/status")
