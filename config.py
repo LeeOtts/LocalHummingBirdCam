@@ -14,8 +14,9 @@ FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
 FACEBOOK_PAGE_ACCESS_TOKEN = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN", "")
 
 # Detection tuning
-MOTION_THRESHOLD = float(os.getenv("MOTION_THRESHOLD", "7.0"))
-COLOR_MIN_AREA = int(os.getenv("COLOR_MIN_AREA", "200"))
+MOTION_THRESHOLD = float(os.getenv("MOTION_THRESHOLD", "15.0"))
+COLOR_MIN_AREA = int(os.getenv("COLOR_MIN_AREA", "300"))
+COLOR_MAX_AREA = int(os.getenv("COLOR_MAX_AREA", "5000"))
 DETECTION_COOLDOWN_SECONDS = int(os.getenv("DETECTION_COOLDOWN_SECONDS", "60"))
 MAX_POSTS_PER_DAY = int(os.getenv("MAX_POSTS_PER_DAY", "10"))
 
