@@ -67,12 +67,16 @@ class HummingbirdMonitor:
         self._last_detection_time = 0.0
         self._detections_today = 0
         self._start_time = 0.0
+        self.test_mode = config.TEST_MODE
 
     def start(self):
         """Start all components."""
         self.running = True
         self._start_time = time.time()
-        logger.info("=== Backyard Hummers starting up ===")
+        if self.test_mode:
+            logger.info("=== Backyard Hummers starting up (TEST MODE — no Facebook posting) ===")
+        else:
+            logger.info("=== Backyard Hummers starting up ===")
 
         # Start camera
         self.camera.start()
@@ -148,13 +152,16 @@ class HummingbirdMonitor:
                 caption_path.write_text(caption)
                 logger.info("Caption saved: %s", caption_path.name)
 
-                logger.info("Posting to Facebook: %s", clip_path.name)
-                success = self.poster.post_video(clip_path, caption)
-
-                if success:
-                    logger.info("Successfully posted %s", clip_path.name)
+                if self.test_mode:
+                    logger.info("TEST MODE — skipping Facebook post for %s", clip_path.name)
                 else:
-                    logger.warning("Post failed (saved to retry queue): %s", clip_path.name)
+                    logger.info("Posting to Facebook: %s", clip_path.name)
+                    success = self.poster.post_video(clip_path, caption)
+
+                    if success:
+                        logger.info("Successfully posted %s", clip_path.name)
+                    else:
+                        logger.warning("Post failed (saved to retry queue): %s", clip_path.name)
 
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)

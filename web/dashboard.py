@@ -262,6 +262,17 @@ DASHBOARD_HTML = """\
                     {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
                 </div>
             </div>
+            <div class="status-card">
+                <div class="label">Facebook Posting</div>
+                <div class="value {{ 'yellow' if status.test_mode else 'green' }}">
+                    {{ 'TEST MODE' if status.test_mode else 'LIVE' }}
+                </div>
+                <button class="btn {{ 'btn-cancel' if status.test_mode else 'btn-delete' }}"
+                        style="margin-top: 10px; font-size: 0.7em;"
+                        onclick="toggleTestMode()">
+                    {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
+                </button>
+            </div>
         </div>
 
         <div class="live-feed">
@@ -362,6 +373,18 @@ DASHBOARD_HTML = """\
             autoRefresh = setTimeout(() => location.reload(), 10000);
         }
 
+        function toggleTestMode() {
+            fetch('/api/test-mode', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast(data.test_mode ? 'Switched to TEST MODE' : 'Facebook posting is LIVE');
+                        setTimeout(() => location.reload(), 1000);
+                    }
+                })
+                .catch(() => showToast('Toggle failed'));
+        }
+
         function deleteAll() {
             fetch('/api/clips', { method: 'DELETE' })
                 .then(r => r.json())
@@ -419,6 +442,7 @@ def _get_status():
     s.total_clips = total_clips
     s.uptime = uptime
     s.camera_type = _monitor.camera.camera_type.upper() if _monitor and _monitor.camera.camera_type else "N/A"
+    s.test_mode = _monitor.test_mode if _monitor else True
     return s
 
 
@@ -565,6 +589,18 @@ def live_feed():
         generate_frames(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+@app.route("/api/test-mode", methods=["POST"])
+def toggle_test_mode():
+    """Toggle test mode on/off."""
+    if _monitor is None:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    _monitor.test_mode = not _monitor.test_mode
+    state = "TEST MODE" if _monitor.test_mode else "LIVE"
+    logger.info("Facebook posting toggled to: %s", state)
+    return {"ok": True, "test_mode": _monitor.test_mode}
 
 
 @app.route("/api/status")
