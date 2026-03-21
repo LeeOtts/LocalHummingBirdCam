@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=admin
-WorkingDirectory=/home/admin/LocalHummingBirdCam
-EnvironmentFile=/home/admin/LocalHummingBirdCam/.env
-ExecStart=/home/admin/LocalHummingBirdCam/venv/bin/python main.py
+User=pi
+WorkingDirectory=/home/pi/LocalHummingBirdCam
+EnvironmentFile=/home/pi/LocalHummingBirdCam/.env
+ExecStart=/home/pi/LocalHummingBirdCam/venv/bin/python main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

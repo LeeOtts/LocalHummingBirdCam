@@ -1,18 +1,12 @@
 #!/bin/bash
 # Install system and Python dependencies for Backyard Hummers on Raspberry Pi
+# Username: pi
 set -e
 
 echo "=== Backyard Hummers - Dependency Installer ==="
 
-# Detect current user and project directory
-CURRENT_USER="$(whoami)"
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-HOME_DIR="$(eval echo ~$CURRENT_USER)"
-
-echo "User:    $CURRENT_USER"
-echo "Home:    $HOME_DIR"
-echo "Project: $PROJECT_DIR"
-echo ""
+PROJECT_DIR="/home/pi/LocalHummingBirdCam"
+cd "$PROJECT_DIR"
 
 # System packages
 echo "Installing system packages..."
@@ -25,14 +19,12 @@ sudo apt install -y \
     v4l-utils \
     libatlas-base-dev
 
-# Try to install picamera2 packages (won't fail if unavailable)
+# Try to install picamera2 packages (optional, for Pi Camera Module)
 echo "Attempting to install Pi Camera packages (optional)..."
 sudo apt install -y python3-libcamera python3-picamera2 libcamera-dev 2>/dev/null || \
     echo "Pi Camera packages not available — USB camera only"
 
 # Create virtual environment
-cd "$PROJECT_DIR"
-
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
     python3 -m venv --system-site-packages venv
@@ -54,65 +46,17 @@ fi
 # Create directories
 mkdir -p clips logs models
 
-# ---- Generate systemd services with correct paths ----
+# Install systemd services
+echo "Installing systemd services..."
+sudo cp scripts/hummingbird.service /etc/systemd/system/
+sudo cp scripts/hummingbird-updater.service /etc/systemd/system/
+sudo cp scripts/hummingbird-updater.timer /etc/systemd/system/
 
-echo "Installing systemd services for user '$CURRENT_USER'..."
-
-sudo bash -c "cat > /etc/systemd/system/hummingbird.service << SERVICEEOF
-[Unit]
-Description=Backyard Hummers - Hummingbird Feeder Camera
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=$CURRENT_USER
-WorkingDirectory=$PROJECT_DIR
-EnvironmentFile=$PROJECT_DIR/.env
-ExecStart=$PROJECT_DIR/venv/bin/python main.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SERVICEEOF"
-
-sudo bash -c "cat > /etc/systemd/system/hummingbird-updater.service << SERVICEEOF
-[Unit]
-Description=Backyard Hummers - Auto Update Check
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-User=$CURRENT_USER
-ExecStart=$PROJECT_DIR/scripts/auto_update.sh
-SERVICEEOF"
-
-sudo bash -c "cat > /etc/systemd/system/hummingbird-updater.timer << SERVICEEOF
-[Unit]
-Description=Check for Backyard Hummers updates every 2 minutes
-
-[Timer]
-OnBootSec=60
-OnUnitActiveSec=120
-AccuracySec=30
-
-[Install]
-WantedBy=timers.target
-SERVICEEOF"
-
-# Sudoers — allow this user to restart the service without a password
-sudo bash -c "cat > /etc/sudoers.d/hummingbird << SUDOEOF
-$CURRENT_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart hummingbird
-$CURRENT_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop hummingbird
-$CURRENT_USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl start hummingbird
-SUDOEOF"
+# Sudoers — allow pi to restart the service without a password
+sudo cp scripts/hummingbird-sudoers /etc/sudoers.d/hummingbird
 sudo chmod 440 /etc/sudoers.d/hummingbird
 
-# Make auto-update script executable and patch it with correct path
+# Make auto-update script executable
 chmod +x scripts/auto_update.sh
 
 # Enable services
@@ -123,10 +67,6 @@ sudo systemctl start hummingbird-updater.timer
 
 echo ""
 echo "=== Installation complete! ==="
-echo ""
-echo "Services installed (configured for user '$CURRENT_USER'):"
-echo "  - hummingbird          : main camera service (auto-starts on boot)"
-echo "  - hummingbird-updater  : checks GitHub every 2 min, auto-restarts on new commits"
 echo ""
 echo "Next steps:"
 echo "  1. Edit .env with your API keys:  nano $PROJECT_DIR/.env"

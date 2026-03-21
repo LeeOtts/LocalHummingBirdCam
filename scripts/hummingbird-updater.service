@@ -5,5 +5,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=admin
-ExecStart=/home/admin/LocalHummingBirdCam/scripts/auto_update.sh
+User=pi
+ExecStart=/home/pi/LocalHummingBirdCam/scripts/auto_update.sh

@@ -3,7 +3,7 @@
 # Detects project directory dynamically from script location.
 # Runs via systemd timer every 2 minutes.
 
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_DIR="/home/pi/LocalHummingBirdCam"
 BRANCH="main"
 LOG_TAG="hummingbird-updater"
 
