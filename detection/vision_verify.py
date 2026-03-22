@@ -51,19 +51,16 @@ def _download_model():
         import zipfile
         import tempfile
 
-        # Use the iNaturalist / Google bird classifier (lightweight MobileNet)
-        # This is a commonly available bird species classifier
-        model_url = "https://tfhub.dev/google/lite-model/aiy/vision/classifier/birds_V1/3?lite-format=tflite"
+        # iNaturalist MobileNetV2 bird classifier (964 species, ~3.4MB)
+        # Hosted on google-coral GitHub (the TFHub URL is broken/403)
+        logger.info("Downloading bird classifier model (~3.4MB)...")
 
-        logger.info("Downloading bird classifier model (~5MB)...")
-
-        # Download the TFLite model directly
         urllib.request.urlretrieve(
-            "https://storage.googleapis.com/tfhub-lite-models/google/lite-model/aiy/vision/classifier/birds_V1/3.tflite",
+            "https://raw.githubusercontent.com/google-coral/test_data/master/mobilenet_v2_1.0_224_inat_bird_quant.tflite",
             str(MODEL_PATH),
         )
 
-        # Download labels
+        # Download labels (964 species + background, includes Ruby-throated Hummingbird)
         urllib.request.urlretrieve(
             "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt",
             str(LABELS_PATH),
