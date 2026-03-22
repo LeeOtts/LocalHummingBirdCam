@@ -1,22 +1,39 @@
-"""Generate funny Facebook post captions using OpenAI ChatGPT."""
+"""Generate funny Facebook post captions using OpenAI / Azure OpenAI."""
 
 import logging
 import random
-
-from openai import OpenAI
 
 import config
 
 logger = logging.getLogger(__name__)
 
-# Singleton OpenAI client — reuses connection pool
+# Singleton client — reuses connection pool
 _client = None
 
 
 def _get_client():
     global _client
-    if _client is None and config.OPENAI_API_KEY:
+    if _client is not None:
+        return _client
+
+    if not config.OPENAI_API_KEY:
+        return None
+
+    # Azure OpenAI — needs endpoint, key, and api-version
+    if config.AZURE_OPENAI_ENDPOINT:
+        from openai import AzureOpenAI
+        _client = AzureOpenAI(
+            azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+            api_key=config.OPENAI_API_KEY,
+            api_version=config.AZURE_OPENAI_API_VERSION,
+        )
+        logger.info("Using Azure OpenAI (endpoint: %s, deployment: %s)",
+                     config.AZURE_OPENAI_ENDPOINT, config.AZURE_OPENAI_DEPLOYMENT)
+    else:
+        from openai import OpenAI
         _client = OpenAI(api_key=config.OPENAI_API_KEY)
+        logger.info("Using OpenAI direct")
+
     return _client
 
 SYSTEM_PROMPT = """\
@@ -85,7 +102,7 @@ def generate_comment() -> str:
     try:
         client = _get_client()
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": "Write a post for a new hummingbird sighting video."},
@@ -169,7 +186,7 @@ def generate_good_morning(location: str, sunrise: str) -> str:
     try:
         client = _get_client()
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
                 {"role": "system", "content": GOOD_MORNING_PROMPT.format(
                     location=location, sunrise=sunrise
@@ -196,7 +213,7 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
     try:
         client = _get_client()
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
                 {"role": "system", "content": GOOD_NIGHT_PROMPT.format(
                     location=location, sunset=sunset,

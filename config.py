@@ -6,8 +6,15 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).parent
 
-# OpenAI
+# OpenAI / Azure OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# Azure OpenAI — set these if using Azure instead of OpenAI direct
+# AZURE_OPENAI_ENDPOINT = "https://your-resource.openai.azure.com/"
+# AZURE_OPENAI_DEPLOYMENT = your deployment name (e.g. "gpt-4o")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
 
 # Facebook
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
