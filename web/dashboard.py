@@ -45,7 +45,7 @@ DASHBOARD_HTML = """\
             text-align: center;
             border-bottom: 3px solid #b91c1c;
         }
-        header h1 { font-size: 1.8em; color: #f87171; }
+        header h1 { font-size: 1.8em; color: #ffffff; }
         header p { color: #8faa8f; margin-top: 5px; }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
 
@@ -76,7 +76,7 @@ DASHBOARD_HTML = """\
             margin-bottom: 30px;
             border: 1px solid #2d4a2d;
         }
-        .live-feed h2 { color: #f87171; margin-bottom: 15px; }
+        .live-feed h2 { color: #ffffff; margin-bottom: 15px; }
         .feed-container {
             position: relative;
             max-width: 640px;
@@ -174,7 +174,7 @@ DASHBOARD_HTML = """\
             margin-bottom: 30px;
             border: 1px solid #2d4a2d;
         }
-        .section h2 { color: #f87171; margin-bottom: 15px; }
+        .section h2 { color: #ffffff; margin-bottom: 15px; }
         .section .section-actions {
             float: right;
         }
