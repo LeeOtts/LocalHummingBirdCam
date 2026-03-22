@@ -4,7 +4,8 @@
       "Bash(chmod +x \"C:\\\\Users\\\\leeot\\\\OneDrive\\\\Documents\\\\Projects\\\\LocalHummingBirdCam\\\\scripts\\\\install_dependencies.sh\")",
       "Bash(chmod +x \"C:\\\\Users\\\\leeot\\\\OneDrive\\\\Documents\\\\Projects\\\\LocalHummingBirdCam\\\\scripts\\\\auto_update.sh\")",
       "WebSearch",
-      "WebFetch(domain:hughevans.dev)"
+      "WebFetch(domain:hughevans.dev)",
+      "Bash(git add:*)"
     ]
   }
 }

@@ -21,7 +21,8 @@ from camera.recorder import ClipRecorder
 from camera.stream import CameraStream
 from detection.motion_color import MotionColorDetector
 from detection.vision_verify import verify_hummingbird
-from social.comment_generator import generate_comment
+from schedule import is_daytime, get_schedule_info
+from social.comment_generator import generate_comment, generate_good_morning, generate_good_night
 from social.facebook_poster import FacebookPoster
 from web.dashboard import start_web_server
 
@@ -71,10 +72,13 @@ class HummingbirdMonitor:
         self.test_mode = config.TEST_MODE
 
         # Detection state for live feed overlay
-        # "idle" | "motion" | "verifying" | "confirmed" | "rejected"
+        # "idle" | "motion" | "verifying" | "confirmed" | "rejected" | "sleeping"
         self.detection_state = "idle"
         self._detection_state_time = 0.0
         self._rejected_today = 0
+        self._sleeping = False
+        self._morning_posted = False
+        self._night_posted = False
 
     def start(self):
         """Start all components."""
@@ -111,6 +115,41 @@ class HummingbirdMonitor:
     def _detection_loop(self, recorder: ClipRecorder):
         """Main loop: capture frames, detect hummingbirds, trigger recording."""
         while self.running:
+            # Night mode — sleep when it's dark out
+            if not is_daytime():
+                if not self._sleeping:
+                    self._sleeping = True
+                    self.detection_state = "sleeping"
+                    schedule_info = get_schedule_info()
+                    logger.info(
+                        "Night mode: sleeping until %s (sunset was %s)",
+                        schedule_info["wake_time"],
+                        schedule_info["sunset"],
+                    )
+
+                    # End-of-day post with tally
+                    if not self._night_posted:
+                        self._night_posted = True
+                        self._post_goodnight(schedule_info)
+
+                time.sleep(30)  # Check every 30 seconds if it's daytime yet
+                continue
+            elif self._sleeping:
+                self._sleeping = False
+                self._night_posted = False  # Reset for next night
+                self.detection_state = "idle"
+                logger.info("Good morning! Waking up and starting detection.")
+
+                # Morning post
+                if not self._morning_posted:
+                    self._morning_posted = True
+                    self._post_goodmorning()
+
+            # First-ever wake up (not coming from sleep)
+            elif not self._morning_posted and config.NIGHT_MODE_ENABLED:
+                self._morning_posted = True
+                self._post_goodmorning()
+
             try:
                 frame = self.camera.capture_lores_array()
             except Exception:
@@ -171,6 +210,46 @@ class HummingbirdMonitor:
         """Check if enough time has passed since the last detection."""
         elapsed = time.time() - self._last_detection_time
         return elapsed >= config.DETECTION_COOLDOWN_SECONDS
+
+    def _post_goodmorning(self):
+        """Post a good morning greeting to Facebook."""
+        try:
+            schedule_info = get_schedule_info()
+            caption = generate_good_morning(
+                location=config.LOCATION_NAME,
+                sunrise=schedule_info["sunrise"],
+            )
+            logger.info("Morning post: %s", caption)
+
+            if self.test_mode:
+                logger.info("TEST MODE — skipping morning Facebook post")
+            else:
+                self.poster.post_text(caption)
+        except Exception:
+            logger.exception("Failed to post morning greeting")
+
+    def _post_goodnight(self, schedule_info):
+        """Post a goodnight recap with daily tally to Facebook."""
+        try:
+            caption = generate_good_night(
+                location=config.LOCATION_NAME,
+                sunset=schedule_info["sunset"],
+                detections=self._detections_today,
+                rejected=self._rejected_today,
+            )
+            logger.info("Goodnight post: %s", caption)
+
+            if self.test_mode:
+                logger.info("TEST MODE — skipping goodnight Facebook post")
+            else:
+                self.poster.post_text(caption)
+
+            # Reset daily counters
+            self._detections_today = 0
+            self._rejected_today = 0
+            self._morning_posted = False
+        except Exception:
+            logger.exception("Failed to post goodnight recap")
 
     def _post_worker(self):
         """Background thread: generate comment + post each clip to Facebook."""

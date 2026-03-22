@@ -8,3 +8,4 @@ flask
 transformers
 torch
 torchvision
+astral

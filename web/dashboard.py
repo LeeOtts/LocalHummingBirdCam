@@ -9,6 +9,7 @@ from pathlib import Path
 from flask import Flask, Response, render_template_string, send_from_directory, request, redirect, url_for
 
 import config
+from schedule import get_schedule_info
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ DASHBOARD_HTML = """\
         .status-card .value.green { color: #4ecca3; }
         .status-card .value.red { color: #e94560; }
         .status-card .value.yellow { color: #f0c040; }
+        .status-card .value.purple { color: #8b5cf6; }
 
         .live-feed {
             background: #16213e;
@@ -94,6 +96,7 @@ DASHBOARD_HTML = """\
             transition: border-color 0.3s;
         }
         .feed-overlay.state-idle { border-color: transparent; }
+        .feed-overlay.state-sleeping { border-color: #8b5cf6; box-shadow: 0 0 15px #8b5cf6; }
         .feed-overlay.state-motion { border-color: #f0c040; }
         .feed-overlay.state-verifying { border-color: #58a6ff; }
         .feed-overlay.state-confirmed { border-color: #4ecca3; box-shadow: 0 0 20px #4ecca3; }
@@ -354,6 +357,17 @@ DASHBOARD_HTML = """\
                     Check for Update
                 </button>
             </div>
+            <div class="status-card">
+                <div class="label">Schedule</div>
+                <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;">
+                    {{ status.schedule.status }}
+                </div>
+                <div style="font-size: 0.75em; color: #a0a0b0; margin-top: 8px;">
+                    {{ status.schedule.location }}<br>
+                    Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
+                    Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
+                </div>
+            </div>
         </div>
 
         <div class="live-feed">
@@ -374,6 +388,7 @@ DASHBOARD_HTML = """\
                 <span class="legend-dot" style="background:#f0c040;"></span> Motion detected
                 <span class="legend-dot" style="background:#e94560;"></span> Rejected
                 <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
+                <span class="legend-dot" style="background:#8b5cf6;"></span> Sleeping
             </div>
         </div>
 
@@ -453,12 +468,14 @@ DASHBOARD_HTML = """\
                             'verifying': 'VERIFYING...',
                             'confirmed': 'HUMMINGBIRD!',
                             'rejected': 'NOT A BIRD',
+                            'sleeping': 'SLEEPING',
                         };
                         const colors = {
                             'motion': '#f0c040',
                             'verifying': '#58a6ff',
                             'confirmed': '#4ecca3',
                             'rejected': '#e94560',
+                            'sleeping': '#8b5cf6',
                         };
                         label.textContent = labels[data.state] || data.state;
                         label.style.background = colors[data.state] || '#555';
@@ -647,6 +664,9 @@ def _get_status():
         s.training_count = len(list(training_dir.glob("*.jpg")))
     else:
         s.training_count = 0
+
+    # Schedule info
+    s.schedule = get_schedule_info()
 
     # Git commit
     try:

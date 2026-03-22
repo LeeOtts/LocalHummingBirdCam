@@ -57,6 +57,21 @@ TRAINING_DIR = BASE_DIR / "training"
 # Test mode — records clips and generates captions but skips Facebook posting
 TEST_MODE = os.getenv("TEST_MODE", "true").lower() in ("true", "1", "yes")
 
+# Night mode — auto sleep based on sunrise/sunset at your location
+# Set your latitude/longitude and timezone
+# Bartlett, TN 38134 defaults
+LOCATION_LAT = float(os.getenv("LOCATION_LAT", "35.2045"))
+LOCATION_LNG = float(os.getenv("LOCATION_LNG", "-89.8740"))
+LOCATION_TIMEZONE = os.getenv("LOCATION_TIMEZONE", "US/Eastern")
+LOCATION_NAME = os.getenv("LOCATION_NAME", "Bartlett, TN")
+
+# How many minutes before sunrise to wake up / after sunset to sleep
+WAKE_BEFORE_SUNRISE_MIN = int(os.getenv("WAKE_BEFORE_SUNRISE_MIN", "30"))
+SLEEP_AFTER_SUNSET_MIN = int(os.getenv("SLEEP_AFTER_SUNSET_MIN", "30"))
+
+# Set to false to disable night mode (run 24/7)
+NIGHT_MODE_ENABLED = os.getenv("NIGHT_MODE_ENABLED", "true").lower() in ("true", "1", "yes")
+
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))

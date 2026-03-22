@@ -107,6 +107,30 @@ class FacebookPoster:
             self._save_to_retry_queue(mp4_path, caption)
             return False
 
+    def post_text(self, message: str) -> bool:
+        """Post a text-only status update to the Facebook Page."""
+        if not self.page_id or not self.access_token:
+            logger.error("Facebook credentials not configured")
+            return False
+
+        try:
+            resp = requests.post(
+                f"{GRAPH_API_BASE}/{self.page_id}/feed",
+                data={
+                    "message": message,
+                    "access_token": self.access_token,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            post_id = resp.json().get("id", "unknown")
+            logger.info("Text post published! Post ID: %s", post_id)
+            return True
+
+        except requests.RequestException:
+            logger.exception("Facebook text post failed")
+            return False
+
     def _save_to_retry_queue(self, mp4_path: Path, caption: str):
         """Save failed posts to a JSON retry queue for later."""
         queue = []
