@@ -91,11 +91,14 @@ def _load_model():
         return
 
     try:
-        # Try tflite_runtime first (lightweight), fall back to full tensorflow
+        # Try ai_edge_litert first (Python 3.13+), then tflite_runtime, then full tf
         try:
-            from tflite_runtime.interpreter import Interpreter
+            from ai_edge_litert.interpreter import Interpreter
         except ImportError:
-            from tensorflow.lite.python.interpreter import Interpreter
+            try:
+                from tflite_runtime.interpreter import Interpreter
+            except ImportError:
+                from tensorflow.lite.python.interpreter import Interpreter
 
         _interpreter = Interpreter(model_path=str(MODEL_PATH))
         _interpreter.allocate_tensors()

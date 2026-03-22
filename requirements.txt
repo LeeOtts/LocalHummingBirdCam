@@ -5,6 +5,6 @@ requests
 python-dotenv
 Pillow
 flask
-tflite-runtime
+ai-edge-litert
 astral
 pytz
