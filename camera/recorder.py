@@ -1,4 +1,4 @@
-"""Clip recorder supporting both Pi Camera (CircularOutput) and USB camera (ffmpeg with audio)."""
+"""Clip recorder supporting both Pi Camera (CircularOutput) and USB camera."""
 
 import logging
 import subprocess
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClipRecorder:
-    """Records video clips from either Pi Camera circular buffer or USB camera + mic via ffmpeg."""
+    """Records video clips from either Pi Camera circular buffer or USB camera frames."""
 
     def __init__(self, camera_stream):
         self.camera = camera_stream
@@ -63,143 +63,131 @@ class ClipRecorder:
 
     def _record_usb(self) -> Path | None:
         """
-        Record using ffmpeg directly from the USB camera + microphone.
+        Record using frames from the existing USB capture thread.
 
-        This captures video from /dev/video{N} and audio from ALSA in a single
-        ffmpeg process, producing a proper MP4 with sound.
+        Grabs pre-detection frames from the rolling buffer, then captures
+        post-detection frames from the live thread. No second camera handle
+        needed — uses the frames already being captured.
 
-        Pre-detection frames from the rolling buffer are written as a separate
-        silent clip and then concatenated with the ffmpeg-recorded portion.
+        Audio is captured separately via ffmpeg from the ALSA device and
+        muxed into the final MP4.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         mp4_path = config.CLIPS_DIR / f"hummer_{timestamp}.mp4"
-        pre_path = config.CLIPS_DIR / f"_pre_{timestamp}.mp4"
-        post_path = config.CLIPS_DIR / f"_post_{timestamp}.mp4"
-        concat_list = config.CLIPS_DIR / f"_concat_{timestamp}.txt"
+        video_path = config.CLIPS_DIR / f"_video_{timestamp}.mp4"
+        audio_path = config.CLIPS_DIR / f"_audio_{timestamp}.wav"
 
         try:
-            # --- Step 1: Write pre-detection frames (silent) ---
+            # --- Step 1: Get pre-detection frames from buffer ---
             pre_frames = self.camera.frame_buffer.get_all()
-            has_pre = len(pre_frames) > 0
-            if has_pre:
-                self._write_frames_to_mp4(pre_frames, pre_path)
-                logger.info("Saved %d pre-detection frames", len(pre_frames))
+            logger.info("Got %d pre-detection frames from buffer", len(pre_frames))
 
-            # --- Step 2: Record post-detection with ffmpeg (video + audio) ---
-            video_dev = f"/dev/video{config.USB_CAMERA_INDEX}"
-            duration = config.CLIP_POST_SECONDS
-
-            ffmpeg_cmd = [
-                "ffmpeg", "-y",
-                # Video input
-                "-f", "v4l2",
-                "-framerate", str(config.VIDEO_FPS),
-                "-video_size", f"{config.VIDEO_WIDTH}x{config.VIDEO_HEIGHT}",
-                "-i", video_dev,
-            ]
-
+            # --- Step 2: Start audio recording in background (if enabled) ---
+            audio_proc = None
             if config.AUDIO_ENABLED:
-                ffmpeg_cmd += [
-                    # Audio input
-                    "-f", "alsa",
-                    "-ac", "1",
-                    "-ar", "44100",
-                    "-i", config.AUDIO_DEVICE,
-                ]
+                try:
+                    audio_proc = subprocess.Popen(
+                        [
+                            "arecord",
+                            "-D", config.AUDIO_DEVICE,
+                            "-f", "S16_LE",
+                            "-r", "44100",
+                            "-c", "1",
+                            "-d", str(config.CLIP_POST_SECONDS),
+                            str(audio_path),
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    logger.warning("Failed to start audio recording — continuing without audio")
+                    audio_proc = None
 
-            ffmpeg_cmd += [
-                # Duration
-                "-t", str(duration),
-                # Encoding
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-crf", "23",
-                "-pix_fmt", "yuv420p",
-            ]
+            # --- Step 3: Capture post-detection frames from live thread ---
+            post_frames = []
+            fps = config.VIDEO_FPS
+            total_post_frames = int(config.CLIP_POST_SECONDS * fps)
+            interval = 1.0 / fps
 
-            if config.AUDIO_ENABLED:
-                ffmpeg_cmd += ["-c:a", "aac", "-b:a", "128k"]
+            logger.info("Recording %d post-detection frames (~%ds)...",
+                         total_post_frames, config.CLIP_POST_SECONDS)
 
-            ffmpeg_cmd += [str(post_path)]
+            for _ in range(total_post_frames):
+                if hasattr(self.camera, '_usb_lock'):
+                    with self.camera._usb_lock:
+                        if self.camera._usb_latest_frame is not None:
+                            post_frames.append(self.camera._usb_latest_frame.copy())
+                time.sleep(interval)
 
-            logger.info("Recording started (ffmpeg): %s for %ds", mp4_path.name, duration)
+            # Wait for audio to finish
+            if audio_proc is not None:
+                try:
+                    audio_proc.wait(timeout=config.CLIP_POST_SECONDS + 10)
+                except subprocess.TimeoutExpired:
+                    audio_proc.kill()
 
-            result = subprocess.run(
-                ffmpeg_cmd,
-                capture_output=True, text=True,
-                timeout=duration + 30,
-            )
-
-            if result.returncode != 0:
-                logger.error("ffmpeg recording failed: %s", result.stderr[-500:])
-                # Fall back to frame-buffer-only recording
-                if has_pre:
-                    pre_path.rename(mp4_path)
-                    return mp4_path
+            # --- Step 4: Write all frames to video file ---
+            all_frames = pre_frames + post_frames
+            if not all_frames:
+                logger.warning("No frames captured — skipping clip")
+                self._cleanup_temp_files(video_path, audio_path)
                 return None
 
-            logger.info("Recording stopped: %s", mp4_path.name)
+            self._write_frames_to_mp4(all_frames, video_path)
 
-            # --- Step 3: Concatenate pre + post if we have pre-detection frames ---
-            if has_pre and pre_path.exists():
-                # Use ffmpeg concat demuxer
-                concat_list.write_text(
-                    f"file '{pre_path.name}'\nfile '{post_path.name}'\n"
+            # --- Step 5: Mux video + audio if we have audio ---
+            if audio_proc is not None and audio_path.exists() and audio_path.stat().st_size > 0:
+                mux_result = subprocess.run(
+                    [
+                        "ffmpeg", "-y",
+                        "-i", str(video_path),
+                        "-i", str(audio_path),
+                        "-c:v", "copy",
+                        "-c:a", "aac", "-b:a", "96k",
+                        "-shortest",
+                        str(mp4_path),
+                    ],
+                    capture_output=True, text=True, timeout=60,
                 )
 
-                concat_cmd = [
-                    "ffmpeg", "-y",
-                    "-f", "concat",
-                    "-safe", "0",
-                    "-i", str(concat_list),
-                    "-c", "copy",
-                    str(mp4_path),
-                ]
+                self._cleanup_temp_files(video_path, audio_path)
 
-                concat_result = subprocess.run(
-                    concat_cmd,
-                    capture_output=True, text=True,
-                    timeout=30,
-                )
-
-                # Clean up temp files
-                pre_path.unlink(missing_ok=True)
-                post_path.unlink(missing_ok=True)
-                concat_list.unlink(missing_ok=True)
-
-                if concat_result.returncode != 0:
-                    logger.warning("Concat failed, using post-recording only: %s",
-                                   concat_result.stderr[-300:])
-                    # If concat failed, just use the post recording
-                    if post_path.exists():
-                        post_path.rename(mp4_path)
-                    return mp4_path if mp4_path.exists() else None
+                if mux_result.returncode != 0:
+                    logger.warning("Audio mux failed, using video-only: %s",
+                                   mux_result.stderr[-300:])
+                    # Fall back to video only
+                    if not mp4_path.exists():
+                        self._write_frames_to_mp4(all_frames, mp4_path)
             else:
-                # No pre-detection frames, just rename the post recording
-                post_path.rename(mp4_path)
+                # No audio — just rename video
+                video_path.rename(mp4_path)
+                self._cleanup_temp_files(audio_path)
 
             if mp4_path.exists():
                 size_mb = mp4_path.stat().st_size / 1_048_576
-                logger.info("Final clip: %s (%.1f MB)", mp4_path.name, size_mb)
+                logger.info("Final clip: %s (%.1f MB, %d frames)",
+                            mp4_path.name, size_mb, len(all_frames))
                 return mp4_path
 
             return None
 
-        except subprocess.TimeoutExpired:
-            logger.error("ffmpeg recording timed out")
-            self._cleanup_temp_files(pre_path, post_path, concat_list)
-            return None
         except Exception:
             logger.exception("Failed to record clip (USB)")
-            self._cleanup_temp_files(pre_path, post_path, concat_list)
+            self._cleanup_temp_files(video_path, audio_path)
             return None
 
     def _write_frames_to_mp4(self, frames: list, mp4_path: Path) -> Path | None:
-        """Write a list of BGR frames to an MP4 file using OpenCV (silent — no audio)."""
+        """Write a list of BGR frames to an MP4 file using OpenCV."""
         try:
             h, w = frames[0].shape[:2]
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            # Use H264 if available, fall back to mp4v
+            fourcc = cv2.VideoWriter_fourcc(*"avc1")
             writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
+
+            if not writer.isOpened():
+                # Fall back to mp4v codec
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
             for frame in frames:
                 writer.write(frame)
@@ -207,11 +195,12 @@ class ClipRecorder:
             writer.release()
 
             size_mb = mp4_path.stat().st_size / 1_048_576
-            logger.info("Wrote pre-clip: %s (%.1f MB, %d frames)", mp4_path.name, size_mb, len(frames))
+            logger.info("Wrote clip: %s (%.1f MB, %d frames)",
+                         mp4_path.name, size_mb, len(frames))
             return mp4_path
 
         except Exception:
-            logger.exception("Failed to write pre-clip MP4")
+            logger.exception("Failed to write MP4")
             return None
 
     def _remux_h264_to_mp4(self, h264_path: Path, mp4_path: Path) -> Path | None:
@@ -237,6 +226,7 @@ class ClipRecorder:
         """Remove temporary files."""
         for p in paths:
             try:
-                p.unlink(missing_ok=True)
+                if isinstance(p, Path):
+                    p.unlink(missing_ok=True)
             except Exception:
                 pass

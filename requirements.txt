@@ -5,7 +5,6 @@ requests
 python-dotenv
 Pillow
 flask
-transformers
-torch
-torchvision
+tflite-runtime
 astral
+pytz

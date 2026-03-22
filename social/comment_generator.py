@@ -9,6 +9,16 @@ import config
 
 logger = logging.getLogger(__name__)
 
+# Singleton OpenAI client — reuses connection pool
+_client = None
+
+
+def _get_client():
+    global _client
+    if _client is None and config.OPENAI_API_KEY:
+        _client = OpenAI(api_key=config.OPENAI_API_KEY)
+    return _client
+
 SYSTEM_PROMPT = """\
 You are the voice of a Facebook page called "Backyard Hummers," an automated \
 hummingbird feeder camera.
@@ -73,7 +83,7 @@ def generate_comment() -> str:
         return random.choice(FALLBACK_CAPTIONS)
 
     try:
-        client = OpenAI(api_key=config.OPENAI_API_KEY)
+        client = _get_client()
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -157,7 +167,7 @@ def generate_good_morning(location: str, sunrise: str) -> str:
         return f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
 
     try:
-        client = OpenAI(api_key=config.OPENAI_API_KEY)
+        client = _get_client()
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -184,7 +194,7 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
         return f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
 
     try:
-        client = OpenAI(api_key=config.OPENAI_API_KEY)
+        client = _get_client()
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[

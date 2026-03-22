@@ -98,6 +98,7 @@ class CameraStream:
         self.camera_type = "usb"
 
         # Rolling frame buffer for pre-detection capture
+        # Uses JPEG compression to save memory (~10MB vs ~221MB raw)
         buffer_seconds = config.CLIP_PRE_SECONDS
         buffer_size = int(config.VIDEO_FPS * buffer_seconds)
         self.frame_buffer = FrameBuffer(maxlen=buffer_size)
@@ -110,7 +111,7 @@ class CameraStream:
         self._usb_thread.start()
 
         logger.info(
-            "USB Camera started: %dx%d@%.0ffps (requested %dx%d@%d), buffer=%d frames",
+            "USB Camera started: %dx%d@%.0ffps (requested %dx%d@%d), buffer=%d frames (JPEG compressed)",
             actual_w, actual_h, actual_fps,
             config.VIDEO_WIDTH, config.VIDEO_HEIGHT, config.VIDEO_FPS,
             buffer_size,
@@ -167,20 +168,28 @@ class CameraStream:
 
 
 class FrameBuffer:
-    """Thread-safe rolling buffer of video frames for USB camera recording."""
+    """Thread-safe rolling buffer storing JPEG-compressed frames to save RAM.
+
+    Raw frames at 640x480 BGR = ~921KB each. At 24fps x 10s = 240 frames = ~221MB.
+    JPEG compressed at quality 80 = ~30-50KB each. 240 frames = ~7-12MB.
+    """
 
     def __init__(self, maxlen: int):
         self._buffer = deque(maxlen=maxlen)
         self._lock = threading.Lock()
 
     def add(self, frame: np.ndarray):
+        """Compress frame to JPEG and add to buffer."""
+        _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         with self._lock:
-            self._buffer.append(frame)
+            self._buffer.append(jpeg)
 
     def get_all(self) -> list[np.ndarray]:
-        """Get a copy of all buffered frames."""
+        """Decompress and return all buffered frames as BGR numpy arrays."""
         with self._lock:
-            return list(self._buffer)
+            jpegs = list(self._buffer)
+
+        return [cv2.imdecode(j, cv2.IMREAD_COLOR) for j in jpegs]
 
     def clear(self):
         with self._lock:

@@ -191,9 +191,6 @@ class HummingbirdMonitor:
                 self._detections_today += 1
                 logger.info("Hummingbird confirmed! Starting recording...")
 
-            elif self.detector._consecutive_detections > 0 and self.detection_state == "idle":
-                self.detection_state = "motion"
-
                 # Reset detector state during recording
                 self.detector.reset()
 
@@ -203,6 +200,12 @@ class HummingbirdMonitor:
                     self.clip_queue.put(clip_path)
                     logger.info("Clip queued for posting: %s", clip_path.name)
 
+                # Clean up old clips if disk is getting full
+                self._cleanup_old_clips()
+
+            elif self.detector._consecutive_detections > 0 and self.detection_state == "idle":
+                self.detection_state = "motion"
+
             # Small sleep to avoid busy-looping — detection at ~15-20 fps on Pi 3B+
             time.sleep(0.05)
 
@@ -210,6 +213,24 @@ class HummingbirdMonitor:
         """Check if enough time has passed since the last detection."""
         elapsed = time.time() - self._last_detection_time
         return elapsed >= config.DETECTION_COOLDOWN_SECONDS
+
+    def _cleanup_old_clips(self):
+        """Remove oldest clips if total disk usage exceeds MAX_CLIPS_DISK_MB."""
+        try:
+            if not config.CLIPS_DIR.exists():
+                return
+            clips = sorted(config.CLIPS_DIR.glob("*.mp4"), key=lambda p: p.stat().st_mtime)
+            total = sum(c.stat().st_size for c in clips)
+            max_bytes = config.MAX_CLIPS_DISK_MB * 1_048_576
+
+            while total > max_bytes and clips:
+                old = clips.pop(0)
+                total -= old.stat().st_size
+                old.unlink()
+                old.with_suffix(".txt").unlink(missing_ok=True)
+                logger.info("Auto-deleted old clip: %s (disk cleanup)", old.name)
+        except Exception:
+            logger.exception("Clip cleanup failed")
 
     def _post_goodmorning(self):
         """Post a good morning greeting to Facebook."""

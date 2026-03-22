@@ -713,17 +713,24 @@ def _get_recent_clips(limit=12):
 
 
 def _get_recent_logs(limit=50):
-    """Read the last N lines from the log file."""
+    """Read the last N lines from the log file using tail (avoids loading full 5MB file)."""
     log_file = config.LOGS_DIR / "hummingbird.log"
     if not log_file.exists():
         return []
 
     try:
-        lines = log_file.read_text().strip().split("\n")[-limit:]
-    except OSError:
+        import subprocess
+        result = subprocess.run(
+            ["tail", "-n", str(limit), str(log_file)],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return []
+        lines = result.stdout.strip().split("\n")
+    except Exception:
         return []
 
-    result = []
+    output = []
     for line in lines:
         if "[ERROR]" in line:
             css = "log-error"
@@ -731,8 +738,8 @@ def _get_recent_logs(limit=50):
             css = "log-warn"
         else:
             css = "log-info"
-        result.append({"text": line, "css_class": css})
-    return result
+        output.append({"text": line, "css_class": css})
+    return output
 
 
 @app.route("/")

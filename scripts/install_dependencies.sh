@@ -8,6 +8,16 @@ echo "=== Backyard Hummers - Dependency Installer ==="
 PROJECT_DIR="/home/pi/LocalHummingBirdCam"
 cd "$PROJECT_DIR"
 
+# Increase swap for installation (Pi 3 only has 1GB RAM)
+echo "Configuring swap for installation..."
+if [ -f /etc/dphys-swapfile ]; then
+    sudo dphys-swapfile swapoff 2>/dev/null || true
+    sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
+    sudo dphys-swapfile setup
+    sudo dphys-swapfile swapon
+    echo "Swap set to 1GB"
+fi
+
 # System packages
 echo "Installing system packages..."
 sudo apt update
@@ -18,8 +28,7 @@ sudo apt install -y \
     ffmpeg \
     v4l-utils \
     libatlas-base-dev \
-    alsa-utils \
-    pulseaudio
+    alsa-utils
 
 # Try to install picamera2 packages (optional, for Pi Camera Module)
 echo "Attempting to install Pi Camera packages (optional)..."
@@ -37,6 +46,9 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Create directories
+mkdir -p clips logs models training
+
 # Create .env from example if it doesn't exist
 if [ ! -f ".env" ]; then
     cp .env.example .env
@@ -45,14 +57,10 @@ if [ ! -f ".env" ]; then
     echo "  nano $PROJECT_DIR/.env"
 fi
 
-# Create directories
-mkdir -p clips logs models
-
 # Install systemd services
 echo "Installing systemd services..."
 sudo cp scripts/hummingbird.service /etc/systemd/system/
 sudo cp scripts/hummingbird-updater.service /etc/systemd/system/
-sudo cp scripts/hummingbird-updater.timer /etc/systemd/system/
 
 # Sudoers — allow pi to restart the service without a password
 sudo cp scripts/hummingbird-sudoers /etc/sudoers.d/hummingbird
@@ -73,5 +81,4 @@ echo "  1. Edit .env with your API keys:  nano $PROJECT_DIR/.env"
 echo "  2. Plug in USB camera and check:  ls /dev/video*"
 echo "  3. Start the app:                 sudo systemctl start hummingbird"
 echo "  4. View dashboard:                http://$(hostname -I | awk '{print $1}'):8080"
-echo "  5. Check updater status:          systemctl status hummingbird-updater.timer"
 echo ""

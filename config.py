@@ -23,8 +23,8 @@ MAX_POSTS_PER_DAY = int(os.getenv("MAX_POSTS_PER_DAY", "10"))
 # Video settings
 VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "640"))
 VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "480"))
-VIDEO_FPS = int(os.getenv("VIDEO_FPS", "24"))
-CLIP_PRE_SECONDS = int(os.getenv("CLIP_PRE_SECONDS", "10"))
+VIDEO_FPS = int(os.getenv("VIDEO_FPS", "15"))
+CLIP_PRE_SECONDS = int(os.getenv("CLIP_PRE_SECONDS", "5"))
 CLIP_POST_SECONDS = int(os.getenv("CLIP_POST_SECONDS", "20"))
 VIDEO_BITRATE = int(os.getenv("VIDEO_BITRATE", "1500000"))
 
@@ -47,6 +47,9 @@ AUDIO_DEVICE = os.getenv("AUDIO_DEVICE", "default")
 # Lores stream for detection
 LORES_WIDTH = 320
 LORES_HEIGHT = 240
+
+# Disk management — auto-delete oldest clips when total exceeds this limit
+MAX_CLIPS_DISK_MB = int(os.getenv("MAX_CLIPS_DISK_MB", "2000"))  # 2GB default
 
 # Paths
 CLIPS_DIR = BASE_DIR / os.getenv("CLIPS_DIR", "clips")
