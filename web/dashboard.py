@@ -109,6 +109,25 @@ DASHBOARD_HTML = """\
             font-weight: bold;
             font-size: 0.85em;
         }
+        .audio-toggle {
+            position: absolute;
+            top: 12px; right: 12px;
+            z-index: 10;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #555;
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            font-size: 1.2em;
+            cursor: pointer;
+            color: #e0e0e0;
+            padding: 0;
+            line-height: 40px;
+            text-align: center;
+        }
+        .audio-toggle.active {
+            background: rgba(78, 204, 163, 0.7);
+            border-color: #4ecca3;
+        }
         .feed-controls {
             text-align: center;
             margin-top: 12px;
@@ -376,10 +395,15 @@ DASHBOARD_HTML = """\
             <div class="feed-container">
                 <img src="/feed" alt="Live camera feed" id="liveFeed">
                 <div class="feed-overlay" id="feedOverlay"></div>
+                <audio id="liveAudio" preload="none" muted></audio>
+                <button class="btn audio-toggle" id="audioToggle" onclick="toggleAudio()" title="Toggle live audio">
+                    <span id="audioIcon">&#128263;</span>
+                </button>
             </div>
             <div class="feed-controls">
                 <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
+                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#0f3460;">Test Mic</button>
                 <span class="training-stats">
                     Training samples: {{ status.training_count }}
                 </span>
@@ -574,6 +598,56 @@ DASHBOARD_HTML = """\
                 .catch(() => {});
         }
         setInterval(pollDetectionState, 500);
+
+        // Live audio toggle
+        let audioActive = false;
+        function toggleAudio() {
+            const audio = document.getElementById('liveAudio');
+            const btn = document.getElementById('audioToggle');
+            const icon = document.getElementById('audioIcon');
+
+            if (!audioActive) {
+                audio.src = '/feed/audio';
+                audio.muted = false;
+                audio.play().catch(() => showToast('Browser blocked autoplay — click again'));
+                btn.classList.add('active');
+                icon.innerHTML = '&#128264;';
+                audioActive = true;
+            } else {
+                audio.pause();
+                audio.src = '';
+                btn.classList.remove('active');
+                icon.innerHTML = '&#128263;';
+                audioActive = false;
+            }
+        }
+
+        // Test mic — record 3 seconds and play back
+        function testMic() {
+            const btn = document.getElementById('testMicBtn');
+            btn.textContent = 'Recording...';
+            btn.disabled = true;
+
+            fetch('/api/audio/test')
+                .then(r => {
+                    if (!r.ok) throw new Error('Mic test failed');
+                    return r.blob();
+                })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const testAudio = new Audio(url);
+                    testAudio.play();
+                    testAudio.onended = () => URL.revokeObjectURL(url);
+                    btn.textContent = 'Test Mic';
+                    btn.disabled = false;
+                    showToast('Playing mic test...');
+                })
+                .catch(() => {
+                    btn.textContent = 'Test Mic';
+                    btn.disabled = false;
+                    showToast('Mic test failed — check logs');
+                });
+        }
 
         function markHummingbird() {
             fetch('/api/training/mark', {
@@ -935,6 +1009,73 @@ def live_feed():
         generate_frames(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+@app.route("/feed/audio")
+def live_audio():
+    """Stream live audio from the USB mic as MP3."""
+    import subprocess as sp
+
+    # Detect audio device
+    from camera.recorder import ClipRecorder
+    device = ClipRecorder._detect_audio_device()
+    device = device.replace("hw:", "plughw:")
+
+    def generate_audio():
+        # arecord -> ffmpeg -> mp3 stream
+        proc = sp.Popen(
+            f'arecord -D {device} -f S16_LE -r 16000 -c 2 -t raw | '
+            f'ffmpeg -f s16le -ar 16000 -ac 2 -i - -f mp3 -ab 64k -',
+            shell=True,
+            stdout=sp.PIPE,
+            stderr=sp.DEVNULL,
+        )
+        try:
+            while True:
+                chunk = proc.stdout.read(4096)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            proc.kill()
+            proc.wait()
+
+    return Response(
+        generate_audio(),
+        mimetype="audio/mpeg",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.route("/api/audio/test")
+def test_mic():
+    """Record 3 seconds from the mic and return the WAV file."""
+    import subprocess as sp
+    import tempfile
+
+    from camera.recorder import ClipRecorder
+    device = ClipRecorder._detect_audio_device()
+    device = device.replace("hw:", "plughw:")
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        result = sp.run(
+            ["arecord", "-D", device, "-f", "S16_LE", "-r", "16000", "-c", "2", "-d", "3", tmp_path],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        if result.returncode != 0:
+            logger.warning("Mic test failed: %s", result.stderr[-200:])
+            return {"ok": False, "error": "arecord failed"}, 500
+
+        from flask import send_file
+        return send_file(tmp_path, mimetype="audio/wav", as_attachment=False)
+
+    except Exception as e:
+        logger.exception("Mic test error")
+        return {"ok": False, "error": str(e)}, 500
 
 
 @app.route("/api/logs/clear", methods=["POST"])
