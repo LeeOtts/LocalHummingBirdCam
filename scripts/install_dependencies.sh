@@ -64,8 +64,6 @@ chmod +x scripts/auto_update.sh
 # Enable services
 sudo systemctl daemon-reload
 sudo systemctl enable hummingbird
-sudo systemctl enable hummingbird-updater.timer
-sudo systemctl start hummingbird-updater.timer
 
 echo ""
 echo "=== Installation complete! ==="
