@@ -565,6 +565,22 @@ DASHBOARD_HTML = """\
         }
         setInterval(pollClips, 10000);
 
+        // Poll logs and update
+        function pollLogs() {
+            const filter = document.getElementById('logFilter').value;
+            fetch('/api/logs')
+                .then(r => r.json())
+                .then(data => {
+                    const box = document.getElementById('logBox');
+                    box.innerHTML = data.logs.map(l => {
+                        const display = (filter === 'all' || l.css_class === filter) ? '' : 'display:none;';
+                        return `<div class="log-line ${l.css_class}" style="${display}">${l.text}</div>`;
+                    }).join('');
+                })
+                .catch(() => {});
+        }
+        setInterval(pollLogs, 5000);
+
         // Poll detection state for live overlay
         function pollDetectionState() {
             fetch('/api/detection-state')
@@ -954,7 +970,7 @@ def _get_recent_logs(limit=50):
         return []
 
     output = []
-    for line in lines:
+    for line in reversed(lines):  # Newest first
         if "[ERROR]" in line:
             css = "log-error"
         elif "[WARNING]" in line:
@@ -1171,6 +1187,13 @@ def test_record():
 
     threading.Thread(target=_do_record, daemon=True).start()
     return {"ok": True, "message": "Recording started — clip will appear in ~25 seconds"}
+
+
+@app.route("/api/logs")
+def api_logs():
+    """JSON log lines for live refresh."""
+    logs = _get_recent_logs()
+    return {"logs": [{"text": l["text"], "css_class": l["css_class"]} for l in logs]}
 
 
 @app.route("/api/logs/clear", methods=["POST"])
