@@ -65,7 +65,7 @@ TEST_MODE = os.getenv("TEST_MODE", "true").lower() in ("true", "1", "yes")
 # Bartlett, TN 38134 defaults
 LOCATION_LAT = float(os.getenv("LOCATION_LAT", "35.2045"))
 LOCATION_LNG = float(os.getenv("LOCATION_LNG", "-89.8740"))
-LOCATION_TIMEZONE = os.getenv("LOCATION_TIMEZONE", "US/Eastern")
+LOCATION_TIMEZONE = os.getenv("LOCATION_TIMEZONE", "America/Chicago")
 LOCATION_NAME = os.getenv("LOCATION_NAME", "Bartlett, TN")
 
 # How many minutes before sunrise to wake up / after sunset to sleep

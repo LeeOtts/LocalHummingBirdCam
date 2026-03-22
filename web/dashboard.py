@@ -424,10 +424,20 @@ DASHBOARD_HTML = """\
         </div>
 
         <div class="section">
-            <h2>Recent Logs</h2>
-            <div class="log-box">
+            <h2>Recent Logs
+                <div style="float:right; display:flex; gap:8px;">
+                    <select id="logFilter" onchange="filterLogs()" style="background:#0d1117; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:4px 8px; font-size:0.75em;">
+                        <option value="all">All</option>
+                        <option value="log-error">Errors</option>
+                        <option value="log-warn">Warnings</option>
+                        <option value="log-info">Info</option>
+                    </select>
+                    <button class="btn btn-delete" onclick="clearLogs()" style="font-size:0.6em; padding:4px 12px;">Clear Logs</button>
+                </div>
+            </h2>
+            <div class="log-box" id="logBox">
                 {% for line in logs %}
-                <div class="{{ line.css_class }}">{{ line.text }}</div>
+                <div class="log-line {{ line.css_class }}">{{ line.text }}</div>
                 {% endfor %}
             </div>
         </div>
@@ -554,6 +564,30 @@ DASHBOARD_HTML = """\
                 else showToast('Error: ' + data.error);
             })
             .catch(() => showToast('Mark failed'));
+        }
+
+        function clearLogs() {
+            if (!confirm('Clear all log entries?')) return;
+            fetch('/api/logs/clear', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        document.getElementById('logBox').innerHTML = '';
+                        showToast('Logs cleared');
+                    }
+                })
+                .catch(() => showToast('Failed to clear logs'));
+        }
+
+        function filterLogs() {
+            const filter = document.getElementById('logFilter').value;
+            document.querySelectorAll('#logBox .log-line').forEach(el => {
+                if (filter === 'all' || el.classList.contains(filter)) {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
         }
 
         function showToast(msg) {
@@ -864,6 +898,18 @@ def live_feed():
         generate_frames(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+@app.route("/api/logs/clear", methods=["POST"])
+def clear_logs():
+    """Clear the log file."""
+    log_file = config.LOGS_DIR / "hummingbird.log"
+    try:
+        log_file.write_text("")
+        logger.info("Logs cleared from dashboard")
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}, 500
 
 
 @app.route("/api/test-mode", methods=["POST"])
