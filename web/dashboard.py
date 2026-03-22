@@ -99,8 +99,8 @@ DASHBOARD_HTML = """\
         .feed-overlay.state-sleeping { border-color: #a78bfa; box-shadow: 0 0 15px #a78bfa; }
         .feed-overlay.state-motion { border-color: #f0c040; }
         .feed-overlay.state-verifying { border-color: #22c55e; }
-        .feed-overlay.state-confirmed { border-color: #dc2626; box-shadow: 0 0 20px #dc2626; }
-        .feed-overlay.state-rejected { border-color: #ef4444; }
+        .feed-overlay.state-confirmed { border-color: #22c55e; box-shadow: 0 0 20px #22c55e; }
+        .feed-overlay.state-rejected { border-color: #dc2626; }
         .feed-overlay.state-camera_error { border-color: #ef4444; box-shadow: 0 0 20px #ef4444; }
         .feed-overlay .state-label {
             position: absolute;
@@ -426,10 +426,10 @@ DASHBOARD_HTML = """\
                 </span>
             </div>
             <div class="detection-legend">
-                <span class="legend-dot" style="background:#dc2626;"></span> Confirmed
+                <span class="legend-dot" style="background:#22c55e;"></span> Confirmed
                 <span class="legend-dot" style="background:#f0c040;"></span> Motion detected
-                <span class="legend-dot" style="background:#ef4444;"></span> Rejected
-                <span class="legend-dot" style="background:#22c55e;"></span> Verifying...
+                <span class="legend-dot" style="background:#dc2626;"></span> Rejected
+                <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
                 <span class="legend-dot" style="background:#a78bfa;"></span> Sleeping
                 <span class="legend-dot" style="background:#ef4444;"></span> Camera Error
             </div>
@@ -627,9 +627,9 @@ DASHBOARD_HTML = """\
                         };
                         const colors = {
                             'motion': '#f0c040',
-                            'verifying': '#22c55e',
-                            'confirmed': '#dc2626',
-                            'rejected': '#ef4444',
+                            'verifying': '#58a6ff',
+                            'confirmed': '#22c55e',
+                            'rejected': '#dc2626',
                             'sleeping': '#a78bfa',
                             'camera_error': '#ef4444',
                         };
