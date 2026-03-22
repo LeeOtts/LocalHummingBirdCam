@@ -87,12 +87,15 @@ class ClipRecorder:
             if config.AUDIO_ENABLED:
                 audio_device = self._detect_audio_device()
                 try:
+                    # Use plughw for auto format conversion, stereo (2ch),
+                    # 16kHz sample rate — matches most USB camera mics
+                    device = audio_device.replace("hw:", "plughw:")
                     arecord_cmd = [
                         "arecord",
-                        "-D", audio_device,
+                        "-D", device,
                         "-f", "S16_LE",
-                        "-r", "44100",
-                        "-c", "1",
+                        "-r", "16000",
+                        "-c", "2",
                         "-d", str(config.CLIP_POST_SECONDS),
                         str(audio_path),
                     ]
