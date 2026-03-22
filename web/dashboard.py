@@ -296,60 +296,61 @@ DASHBOARD_HTML = """\
 
     <div class="container">
         <div class="refresh-bar">
-            Auto-refreshes every 10 seconds | <a href="/">Refresh now</a>
+            Status updates live | <a href="/">Full refresh</a>
         </div>
 
         <div class="status-grid">
             <div class="status-card">
                 <div class="label">System Status</div>
-                <div class="value {{ 'green' if status.running else 'red' }}">
+                <div class="value {{ 'green' if status.running else 'red' }}" id="stat-running">
                     {{ 'RUNNING' if status.running else 'STOPPED' }}
                 </div>
             </div>
             <div class="status-card">
                 <div class="label">Detections Today</div>
-                <div class="value green">{{ status.detections_today }}</div>
+                <div class="value green" id="stat-detections">{{ status.detections_today }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Posts Today</div>
-                <div class="value yellow">{{ status.posts_today }}</div>
+                <div class="value yellow" id="stat-posts">{{ status.posts_today }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Clips Saved</div>
-                <div class="value">{{ status.total_clips }}</div>
+                <div class="value" id="stat-clips">{{ status.total_clips }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Uptime</div>
-                <div class="value">{{ status.uptime }}</div>
+                <div class="value" id="stat-uptime">{{ status.uptime }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Camera</div>
-                <div class="value">{{ status.camera_type }}</div>
+                <div class="value" id="stat-camera">{{ status.camera_type }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Rejected Today</div>
-                <div class="value red">{{ status.rejected_today }}</div>
+                <div class="value red" id="stat-rejected">{{ status.rejected_today }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Cooldown</div>
-                <div class="value {{ 'red' if status.in_cooldown else 'green' }}">
+                <div class="value {{ 'red' if status.in_cooldown else 'green' }}" id="stat-cooldown">
                     {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
                 </div>
             </div>
             <div class="status-card">
                 <div class="label">Facebook Posting</div>
-                <div class="value {{ 'yellow' if status.test_mode else 'green' }}">
+                <div class="value {{ 'yellow' if status.test_mode else 'green' }}" id="stat-testmode">
                     {{ 'TEST MODE' if status.test_mode else 'LIVE' }}
                 </div>
                 <button class="btn {{ 'btn-cancel' if status.test_mode else 'btn-delete' }}"
                         style="margin-top: 10px; font-size: 0.7em;"
+                        id="testModeBtn"
                         onclick="toggleTestMode()">
                     {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
                 </button>
             </div>
             <div class="status-card">
                 <div class="label">Version</div>
-                <div class="value" style="font-size: 0.9em;">{{ status.git_commit }}</div>
+                <div class="value" style="font-size: 0.9em;" id="stat-version">{{ status.git_commit }}</div>
                 <button class="btn btn-update"
                         style="margin-top: 10px; font-size: 0.7em;"
                         id="updateBtn"
@@ -359,10 +360,10 @@ DASHBOARD_HTML = """\
             </div>
             <div class="status-card">
                 <div class="label">Schedule</div>
-                <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;">
+                <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
                     {{ status.schedule.status }}
                 </div>
-                <div style="font-size: 0.75em; color: #a0a0b0; margin-top: 8px;">
+                <div style="font-size: 0.75em; color: #a0a0b0; margin-top: 8px;" id="stat-schedule-detail">
                     {{ status.schedule.location }}<br>
                     Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
                     Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
@@ -444,8 +445,47 @@ DASHBOARD_HTML = """\
     <div class="toast" id="toast"></div>
 
     <script>
-        // Pause auto-refresh while user is interacting
-        let autoRefresh = setTimeout(() => location.reload(), 10000);
+        // Live-update status cards via AJAX (no page reload, no stream flicker)
+        function pollStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(d => {
+                    const el = id => document.getElementById(id);
+
+                    el('stat-running').textContent = d.running ? 'RUNNING' : 'STOPPED';
+                    el('stat-running').className = 'value ' + (d.running ? 'green' : 'red');
+
+                    el('stat-detections').textContent = d.detections_today;
+                    el('stat-posts').textContent = d.posts_today;
+                    el('stat-clips').textContent = d.total_clips;
+                    el('stat-uptime').textContent = d.uptime;
+                    el('stat-camera').textContent = d.camera_type;
+                    el('stat-rejected').textContent = d.rejected_today;
+
+                    el('stat-cooldown').textContent = d.in_cooldown ? 'ACTIVE' : 'READY';
+                    el('stat-cooldown').className = 'value ' + (d.in_cooldown ? 'red' : 'green');
+
+                    el('stat-testmode').textContent = d.test_mode ? 'TEST MODE' : 'LIVE';
+                    el('stat-testmode').className = 'value ' + (d.test_mode ? 'yellow' : 'green');
+
+                    const tmBtn = el('testModeBtn');
+                    tmBtn.textContent = d.test_mode ? 'Go Live' : 'Switch to Test';
+                    tmBtn.className = 'btn ' + (d.test_mode ? 'btn-cancel' : 'btn-delete');
+
+                    el('stat-version').textContent = d.git_commit;
+
+                    if (d.schedule) {
+                        el('stat-schedule').textContent = d.schedule.status;
+                        el('stat-schedule').className = 'value ' + (d.schedule.is_daytime ? 'green' : 'purple');
+                        el('stat-schedule-detail').innerHTML =
+                            d.schedule.location + '<br>' +
+                            'Rise ' + d.schedule.sunrise + ' / Set ' + d.schedule.sunset + '<br>' +
+                            'Active ' + d.schedule.wake_time + ' - ' + d.schedule.sleep_time;
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollStatus, 5000);
 
         // Poll detection state for live overlay
         function pollDetectionState() {
@@ -525,7 +565,6 @@ DASHBOARD_HTML = """\
 
         function deleteClip(filename, cardId) {
             if (!confirm('Delete ' + filename + ' and its caption?')) return;
-            clearTimeout(autoRefresh);
 
             fetch('/api/clips/' + filename, { method: 'DELETE' })
                 .then(r => r.json())
@@ -536,22 +575,16 @@ DASHBOARD_HTML = """\
                     } else {
                         showToast('Error: ' + data.error);
                     }
-                    autoRefresh = setTimeout(() => location.reload(), 10000);
                 })
-                .catch(() => {
-                    showToast('Delete failed');
-                    autoRefresh = setTimeout(() => location.reload(), 10000);
-                });
+                .catch(() => showToast('Delete failed'));
         }
 
         function showDeleteAll() {
-            clearTimeout(autoRefresh);
             document.getElementById('deleteAllOverlay').classList.add('active');
         }
 
         function hideDeleteAll() {
             document.getElementById('deleteAllOverlay').classList.remove('active');
-            autoRefresh = setTimeout(() => location.reload(), 10000);
         }
 
         function toggleTestMode() {
@@ -560,7 +593,7 @@ DASHBOARD_HTML = """\
                 .then(data => {
                     if (data.ok) {
                         showToast(data.test_mode ? 'Switched to TEST MODE' : 'Facebook posting is LIVE');
-                        setTimeout(() => location.reload(), 1000);
+                        pollStatus();
                     }
                 })
                 .catch(() => showToast('Toggle failed'));
@@ -570,7 +603,6 @@ DASHBOARD_HTML = """\
             const btn = document.getElementById('updateBtn');
             btn.disabled = true;
             btn.textContent = 'Checking...';
-            clearTimeout(autoRefresh);
 
             fetch('/api/update', { method: 'POST' })
                 .then(r => r.json())
@@ -582,19 +614,16 @@ DASHBOARD_HTML = """\
                         showToast('Already up to date');
                         btn.disabled = false;
                         btn.textContent = 'Check for Update';
-                        autoRefresh = setTimeout(() => location.reload(), 10000);
                     } else {
                         showToast('Update failed: ' + (data.error || 'unknown'));
                         btn.disabled = false;
                         btn.textContent = 'Check for Update';
-                        autoRefresh = setTimeout(() => location.reload(), 10000);
                     }
                 })
                 .catch(() => {
                     showToast('Update request failed');
                     btn.disabled = false;
                     btn.textContent = 'Check for Update';
-                    autoRefresh = setTimeout(() => location.reload(), 10000);
                 });
         }
 
@@ -605,7 +634,9 @@ DASHBOARD_HTML = """\
                     if (data.ok) {
                         showToast('Deleted ' + data.deleted + ' clips');
                         hideDeleteAll();
-                        setTimeout(() => location.reload(), 1000);
+                        // Remove all clip cards from the DOM
+                        document.querySelectorAll('.clip-card').forEach(c => c.remove());
+                        pollStatus();
                     } else {
                         showToast('Error: ' + data.error);
                         hideDeleteAll();
@@ -984,7 +1015,7 @@ def mark_training():
 
 @app.route("/api/status")
 def api_status():
-    """JSON status endpoint for programmatic access."""
+    """JSON status endpoint for live dashboard updates (no page reload)."""
     s = _get_status()
     return {
         "running": s.running,
@@ -993,6 +1024,12 @@ def api_status():
         "posts_today": s.posts_today,
         "total_clips": s.total_clips,
         "uptime": s.uptime,
+        "camera_type": s.camera_type,
+        "test_mode": s.test_mode,
+        "rejected_today": s.rejected_today,
+        "training_count": s.training_count,
+        "git_commit": s.git_commit,
+        "schedule": s.schedule,
     }
 
 
