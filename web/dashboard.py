@@ -497,6 +497,43 @@ DASHBOARD_HTML = """\
         }
         setInterval(pollStatus, 5000);
 
+        // Poll clips list and update if changed
+        let knownClips = new Set([{% for clip in clips %}'{{ clip.name }}',{% endfor %}]);
+
+        function pollClips() {
+            fetch('/api/clips/list')
+                .then(r => r.json())
+                .then(data => {
+                    const newNames = new Set(data.clips.map(c => c.name));
+                    // Check if clips changed
+                    if (newNames.size !== knownClips.size || ![...newNames].every(n => knownClips.has(n))) {
+                        // Rebuild clips section
+                        const grid = document.querySelector('.clip-grid');
+                        if (!grid && data.clips.length > 0) {
+                            location.reload();
+                            return;
+                        }
+                        if (grid) {
+                            grid.innerHTML = data.clips.map((c, i) => `
+                                <div class="clip-card" id="clip-dyn-${i}">
+                                    <video controls preload="metadata">
+                                        <source src="/clips/${c.name}" type="video/mp4">
+                                    </video>
+                                    ${c.caption ? `<div class="clip-caption">"${c.caption}"</div>` : ''}
+                                    <div class="clip-info">${c.name} &mdash; ${c.size} &mdash; ${c.time}</div>
+                                    <div class="clip-actions">
+                                        <button class="btn btn-delete" onclick="deleteClip('${c.name}', 'clip-dyn-${i}')">Delete Clip</button>
+                                    </div>
+                                </div>
+                            `).join('');
+                        }
+                        knownClips = newNames;
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollClips, 10000);
+
         // Poll detection state for live overlay
         function pollDetectionState() {
             fetch('/api/detection-state')
@@ -1057,6 +1094,16 @@ def mark_training():
     except Exception as e:
         logger.exception("Failed to save training sample")
         return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/api/clips/list")
+def api_clips_list():
+    """JSON list of recent clips for live updates."""
+    clips = _get_recent_clips()
+    return {"clips": [
+        {"name": c["name"], "size": c["size"], "time": c["time"], "caption": c.get("caption", "")}
+        for c in clips
+    ]}
 
 
 @app.route("/api/status")
