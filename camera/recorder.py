@@ -85,19 +85,22 @@ class ClipRecorder:
             # --- Step 2: Start audio recording in background (if enabled) ---
             audio_proc = None
             if config.AUDIO_ENABLED:
+                audio_device = self._detect_audio_device()
                 try:
+                    arecord_cmd = [
+                        "arecord",
+                        "-D", audio_device,
+                        "-f", "S16_LE",
+                        "-r", "44100",
+                        "-c", "1",
+                        "-d", str(config.CLIP_POST_SECONDS),
+                        str(audio_path),
+                    ]
+                    logger.info("Starting audio: %s", " ".join(arecord_cmd))
                     audio_proc = subprocess.Popen(
-                        [
-                            "arecord",
-                            "-D", config.AUDIO_DEVICE,
-                            "-f", "S16_LE",
-                            "-r", "44100",
-                            "-c", "1",
-                            "-d", str(config.CLIP_POST_SECONDS),
-                            str(audio_path),
-                        ],
+                        arecord_cmd,
                         stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
                     )
                 except Exception:
                     logger.warning("Failed to start audio recording — continuing without audio")
@@ -122,7 +125,14 @@ class ClipRecorder:
             # Wait for audio to finish
             if audio_proc is not None:
                 try:
-                    audio_proc.wait(timeout=config.CLIP_POST_SECONDS + 10)
+                    _, stderr_data = audio_proc.communicate(timeout=config.CLIP_POST_SECONDS + 10)
+                    if audio_proc.returncode != 0:
+                        logger.warning("arecord failed (exit %d): %s",
+                                       audio_proc.returncode,
+                                       stderr_data.decode(errors="replace")[-300:] if stderr_data else "no output")
+                    elif audio_path.exists():
+                        logger.info("Audio recorded: %s (%.1f KB)",
+                                    audio_path.name, audio_path.stat().st_size / 1024)
                 except subprocess.TimeoutExpired:
                     audio_proc.kill()
 
@@ -220,6 +230,34 @@ class ClipRecorder:
         except Exception:
             logger.exception("ffmpeg remux error")
             return None
+
+    @staticmethod
+    def _detect_audio_device() -> str:
+        """Auto-detect USB audio device if AUDIO_DEVICE is 'default'."""
+        device = config.AUDIO_DEVICE
+        if device != "default":
+            return device
+
+        try:
+            result = subprocess.run(
+                ["arecord", "-l"],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                # Look for lines like: "card 1: camera [USB  Live camera], device 0:"
+                if "card" in line.lower() and "usb" in line.lower():
+                    import re
+                    match = re.search(r"card\s+(\d+).*device\s+(\d+)", line, re.IGNORECASE)
+                    if match:
+                        detected = f"hw:{match.group(1)},{match.group(2)}"
+                        logger.info("Auto-detected USB audio device: %s (%s)",
+                                    detected, line.strip())
+                        return detected
+        except Exception:
+            logger.warning("Could not auto-detect audio device")
+
+        logger.warning("No USB audio device found, using 'default'")
+        return "default"
 
     @staticmethod
     def _cleanup_temp_files(*paths):
