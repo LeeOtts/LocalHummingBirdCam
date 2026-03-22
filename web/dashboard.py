@@ -35,18 +35,18 @@ DASHBOARD_HTML = """\
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #1a1a2e;
+            background: #0f1a0f;
             color: #e0e0e0;
             min-height: 100vh;
         }
         header {
-            background: linear-gradient(135deg, #16213e, #0f3460);
+            background: linear-gradient(135deg, #1a2e1a, #0d2818);
             padding: 20px;
             text-align: center;
-            border-bottom: 3px solid #e94560;
+            border-bottom: 3px solid #b91c1c;
         }
-        header h1 { font-size: 1.8em; color: #e94560; }
-        header p { color: #a0a0b0; margin-top: 5px; }
+        header h1 { font-size: 1.8em; color: #dc2626; }
+        header p { color: #8faa8f; margin-top: 5px; }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
 
         .status-grid {
@@ -56,27 +56,27 @@ DASHBOARD_HTML = """\
             margin-bottom: 30px;
         }
         .status-card {
-            background: #16213e;
+            background: #1a2e1a;
             border-radius: 10px;
             padding: 20px;
             text-align: center;
-            border: 1px solid #0f3460;
+            border: 1px solid #2d4a2d;
         }
-        .status-card .label { color: #a0a0b0; font-size: 0.85em; text-transform: uppercase; }
+        .status-card .label { color: #8faa8f; font-size: 0.85em; text-transform: uppercase; }
         .status-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
-        .status-card .value.green { color: #4ecca3; }
-        .status-card .value.red { color: #e94560; }
+        .status-card .value.green { color: #22c55e; }
+        .status-card .value.red { color: #dc2626; }
         .status-card .value.yellow { color: #f0c040; }
-        .status-card .value.purple { color: #8b5cf6; }
+        .status-card .value.purple { color: #a78bfa; }
 
         .live-feed {
-            background: #16213e;
+            background: #1a2e1a;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #0f3460;
+            border: 1px solid #2d4a2d;
         }
-        .live-feed h2 { color: #e94560; margin-bottom: 15px; }
+        .live-feed h2 { color: #dc2626; margin-bottom: 15px; }
         .feed-container {
             position: relative;
             max-width: 640px;
@@ -96,12 +96,12 @@ DASHBOARD_HTML = """\
             transition: border-color 0.3s;
         }
         .feed-overlay.state-idle { border-color: transparent; }
-        .feed-overlay.state-sleeping { border-color: #8b5cf6; box-shadow: 0 0 15px #8b5cf6; }
+        .feed-overlay.state-sleeping { border-color: #a78bfa; box-shadow: 0 0 15px #a78bfa; }
         .feed-overlay.state-motion { border-color: #f0c040; }
-        .feed-overlay.state-verifying { border-color: #58a6ff; }
-        .feed-overlay.state-confirmed { border-color: #4ecca3; box-shadow: 0 0 20px #4ecca3; }
-        .feed-overlay.state-rejected { border-color: #e94560; }
-        .feed-overlay.state-camera_error { border-color: #e94560; box-shadow: 0 0 20px #e94560; }
+        .feed-overlay.state-verifying { border-color: #22c55e; }
+        .feed-overlay.state-confirmed { border-color: #dc2626; box-shadow: 0 0 20px #dc2626; }
+        .feed-overlay.state-rejected { border-color: #ef4444; }
+        .feed-overlay.state-camera_error { border-color: #ef4444; box-shadow: 0 0 20px #ef4444; }
         .feed-overlay .state-label {
             position: absolute;
             top: 10px; left: 10px;
@@ -126,8 +126,8 @@ DASHBOARD_HTML = """\
             text-align: center;
         }
         .audio-toggle.active {
-            background: rgba(78, 204, 163, 0.7);
-            border-color: #4ecca3;
+            background: rgba(34, 197, 94, 0.7);
+            border-color: #22c55e;
         }
         .feed-controls {
             text-align: center;
@@ -139,25 +139,25 @@ DASHBOARD_HTML = """\
             flex-wrap: wrap;
         }
         .btn-mark-yes {
-            background: #4ecca3;
-            color: #1a1a2e;
+            background: #22c55e;
+            color: #0f1a0f;
             font-weight: bold;
         }
-        .btn-mark-yes:hover { background: #3db890; }
+        .btn-mark-yes:hover { background: #16a34a; }
         .btn-mark-no {
-            background: #e94560;
+            background: #dc2626;
             color: white;
         }
-        .btn-mark-no:hover { background: #c73650; }
+        .btn-mark-no:hover { background: #b91c1c; }
         .training-stats {
-            color: #a0a0b0;
+            color: #8faa8f;
             font-size: 0.85em;
         }
         .detection-legend {
             text-align: center;
             margin-top: 10px;
             font-size: 0.8em;
-            color: #a0a0b0;
+            color: #8faa8f;
         }
         .legend-dot {
             display: inline-block;
@@ -168,13 +168,13 @@ DASHBOARD_HTML = """\
         }
 
         .section {
-            background: #16213e;
+            background: #1a2e1a;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #0f3460;
+            border: 1px solid #2d4a2d;
         }
-        .section h2 { color: #e94560; margin-bottom: 15px; }
+        .section h2 { color: #dc2626; margin-bottom: 15px; }
         .section .section-actions {
             float: right;
         }
@@ -185,10 +185,10 @@ DASHBOARD_HTML = """\
             gap: 15px;
         }
         .clip-card {
-            background: #1a1a2e;
+            background: #0f1a0f;
             border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #0f3460;
+            border: 1px solid #2d4a2d;
         }
         .clip-card video {
             width: 100%;
@@ -197,14 +197,14 @@ DASHBOARD_HTML = """\
         .clip-card .clip-info {
             padding: 10px;
             font-size: 0.85em;
-            color: #a0a0b0;
+            color: #8faa8f;
         }
         .clip-card .clip-caption {
             padding: 8px 10px;
             font-size: 0.9em;
             color: #e0e0e0;
-            background: #0f3460;
-            border-top: 1px solid #16213e;
+            background: #1a3a1a;
+            border-top: 1px solid #2d4a2d;
             font-style: italic;
             line-height: 1.4;
         }
@@ -212,7 +212,7 @@ DASHBOARD_HTML = """\
             padding: 8px 10px;
             display: flex;
             gap: 8px;
-            border-top: 1px solid #0f3460;
+            border-top: 1px solid #2d4a2d;
         }
         .btn {
             padding: 6px 14px;
@@ -225,22 +225,22 @@ DASHBOARD_HTML = """\
             display: inline-block;
         }
         .btn-delete {
-            background: #e94560;
+            background: #dc2626;
             color: white;
         }
-        .btn-delete:hover { background: #c73650; }
+        .btn-delete:hover { background: #b91c1c; }
         .btn-delete-all {
-            background: #e94560;
+            background: #dc2626;
             color: white;
             font-size: 0.85em;
             padding: 6px 16px;
         }
-        .btn-delete-all:hover { background: #c73650; }
+        .btn-delete-all:hover { background: #b91c1c; }
         .btn-update {
-            background: #4ecca3;
-            color: #1a1a2e;
+            background: #22c55e;
+            color: #0f1a0f;
         }
-        .btn-update:hover { background: #3db890; }
+        .btn-update:hover { background: #16a34a; }
         .btn-update:disabled { background: #555; color: #999; cursor: wait; }
 
         .confirm-overlay {
@@ -254,8 +254,8 @@ DASHBOARD_HTML = """\
         }
         .confirm-overlay.active { display: flex; }
         .confirm-box {
-            background: #16213e;
-            border: 2px solid #e94560;
+            background: #1a2e1a;
+            border: 2px solid #dc2626;
             border-radius: 12px;
             padding: 30px;
             text-align: center;
@@ -264,12 +264,12 @@ DASHBOARD_HTML = """\
         .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
         .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
         .btn-cancel {
-            background: #0f3460;
+            background: #2d4a2d;
             color: #e0e0e0;
         }
 
         .log-box {
-            background: #0d1117;
+            background: #0a140a;
             border-radius: 8px;
             padding: 15px;
             font-family: 'Courier New', monospace;
@@ -280,25 +280,25 @@ DASHBOARD_HTML = """\
             white-space: pre-wrap;
             word-break: break-all;
         }
-        .log-box .log-info { color: #58a6ff; }
+        .log-box .log-info { color: #4ade80; }
         .log-box .log-warn { color: #f0c040; }
-        .log-box .log-error { color: #e94560; }
+        .log-box .log-error { color: #ef4444; }
 
         .refresh-bar {
             text-align: center;
             padding: 10px;
-            color: #a0a0b0;
+            color: #8faa8f;
             font-size: 0.85em;
         }
-        .refresh-bar a { color: #4ecca3; text-decoration: none; }
+        .refresh-bar a { color: #22c55e; text-decoration: none; }
 
         .toast {
             position: fixed;
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            background: #4ecca3;
-            color: #1a1a2e;
+            background: #22c55e;
+            color: #0f1a0f;
             padding: 12px 24px;
             border-radius: 8px;
             font-weight: 600;
@@ -395,11 +395,11 @@ DASHBOARD_HTML = """\
             <h2>Live Camera Feed</h2>
             <div class="feed-container">
                 {% if status.camera_error %}
-                <div style="width:100%; height:360px; background:#0d1117; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                <div style="width:100%; height:360px; background:#0a140a; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
                     <div style="font-size:3em; margin-bottom:15px;">&#128247;</div>
-                    <div style="color:#e94560; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
-                    <div style="color:#a0a0b0; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
-                    <div style="color:#a0a0b0; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
+                    <div style="color:#dc2626; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
+                    <div style="color:#8faa8f; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
+                    <div style="color:#8faa8f; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
                 </div>
                 {% else %}
                 <img src="/feed" alt="Live camera feed" id="liveFeed">
@@ -413,9 +413,9 @@ DASHBOARD_HTML = """\
             <div class="feed-controls">
                 <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
-                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#0f3460;">Test Mic</button>
-                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#0f3460;">Test Record</button>
-                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#0f3460; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
+                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#2d4a2d;">Test Mic</button>
+                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#2d4a2d;">Test Record</button>
+                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#2d4a2d; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
                     <option value="0" {% if status.camera_rotation == 0 %}selected{% endif %}>0° (Normal)</option>
                     <option value="90" {% if status.camera_rotation == 90 %}selected{% endif %}>90° CW</option>
                     <option value="180" {% if status.camera_rotation == 180 %}selected{% endif %}>180° (Upside Down)</option>
@@ -426,12 +426,12 @@ DASHBOARD_HTML = """\
                 </span>
             </div>
             <div class="detection-legend">
-                <span class="legend-dot" style="background:#4ecca3;"></span> Confirmed
+                <span class="legend-dot" style="background:#dc2626;"></span> Confirmed
                 <span class="legend-dot" style="background:#f0c040;"></span> Motion detected
-                <span class="legend-dot" style="background:#e94560;"></span> Rejected
-                <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
-                <span class="legend-dot" style="background:#8b5cf6;"></span> Sleeping
-                <span class="legend-dot" style="background:#e94560;"></span> Camera Error
+                <span class="legend-dot" style="background:#ef4444;"></span> Rejected
+                <span class="legend-dot" style="background:#22c55e;"></span> Verifying...
+                <span class="legend-dot" style="background:#a78bfa;"></span> Sleeping
+                <span class="legend-dot" style="background:#ef4444;"></span> Camera Error
             </div>
         </div>
 
@@ -461,7 +461,7 @@ DASHBOARD_HTML = """\
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #a0a0b0; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
+            <p style="color: #8faa8f; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
             {% endif %}
         </div>
 
@@ -627,11 +627,11 @@ DASHBOARD_HTML = """\
                         };
                         const colors = {
                             'motion': '#f0c040',
-                            'verifying': '#58a6ff',
-                            'confirmed': '#4ecca3',
-                            'rejected': '#e94560',
-                            'sleeping': '#8b5cf6',
-                            'camera_error': '#e94560',
+                            'verifying': '#22c55e',
+                            'confirmed': '#dc2626',
+                            'rejected': '#ef4444',
+                            'sleeping': '#a78bfa',
+                            'camera_error': '#ef4444',
                         };
                         label.textContent = labels[data.state] || data.state;
                         label.style.background = colors[data.state] || '#555';
