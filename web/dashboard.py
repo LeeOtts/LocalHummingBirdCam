@@ -405,6 +405,12 @@ DASHBOARD_HTML = """\
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
                 <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#0f3460;">Test Mic</button>
                 <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#0f3460;">Test Record</button>
+                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#0f3460; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
+                    <option value="0" {% if status.camera_rotation == 0 %}selected{% endif %}>0° (Normal)</option>
+                    <option value="90" {% if status.camera_rotation == 90 %}selected{% endif %}>90° CW</option>
+                    <option value="180" {% if status.camera_rotation == 180 %}selected{% endif %}>180° (Upside Down)</option>
+                    <option value="270" {% if status.camera_rotation == 270 %}selected{% endif %}>270° CW</option>
+                </select>
                 <span class="training-stats">
                     Training samples: {{ status.training_count }}
                 </span>
@@ -650,6 +656,21 @@ DASHBOARD_HTML = """\
                 });
         }
 
+        // Rotate camera
+        function rotateCamera(angle) {
+            fetch('/api/camera/rotate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rotation: parseInt(angle)})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Camera rotated to ' + angle + '°');
+                else showToast('Rotation failed');
+            })
+            .catch(() => showToast('Rotation failed'));
+        }
+
         // Test Record — trigger full pipeline
         function testRecord() {
             const btn = document.getElementById('testRecordBtn');
@@ -856,6 +877,7 @@ def _get_status():
     s.total_clips = total_clips
     s.uptime = uptime
     s.camera_type = _monitor.camera.camera_type.upper() if _monitor and _monitor.camera.camera_type else "N/A"
+    s.camera_rotation = getattr(_monitor.camera, 'rotation', 0) if _monitor else 0
     s.test_mode = _monitor.test_mode if _monitor else True
     s.rejected_today = getattr(_monitor, '_rejected_today', 0) if _monitor else 0
 
@@ -1101,6 +1123,22 @@ def test_mic():
     except Exception as e:
         logger.exception("Mic test error")
         return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/api/camera/rotate", methods=["POST"])
+def rotate_camera():
+    """Change camera rotation at runtime."""
+    if _monitor is None:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    data = request.get_json() or {}
+    angle = data.get("rotation", 0)
+    if angle not in (0, 90, 180, 270):
+        return {"ok": False, "error": "Invalid rotation (0, 90, 180, 270)"}, 400
+
+    _monitor.camera.rotation = angle
+    logger.info("Camera rotation changed to %d°", angle)
+    return {"ok": True, "rotation": angle}
 
 
 @app.route("/api/test-record", methods=["POST"])

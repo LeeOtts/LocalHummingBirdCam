@@ -39,6 +39,9 @@ VIDEO_BITRATE = int(os.getenv("VIDEO_BITRATE", "1500000"))
 CLIP_TOTAL_SECONDS = CLIP_PRE_SECONDS + CLIP_POST_SECONDS
 CIRCULAR_BUFFER_SIZE = int(VIDEO_FPS * CLIP_PRE_SECONDS * 1.1)  # 10% margin
 
+# Camera rotation: 0, 90, 180, 270 degrees (for upside-down or sideways mounting)
+CAMERA_ROTATION = int(os.getenv("CAMERA_ROTATION", "0"))
+
 # Camera type: "auto", "picamera", or "usb"
 CAMERA_TYPE = os.getenv("CAMERA_TYPE", "usb")
 USB_CAMERA_INDEX = int(os.getenv("USB_CAMERA_INDEX", "0"))

@@ -103,6 +103,9 @@ class CameraStream:
         buffer_size = int(config.VIDEO_FPS * buffer_seconds)
         self.frame_buffer = FrameBuffer(maxlen=buffer_size)
 
+        # Camera rotation (changeable at runtime from dashboard)
+        self.rotation = config.CAMERA_ROTATION
+
         # Start background capture thread
         self._usb_running = True
         self._usb_latest_frame = None
@@ -117,6 +120,19 @@ class CameraStream:
             buffer_size,
         )
 
+    _ROTATION_MAP = {
+        90: cv2.ROTATE_90_CLOCKWISE,
+        180: cv2.ROTATE_180,
+        270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+    }
+
+    def _apply_rotation(self, frame):
+        """Rotate frame based on current rotation setting."""
+        cv2_code = self._ROTATION_MAP.get(self.rotation)
+        if cv2_code is not None:
+            return cv2.rotate(frame, cv2_code)
+        return frame
+
     def _usb_capture_loop(self):
         """Background thread: continuously grab frames from USB camera."""
         interval = 1.0 / config.VIDEO_FPS
@@ -125,6 +141,8 @@ class CameraStream:
             if not ret:
                 time.sleep(0.1)
                 continue
+
+            frame = self._apply_rotation(frame)
 
             with self._usb_lock:
                 self._usb_latest_frame = frame
