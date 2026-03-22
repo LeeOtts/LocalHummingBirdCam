@@ -404,6 +404,7 @@ DASHBOARD_HTML = """\
                 <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
                 <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#0f3460;">Test Mic</button>
+                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#0f3460;">Test Record</button>
                 <span class="training-stats">
                     Training samples: {{ status.training_count }}
                 </span>
@@ -646,6 +647,30 @@ DASHBOARD_HTML = """\
                     btn.textContent = 'Test Mic';
                     btn.disabled = false;
                     showToast('Mic test failed — check logs');
+                });
+        }
+
+        // Test Record — trigger full pipeline
+        function testRecord() {
+            const btn = document.getElementById('testRecordBtn');
+            btn.textContent = 'Recording...';
+            btn.disabled = true;
+
+            fetch('/api/test-record', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Recording started! Clip will appear in ~25 seconds.');
+                    } else {
+                        showToast('Error: ' + (data.error || 'unknown'));
+                    }
+                    btn.textContent = 'Test Record';
+                    btn.disabled = false;
+                })
+                .catch(() => {
+                    btn.textContent = 'Test Record';
+                    btn.disabled = false;
+                    showToast('Test record failed — check logs');
                 });
         }
 
@@ -1076,6 +1101,38 @@ def test_mic():
     except Exception as e:
         logger.exception("Mic test error")
         return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/api/test-record", methods=["POST"])
+def test_record():
+    """Trigger a test recording — full pipeline without Facebook posting."""
+    if _monitor is None or not _monitor.running:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    import threading
+    from camera.recorder import ClipRecorder
+    from social.comment_generator import generate_comment
+
+    def _do_record():
+        try:
+            recorder = ClipRecorder(_monitor.camera)
+            logger.info("Test record triggered from dashboard")
+            clip_path = recorder.record_clip()
+
+            if clip_path and clip_path.exists():
+                # Generate caption
+                caption = generate_comment()
+                # Save caption alongside clip
+                caption_file = clip_path.with_suffix(".txt")
+                caption_file.write_text(caption)
+                logger.info("Test record complete: %s — caption: %s", clip_path.name, caption)
+            else:
+                logger.warning("Test record failed — no clip produced")
+        except Exception:
+            logger.exception("Test record failed")
+
+    threading.Thread(target=_do_record, daemon=True).start()
+    return {"ok": True, "message": "Recording started — clip will appear in ~25 seconds"}
 
 
 @app.route("/api/logs/clear", methods=["POST"])
