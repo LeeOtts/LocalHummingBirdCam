@@ -26,25 +26,48 @@ class CameraStream:
     def __init__(self):
         self.camera_type = None  # set during start()
         self._backend = None
+        self.error = None  # None = OK, string = error message
+        self.rotation = config.CAMERA_ROTATION
         # Shared interface for the recorder
         self.circular_output = None  # only set for picamera backend
         self.frame_buffer = None    # only set for USB backend
 
-    def start(self):
-        """Detect camera type and start the appropriate backend."""
+    @property
+    def is_available(self) -> bool:
+        """True if the camera is started and working."""
+        return self.camera_type is not None and self.error is None
+
+    def start(self) -> bool:
+        """Detect camera type and start the appropriate backend.
+
+        Returns True if camera started successfully, False otherwise.
+        On failure, sets self.error with the reason.
+        """
+        self.error = None
         requested = config.CAMERA_TYPE.lower()
 
-        if requested == "picamera":
-            self._start_picamera()
-        elif requested == "usb":
-            self._start_usb()
-        else:
-            # Auto-detect: try picamera first
-            try:
+        try:
+            if requested == "picamera":
                 self._start_picamera()
-            except Exception as e:
-                logger.info("Pi Camera not available (%s), trying USB camera...", e)
+            elif requested == "usb":
                 self._start_usb()
+            else:
+                # Auto-detect: try picamera first
+                try:
+                    self._start_picamera()
+                except Exception as e:
+                    logger.info("Pi Camera not available (%s), trying USB camera...", e)
+                    self._start_usb()
+            return True
+        except Exception as e:
+            self.error = str(e)
+            logger.error("Camera failed to start: %s", self.error)
+            return False
+
+    def retry(self) -> bool:
+        """Attempt to restart the camera after a failure."""
+        logger.info("Retrying camera connection...")
+        return self.start()
 
     def _start_picamera(self):
         """Start using picamera2 (Pi Camera Module)."""
@@ -102,9 +125,6 @@ class CameraStream:
         buffer_seconds = config.CLIP_PRE_SECONDS
         buffer_size = int(config.VIDEO_FPS * buffer_seconds)
         self.frame_buffer = FrameBuffer(maxlen=buffer_size)
-
-        # Camera rotation (changeable at runtime from dashboard)
-        self.rotation = config.CAMERA_ROTATION
 
         # Start background capture thread
         self._usb_running = True
@@ -167,6 +187,8 @@ class CameraStream:
 
     def stop(self):
         """Stop the camera."""
+        if self.camera_type is None or self._backend is None:
+            return
         if self.camera_type == "picamera":
             try:
                 self._backend.stop_encoder()

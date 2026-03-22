@@ -89,11 +89,14 @@ class HummingbirdMonitor:
         else:
             logger.info("=== Backyard Hummers starting up ===")
 
-        # Start camera
-        self.camera.start()
-
-        # Start web dashboard
+        # Start web dashboard FIRST — so it's always accessible for diagnostics
         start_web_server(self, host=config.WEB_HOST, port=config.WEB_PORT)
+
+        # Start camera (graceful — dashboard still works if this fails)
+        if not self.camera.start():
+            logger.error("Camera not available — dashboard is up, will retry every 10 seconds")
+            self.detection_state = "camera_error"
+
         recorder = ClipRecorder(self.camera)
 
         # Start the posting worker in a background thread
@@ -115,6 +118,16 @@ class HummingbirdMonitor:
     def _detection_loop(self, recorder: ClipRecorder):
         """Main loop: capture frames, detect hummingbirds, trigger recording."""
         while self.running:
+            # Camera error — retry every 10 seconds
+            if not self.camera.is_available:
+                self.detection_state = "camera_error"
+                time.sleep(10)
+                if self.camera.retry():
+                    logger.info("Camera reconnected!")
+                    self.detection_state = "idle"
+                    recorder = ClipRecorder(self.camera)
+                continue
+
             # Night mode — sleep when it's dark out
             if not is_daytime():
                 if not self._sleeping:

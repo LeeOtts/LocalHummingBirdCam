@@ -101,6 +101,7 @@ DASHBOARD_HTML = """\
         .feed-overlay.state-verifying { border-color: #58a6ff; }
         .feed-overlay.state-confirmed { border-color: #4ecca3; box-shadow: 0 0 20px #4ecca3; }
         .feed-overlay.state-rejected { border-color: #e94560; }
+        .feed-overlay.state-camera_error { border-color: #e94560; box-shadow: 0 0 20px #e94560; }
         .feed-overlay .state-label {
             position: absolute;
             top: 10px; left: 10px;
@@ -343,7 +344,7 @@ DASHBOARD_HTML = """\
             </div>
             <div class="status-card">
                 <div class="label">Camera</div>
-                <div class="value" id="stat-camera">{{ status.camera_type }}</div>
+                <div class="value {{ 'red' if status.camera_error else '' }}" id="stat-camera">{{ status.camera_type }}</div>
             </div>
             <div class="status-card">
                 <div class="label">Rejected Today</div>
@@ -393,7 +394,16 @@ DASHBOARD_HTML = """\
         <div class="live-feed">
             <h2>Live Camera Feed</h2>
             <div class="feed-container">
+                {% if status.camera_error %}
+                <div style="width:100%; height:360px; background:#0d1117; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                    <div style="font-size:3em; margin-bottom:15px;">&#128247;</div>
+                    <div style="color:#e94560; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
+                    <div style="color:#a0a0b0; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
+                    <div style="color:#a0a0b0; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
+                </div>
+                {% else %}
                 <img src="/feed" alt="Live camera feed" id="liveFeed">
+                {% endif %}
                 <div class="feed-overlay" id="feedOverlay"></div>
                 <audio id="liveAudio" preload="none" muted></audio>
                 <button class="btn audio-toggle" id="audioToggle" onclick="toggleAudio()" title="Toggle live audio">
@@ -421,6 +431,7 @@ DASHBOARD_HTML = """\
                 <span class="legend-dot" style="background:#e94560;"></span> Rejected
                 <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
                 <span class="legend-dot" style="background:#8b5cf6;"></span> Sleeping
+                <span class="legend-dot" style="background:#e94560;"></span> Camera Error
             </div>
         </div>
 
@@ -501,6 +512,15 @@ DASHBOARD_HTML = """\
                     el('stat-clips').textContent = d.total_clips;
                     el('stat-uptime').textContent = d.uptime;
                     el('stat-camera').textContent = d.camera_type;
+                    el('stat-camera').className = 'value ' + (d.camera_error ? 'red' : '');
+
+                    // If camera was in error and just recovered, reload to show live feed
+                    if (window._cameraWasError && !d.camera_error) {
+                        location.reload();
+                        return;
+                    }
+                    window._cameraWasError = !!d.camera_error;
+
                     el('stat-rejected').textContent = d.rejected_today;
 
                     el('stat-cooldown').textContent = d.in_cooldown ? 'ACTIVE' : 'READY';
@@ -603,6 +623,7 @@ DASHBOARD_HTML = """\
                             'confirmed': 'HUMMINGBIRD!',
                             'rejected': 'NOT A BIRD',
                             'sleeping': 'SLEEPING',
+                            'camera_error': 'CAMERA ERROR',
                         };
                         const colors = {
                             'motion': '#f0c040',
@@ -610,6 +631,7 @@ DASHBOARD_HTML = """\
                             'confirmed': '#4ecca3',
                             'rejected': '#e94560',
                             'sleeping': '#8b5cf6',
+                            'camera_error': '#e94560',
                         };
                         label.textContent = labels[data.state] || data.state;
                         label.style.background = colors[data.state] || '#555';
@@ -892,7 +914,13 @@ def _get_status():
     s.posts_today = posts_today
     s.total_clips = total_clips
     s.uptime = uptime
-    s.camera_type = _monitor.camera.camera_type.upper() if _monitor and _monitor.camera.camera_type else "N/A"
+    if _monitor and _monitor.camera.is_available:
+        s.camera_type = _monitor.camera.camera_type.upper()
+    elif _monitor and _monitor.camera.error:
+        s.camera_type = "ERROR"
+    else:
+        s.camera_type = "N/A"
+    s.camera_error = _monitor.camera.error if _monitor else None
     s.camera_rotation = getattr(_monitor.camera, 'rotation', 0) if _monitor else 0
     s.test_mode = _monitor.test_mode if _monitor else True
     s.rejected_today = getattr(_monitor, '_rejected_today', 0) if _monitor else 0
@@ -1045,8 +1073,8 @@ def delete_all_clips():
 @app.route("/feed")
 def live_feed():
     """Serve a live MJPEG stream from the camera."""
-    if _monitor is None or not _monitor.running:
-        return Response("Camera not running", status=503)
+    if _monitor is None or not _monitor.running or not _monitor.camera.is_available:
+        return Response("Camera not available", status=503)
 
     def generate_frames():
         import cv2
@@ -1377,6 +1405,7 @@ def api_status():
         "total_clips": s.total_clips,
         "uptime": s.uptime,
         "camera_type": s.camera_type,
+        "camera_error": s.camera_error,
         "test_mode": s.test_mode,
         "rejected_today": s.rejected_today,
         "training_count": s.training_count,
