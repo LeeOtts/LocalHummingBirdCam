@@ -658,10 +658,10 @@ def _get_status():
     s.test_mode = _monitor.test_mode if _monitor else True
     s.rejected_today = getattr(_monitor, '_rejected_today', 0) if _monitor else 0
 
-    # Training sample count
+    # Training sample count (files are in subdirectories: training/hummingbird/, training/not_hummingbird/)
     training_dir = config.TRAINING_DIR
     if training_dir.exists():
-        s.training_count = len(list(training_dir.glob("*.jpg")))
+        s.training_count = len(list(training_dir.glob("**/*.jpg")))
     else:
         s.training_count = 0
 
