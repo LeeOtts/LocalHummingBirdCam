@@ -122,7 +122,10 @@ class ClipRecorder:
                 if hasattr(self.camera, '_usb_lock'):
                     with self.camera._usb_lock:
                         if self.camera._usb_latest_frame is not None:
-                            post_frames.append(self.camera._usb_latest_frame.copy())
+                            _, jpeg = cv2.imencode(
+                                '.jpg', self.camera._usb_latest_frame,
+                                [cv2.IMWRITE_JPEG_QUALITY, 80])
+                            post_frames.append(jpeg)
                 time.sleep(interval)
 
             # Wait for audio to finish
@@ -141,13 +144,14 @@ class ClipRecorder:
                     audio_proc.wait()
 
             # --- Step 4: Write frames to video file (decompress one at a time to save RAM) ---
-            total_frames = len(pre_jpegs) + len(post_frames)
+            all_jpegs = pre_jpegs + post_frames
+            total_frames = len(all_jpegs)
             if total_frames == 0:
                 logger.warning("No frames captured — skipping clip")
                 self._cleanup_temp_files(video_path, audio_path)
                 return None
 
-            self._write_mixed_frames_to_mp4(pre_jpegs, post_frames, video_path)
+            self._write_compressed_frames_to_mp4(all_jpegs, video_path)
 
             # --- Step 5: Mux video + audio if we have audio ---
             if audio_proc is not None and audio_path.exists() and audio_path.stat().st_size > 0:
@@ -171,7 +175,7 @@ class ClipRecorder:
                     if video_path.exists():
                         video_path.rename(mp4_path)
                     else:
-                        self._write_mixed_frames_to_mp4(pre_jpegs, post_frames, mp4_path)
+                        self._write_compressed_frames_to_mp4(all_jpegs, mp4_path)
 
                 self._cleanup_temp_files(video_path, audio_path)
             else:
@@ -200,22 +204,15 @@ class ClipRecorder:
                 except Exception:
                     pass
 
-    def _write_mixed_frames_to_mp4(self, compressed_frames: list, raw_frames: list, mp4_path: Path) -> Path | None:
-        """Write compressed JPEG frames + raw BGR frames to MP4.
-
-        Decompresses JPEGs one at a time to avoid ~110MB memory spike on Pi 3B+.
-        """
+    def _write_compressed_frames_to_mp4(self, jpeg_frames: list, mp4_path: Path) -> Path | None:
+        """Write JPEG-compressed frames to MP4, decompressing one at a time to save RAM."""
         try:
-            # Determine dimensions from first available frame
-            if compressed_frames:
-                first = cv2.imdecode(compressed_frames[0], cv2.IMREAD_COLOR)
-                h, w = first.shape[:2]
-            elif raw_frames:
-                h, w = raw_frames[0].shape[:2]
-            else:
+            if not jpeg_frames:
                 return None
 
-            # Use H264 if available, fall back to mp4v
+            first = cv2.imdecode(jpeg_frames[0], cv2.IMREAD_COLOR)
+            h, w = first.shape[:2]
+
             fourcc = cv2.VideoWriter_fourcc(*"avc1")
             writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
@@ -224,22 +221,20 @@ class ClipRecorder:
                 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                 writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
-            # Write pre-detection frames (decompress one at a time)
-            for jpeg in compressed_frames:
+            # Write first frame (already decoded above)
+            writer.write(first)
+
+            # Decompress and write remaining frames one at a time
+            for jpeg in jpeg_frames[1:]:
                 frame = cv2.imdecode(jpeg, cv2.IMREAD_COLOR)
                 if frame is not None:
                     writer.write(frame)
 
-            # Write post-detection frames (already raw BGR)
-            for frame in raw_frames:
-                writer.write(frame)
-
             writer.release()
 
-            total = len(compressed_frames) + len(raw_frames)
             size_mb = mp4_path.stat().st_size / 1_048_576
             logger.info("Wrote clip: %s (%.1f MB, %d frames)",
-                         mp4_path.name, size_mb, total)
+                         mp4_path.name, size_mb, len(jpeg_frames))
             return mp4_path
 
         except Exception:
