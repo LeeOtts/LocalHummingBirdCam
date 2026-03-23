@@ -393,94 +393,103 @@ DASHBOARD_HTML = """\
             {% endif %}
         </div>
 
-        <div class="status-grid">
-            <div class="status-card">
-                <div class="label">System Status</div>
-                <div class="value {{ 'green' if status.running else 'red' }}" id="stat-running">
-                    {{ 'RUNNING' if status.running else 'STOPPED' }}
+        <div class="section">
+            <h2>App Status</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="label">System Status</div>
+                    <div class="value {{ 'green' if status.running else 'red' }}" id="stat-running">
+                        {{ 'RUNNING' if status.running else 'STOPPED' }}
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Detections Today</div>
+                    <div class="value green" id="stat-detections">{{ status.detections_today }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Posts Today</div>
+                    <div class="value yellow" id="stat-posts">{{ status.posts_today }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Clips Saved</div>
+                    <div class="value" id="stat-clips">{{ status.total_clips }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Uptime</div>
+                    <div class="value" id="stat-uptime">{{ status.uptime }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Rejected Today</div>
+                    <div class="value red" id="stat-rejected">{{ status.rejected_today }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Cooldown</div>
+                    <div class="value {{ 'red' if status.in_cooldown else 'green' }}" id="stat-cooldown">
+                        {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Facebook Posting</div>
+                    <div class="value {{ 'yellow' if status.test_mode else 'green' }}" id="stat-testmode">
+                        {{ 'TEST MODE' if status.test_mode else 'LIVE' }}
+                    </div>
+                    <button class="btn {{ 'btn-cancel' if status.test_mode else 'btn-delete' }}"
+                            style="margin-top: 10px; font-size: 0.7em;"
+                            id="testModeBtn"
+                            onclick="toggleTestMode()">
+                        {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
+                    </button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Version</div>
+                    <div class="value" style="font-size: 0.9em;" id="stat-version">{{ status.git_commit }}</div>
+                    <button class="btn btn-update"
+                            style="margin-top: 10px; font-size: 0.7em;"
+                            id="updateBtn"
+                            onclick="checkForUpdate()">
+                        Check for Update
+                    </button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Schedule</div>
+                    <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
+                        {{ status.schedule.status }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #8faa8f; margin-top: 8px;" id="stat-schedule-detail">
+                        {{ status.schedule.location }}<br>
+                        Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
+                        Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
+                    </div>
                 </div>
             </div>
-            <div class="status-card">
-                <div class="label">Detections Today</div>
-                <div class="value green" id="stat-detections">{{ status.detections_today }}</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Posts Today</div>
-                <div class="value yellow" id="stat-posts">{{ status.posts_today }}</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Clips Saved</div>
-                <div class="value" id="stat-clips">{{ status.total_clips }}</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Uptime</div>
-                <div class="value" id="stat-uptime">{{ status.uptime }}</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Camera</div>
-                <div class="value {{ 'red' if status.camera_error else '' }}" id="stat-camera">{{ status.camera_type }}</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Rejected Today</div>
-                <div class="value red" id="stat-rejected">{{ status.rejected_today }}</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Cooldown</div>
-                <div class="value {{ 'red' if status.in_cooldown else 'green' }}" id="stat-cooldown">
-                    {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
+        </div>
+
+        <div class="section">
+            <h2>Hardware</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="label">CPU Temp</div>
+                    <div class="value {{ 'red' if status.cpu_temp and status.cpu_temp > 75 else 'yellow' if status.cpu_temp and status.cpu_temp > 60 else 'green' }}" id="stat-temp">
+                        {{ status.cpu_temp_str }}
+                    </div>
                 </div>
-            </div>
-            <div class="status-card">
-                <div class="label">Facebook Posting</div>
-                <div class="value {{ 'yellow' if status.test_mode else 'green' }}" id="stat-testmode">
-                    {{ 'TEST MODE' if status.test_mode else 'LIVE' }}
+                <div class="status-card">
+                    <div class="label">RAM</div>
+                    <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
+                        {{ status.ram_str }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
                 </div>
-                <button class="btn {{ 'btn-cancel' if status.test_mode else 'btn-delete' }}"
-                        style="margin-top: 10px; font-size: 0.7em;"
-                        id="testModeBtn"
-                        onclick="toggleTestMode()">
-                    {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
-                </button>
-            </div>
-            <div class="status-card">
-                <div class="label">Version</div>
-                <div class="value" style="font-size: 0.9em;" id="stat-version">{{ status.git_commit }}</div>
-                <button class="btn btn-update"
-                        style="margin-top: 10px; font-size: 0.7em;"
-                        id="updateBtn"
-                        onclick="checkForUpdate()">
-                    Check for Update
-                </button>
-            </div>
-            <div class="status-card">
-                <div class="label">CPU Temp</div>
-                <div class="value {{ 'red' if status.cpu_temp and status.cpu_temp > 75 else 'yellow' if status.cpu_temp and status.cpu_temp > 60 else 'green' }}" id="stat-temp">
-                    {{ status.cpu_temp_str }}
+                <div class="status-card">
+                    <div class="label">SD Card</div>
+                    <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
+                        {{ status.disk_str }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
                 </div>
-            </div>
-            <div class="status-card">
-                <div class="label">RAM</div>
-                <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
-                    {{ status.ram_str }}
-                </div>
-                <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
-            </div>
-            <div class="status-card">
-                <div class="label">SD Card</div>
-                <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
-                    {{ status.disk_str }}
-                </div>
-                <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
-            </div>
-            <div class="status-card">
-                <div class="label">Schedule</div>
-                <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
-                    {{ status.schedule.status }}
-                </div>
-                <div style="font-size: 0.75em; color: #8faa8f; margin-top: 8px;" id="stat-schedule-detail">
-                    {{ status.schedule.location }}<br>
-                    Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
-                    Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
+                <div class="status-card">
+                    <div class="label">Camera</div>
+                    <div class="value {{ 'red' if status.camera_error else '' }}" id="stat-camera">{{ status.camera_type }}</div>
                 </div>
             </div>
         </div>
