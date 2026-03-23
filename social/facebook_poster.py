@@ -12,7 +12,8 @@ import config
 
 logger = logging.getLogger(__name__)
 
-GRAPH_API_BASE = "https://graph.facebook.com/v19.0"
+GRAPH_API_VERSION = os.getenv("FACEBOOK_API_VERSION", "v22.0")
+GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
 
 class FacebookPoster:
@@ -116,7 +117,9 @@ class FacebookPoster:
             self._posts_today += 1
             return True
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error("Facebook response: %s", e.response.text)
             logger.exception("Facebook upload failed for %s", mp4_path.name)
             if not self._retry_in_progress:
                 self._save_to_retry_queue(mp4_path, caption)
@@ -142,7 +145,9 @@ class FacebookPoster:
             logger.info("Text post published! Post ID: %s", post_id)
             return True
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error("Facebook response: %s", e.response.text)
             logger.exception("Facebook text post failed")
             return False
 
