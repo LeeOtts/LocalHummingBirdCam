@@ -61,6 +61,9 @@ Variety Requirements:
 
 Content Guidelines:
 - The post accompanies a video of a hummingbird visit
+- Today's stats so far: {detections} confirmed visit(s), {rejected} false alarm(s)
+- Use the stats naturally if they add flavor (e.g. "Visit number 5 today" or \
+  "First one of the day"), but don't force them into every caption
 - Prefer specificity over generic phrasing
 - Occasionally reference time of day, visit frequency, or behavior \
   (hovering, quick visits, repeat visits, territorial chasing)
@@ -93,7 +96,7 @@ FALLBACK_CAPTIONS = [
 ]
 
 
-def generate_comment() -> str:
+def generate_comment(detections: int = 0, rejected: int = 0) -> str:
     """Generate a funny innuendo-laden caption for a hummingbird video post."""
     if not config.OPENAI_API_KEY:
         logger.warning("No OpenAI API key configured, using fallback caption")
@@ -101,10 +104,11 @@ def generate_comment() -> str:
 
     try:
         client = _get_client()
+        prompt = SYSTEM_PROMPT.format(detections=detections, rejected=rejected)
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": "Write a post for a new hummingbird sighting video."},
             ],
             max_tokens=200,

@@ -329,7 +329,10 @@ class HummingbirdMonitor:
 
             try:
                 logger.info("Generating caption for %s...", clip_path.name)
-                caption = generate_comment()
+                caption = generate_comment(
+                    detections=self._detections_today,
+                    rejected=self._rejected_today,
+                )
 
                 # Save caption alongside the clip
                 caption_path = clip_path.with_suffix(".txt")
