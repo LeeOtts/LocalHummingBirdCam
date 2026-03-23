@@ -73,8 +73,8 @@ TEST_MODE = os.getenv("TEST_MODE", "true").lower() in ("true", "1", "yes")
 # Night mode — auto sleep based on sunrise/sunset at your location
 # Set your latitude/longitude and timezone
 # Bartlett, TN 38134 defaults
-LOCATION_LAT = float(os.getenv("LOCATION_LAT", "35.2045"))
-LOCATION_LNG = float(os.getenv("LOCATION_LNG", "-89.8740"))
+LOCATION_LAT = float(os.getenv("LOCATION_LAT", "35.1495"))
+LOCATION_LNG = float(os.getenv("LOCATION_LNG", "-89.8733"))
 LOCATION_TIMEZONE = os.getenv("LOCATION_TIMEZONE", "America/Chicago")
 LOCATION_NAME = os.getenv("LOCATION_NAME", "Bartlett, TN")
 

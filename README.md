@@ -172,8 +172,8 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `CLIP_PRE_SECONDS` | `10` | Buffer before detection |
 | `CLIP_POST_SECONDS` | `20` | Record after detection |
 | `NIGHT_MODE_ENABLED` | `true` | Auto sleep at sunset, wake at sunrise |
-| `LOCATION_LAT` | `35.2045` | Your latitude |
-| `LOCATION_LNG` | `-89.8740` | Your longitude |
+| `LOCATION_LAT` | `35.1495` | Your latitude |
+| `LOCATION_LNG` | `-89.8733` | Your longitude |
 | `LOCATION_TIMEZONE` | `America/Chicago` | Your timezone |
 | `LOCATION_NAME` | `Bartlett, TN` | Shown on dashboard |
 | `WAKE_BEFORE_SUNRISE_MIN` | `30` | Wake up early |
