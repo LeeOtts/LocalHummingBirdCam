@@ -26,7 +26,7 @@ from pathlib import Path
 import requests
 
 
-GRAPH_API = "https://graph.facebook.com/v19.0"
+GRAPH_API = "https://graph.facebook.com/v22.0"
 
 
 def get_long_lived_token(app_id: str, app_secret: str, short_token: str) -> str:
