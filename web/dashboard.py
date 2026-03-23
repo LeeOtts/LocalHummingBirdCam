@@ -505,6 +505,12 @@ DASHBOARD_HTML = """\
                             onclick="toggleTestMode()">
                         {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
                     </button>
+                    <button class="btn"
+                            style="margin-top: 6px; font-size: 0.7em; background:#2d4a30;"
+                            id="testFbBtn"
+                            onclick="testFacebookPost()">
+                        Test FB Post
+                    </button>
                 </div>
                 <div class="status-card">
                     <div class="label">Version</div>
@@ -851,6 +857,30 @@ DASHBOARD_HTML = """\
                     btn.textContent = 'Test Record';
                     btn.disabled = false;
                     showToast('Test record failed — check logs');
+                });
+        }
+
+        // Test Facebook Post — send a test text post to the page
+        function testFacebookPost() {
+            const btn = document.getElementById('testFbBtn');
+            btn.textContent = 'Posting...';
+            btn.disabled = true;
+
+            fetch('/api/facebook/test', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Test post sent to Facebook!');
+                    } else {
+                        showToast('FB post failed: ' + (data.error || 'unknown'));
+                    }
+                    btn.textContent = 'Test FB Post';
+                    btn.disabled = false;
+                })
+                .catch(() => {
+                    btn.textContent = 'Test FB Post';
+                    btn.disabled = false;
+                    showToast('FB test failed — check logs');
                 });
         }
 
@@ -1480,6 +1510,33 @@ def toggle_test_mode():
     state = "TEST MODE" if _monitor.test_mode else "LIVE"
     logger.info("Facebook posting toggled to: %s (saved to .env)", state)
     return {"ok": True, "test_mode": _monitor.test_mode}
+
+
+@app.route("/api/facebook/test", methods=["POST"])
+def test_facebook_post():
+    """Send a quick test text post to Facebook to verify credentials."""
+    if _monitor is None:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    try:
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(config.LOCATION_TIMEZONE)
+        except Exception:
+            import pytz
+            tz = pytz.timezone(config.LOCATION_TIMEZONE)
+        now = datetime.now(tz).strftime("%I:%M %p")
+    except Exception:
+        now = "now"
+
+    message = f"🧪 Test post from Backyard Hummers dashboard at {now} — if you see this, Facebook posting is working!"
+    success = _monitor.poster.post_text(message)
+    if success:
+        logger.info("Test Facebook post sent successfully")
+        return {"ok": True}
+    else:
+        return {"ok": False, "error": "Post failed — check logs for Facebook response"}, 500
 
 
 @app.route("/api/update", methods=["POST"])
