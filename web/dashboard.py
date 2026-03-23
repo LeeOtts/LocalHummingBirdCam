@@ -377,7 +377,7 @@ DASHBOARD_HTML = """\
 </head>
 <body>
     <header>
-        <img src="/static/banner.png" alt="Backyard Hummers - Bartlett's Finest Backyard Hummers" class="banner-img">
+        <img src="/static/backyardhummers.png" alt="Backyard Hummers - AI-Powered Hummingbird Surveillance" class="banner-img">
     </header>
 
     <div class="container">
