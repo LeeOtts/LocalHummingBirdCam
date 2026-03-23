@@ -88,3 +88,19 @@ NIGHT_MODE_ENABLED = os.getenv("NIGHT_MODE_ENABLED", "true").lower() in ("true",
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+
+# --- Validation (clamp to sane defaults) ---
+import logging as _log
+
+if VIDEO_FPS < 1:
+    _log.warning("VIDEO_FPS=%d invalid, clamping to 1", VIDEO_FPS)
+    VIDEO_FPS = 1
+if CLIP_POST_SECONDS < 1:
+    _log.warning("CLIP_POST_SECONDS=%d invalid, clamping to 1", CLIP_POST_SECONDS)
+    CLIP_POST_SECONDS = 1
+if COLOR_MAX_AREA < COLOR_MIN_AREA:
+    _log.warning("COLOR_MAX_AREA (%d) < COLOR_MIN_AREA (%d), swapping", COLOR_MAX_AREA, COLOR_MIN_AREA)
+    COLOR_MIN_AREA, COLOR_MAX_AREA = COLOR_MAX_AREA, COLOR_MIN_AREA
+if CAMERA_ROTATION not in (0, 90, 180, 270):
+    _log.warning("CAMERA_ROTATION=%d invalid, defaulting to 0", CAMERA_ROTATION)
+    CAMERA_ROTATION = 0

@@ -77,13 +77,13 @@ class ClipRecorder:
         video_path = config.CLIPS_DIR / f"_video_{timestamp}.mp4"
         audio_path = config.CLIPS_DIR / f"_audio_{timestamp}.wav"
 
+        audio_proc = None
         try:
-            # --- Step 1: Get pre-detection frames from buffer ---
-            pre_frames = self.camera.frame_buffer.get_all()
-            logger.info("Got %d pre-detection frames from buffer", len(pre_frames))
+            # --- Step 1: Get pre-detection frames from buffer (compressed) ---
+            pre_jpegs = self.camera.frame_buffer.get_all_compressed()
+            logger.info("Got %d pre-detection frames from buffer", len(pre_jpegs))
 
             # --- Step 2: Start audio recording in background (if enabled) ---
-            audio_proc = None
             if config.AUDIO_ENABLED:
                 audio_device = self._detect_audio_device()
                 try:
@@ -138,15 +138,16 @@ class ClipRecorder:
                                     audio_path.name, audio_path.stat().st_size / 1024)
                 except subprocess.TimeoutExpired:
                     audio_proc.kill()
+                    audio_proc.wait()
 
-            # --- Step 4: Write all frames to video file ---
-            all_frames = pre_frames + post_frames
-            if not all_frames:
+            # --- Step 4: Write frames to video file (decompress one at a time to save RAM) ---
+            total_frames = len(pre_jpegs) + len(post_frames)
+            if total_frames == 0:
                 logger.warning("No frames captured — skipping clip")
                 self._cleanup_temp_files(video_path, audio_path)
                 return None
 
-            self._write_frames_to_mp4(all_frames, video_path)
+            self._write_mixed_frames_to_mp4(pre_jpegs, post_frames, video_path)
 
             # --- Step 5: Mux video + audio if we have audio ---
             if audio_proc is not None and audio_path.exists() and audio_path.stat().st_size > 0:
@@ -170,7 +171,7 @@ class ClipRecorder:
                                    mux_result.stderr[-300:])
                     # Fall back to video only
                     if not mp4_path.exists():
-                        self._write_frames_to_mp4(all_frames, mp4_path)
+                        self._write_mixed_frames_to_mp4(pre_jpegs, post_frames, mp4_path)
             else:
                 # No audio — just rename video
                 video_path.rename(mp4_path)
@@ -179,7 +180,7 @@ class ClipRecorder:
             if mp4_path.exists():
                 size_mb = mp4_path.stat().st_size / 1_048_576
                 logger.info("Final clip: %s (%.1f MB, %d frames)",
-                            mp4_path.name, size_mb, len(all_frames))
+                            mp4_path.name, size_mb, total_frames)
                 return mp4_path
 
             return None
@@ -188,17 +189,68 @@ class ClipRecorder:
             logger.exception("Failed to record clip (USB)")
             self._cleanup_temp_files(video_path, audio_path)
             return None
+        finally:
+            # Always kill audio subprocess to prevent zombie processes
+            if audio_proc is not None and audio_proc.poll() is None:
+                try:
+                    audio_proc.kill()
+                    audio_proc.wait(timeout=5)
+                except Exception:
+                    pass
 
-    def _write_frames_to_mp4(self, frames: list, mp4_path: Path) -> Path | None:
-        """Write a list of BGR frames to an MP4 file using OpenCV."""
+    def _write_mixed_frames_to_mp4(self, compressed_frames: list, raw_frames: list, mp4_path: Path) -> Path | None:
+        """Write compressed JPEG frames + raw BGR frames to MP4.
+
+        Decompresses JPEGs one at a time to avoid ~110MB memory spike on Pi 3B+.
+        """
         try:
-            h, w = frames[0].shape[:2]
+            # Determine dimensions from first available frame
+            if compressed_frames:
+                first = cv2.imdecode(compressed_frames[0], cv2.IMREAD_COLOR)
+                h, w = first.shape[:2]
+            elif raw_frames:
+                h, w = raw_frames[0].shape[:2]
+            else:
+                return None
+
             # Use H264 if available, fall back to mp4v
             fourcc = cv2.VideoWriter_fourcc(*"avc1")
             writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
             if not writer.isOpened():
-                # Fall back to mp4v codec
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
+
+            # Write pre-detection frames (decompress one at a time)
+            for jpeg in compressed_frames:
+                frame = cv2.imdecode(jpeg, cv2.IMREAD_COLOR)
+                if frame is not None:
+                    writer.write(frame)
+
+            # Write post-detection frames (already raw BGR)
+            for frame in raw_frames:
+                writer.write(frame)
+
+            writer.release()
+
+            total = len(compressed_frames) + len(raw_frames)
+            size_mb = mp4_path.stat().st_size / 1_048_576
+            logger.info("Wrote clip: %s (%.1f MB, %d frames)",
+                         mp4_path.name, size_mb, total)
+            return mp4_path
+
+        except Exception:
+            logger.exception("Failed to write MP4")
+            return None
+
+    def _write_frames_to_mp4(self, frames: list, mp4_path: Path) -> Path | None:
+        """Write a list of BGR frames to an MP4 file using OpenCV."""
+        try:
+            h, w = frames[0].shape[:2]
+            fourcc = cv2.VideoWriter_fourcc(*"avc1")
+            writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
+
+            if not writer.isOpened():
                 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                 writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 

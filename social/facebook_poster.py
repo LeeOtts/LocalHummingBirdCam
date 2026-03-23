@@ -25,8 +25,19 @@ class FacebookPoster:
         self._today = date.today()
 
     def _check_rate_limit(self) -> bool:
-        """Enforce daily post limit."""
-        today = date.today()
+        """Enforce daily post limit (uses location timezone for midnight)."""
+        try:
+            from datetime import datetime, timezone
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(config.LOCATION_TIMEZONE)
+            except Exception:
+                import pytz
+                tz = pytz.timezone(config.LOCATION_TIMEZONE)
+            today = datetime.now(tz).date()
+        except Exception:
+            today = date.today()
+
         if today != self._today:
             self._today = today
             self._posts_today = 0

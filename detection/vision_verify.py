@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded model
 _interpreter = None
 _labels = None
-_model_loaded = False
+_load_attempted = False  # Prevents retrying every frame
+_input_details = None    # Cached after first load
+_output_details = None   # Cached after first load
 
 MODEL_DIR = config.BASE_DIR / "models"
 MODEL_PATH = MODEL_DIR / "bird_classifier.tflite"
@@ -36,7 +38,7 @@ HUMMINGBIRD_KEYWORDS = [
 ]
 
 # Minimum confidence to accept a hummingbird classification
-MIN_CONFIDENCE = 0.15
+MIN_CONFIDENCE = 0.25
 
 
 def _download_model():
@@ -76,12 +78,12 @@ def _download_model():
 
 def _load_model():
     """Load the TFLite bird classifier."""
-    global _interpreter, _labels, _model_loaded
+    global _interpreter, _labels, _load_attempted, _input_details, _output_details
 
-    if _model_loaded:
+    if _load_attempted:
         return
 
-    _model_loaded = True  # Don't retry every frame on failure
+    _load_attempted = True  # Don't retry every frame
 
     if not _download_model():
         logger.error("Bird classifier model not available")
@@ -97,17 +99,23 @@ def _load_model():
             except ImportError:
                 from tensorflow.lite.python.interpreter import Interpreter
 
-        _interpreter = Interpreter(model_path=str(MODEL_PATH))
-        _interpreter.allocate_tensors()
+        interp = Interpreter(model_path=str(MODEL_PATH))
+        interp.allocate_tensors()
+
+        # Cache input/output details (don't change between inferences)
+        _input_details = interp.get_input_details()
+        _output_details = interp.get_output_details()
 
         # Load labels
+        labels = []
         if LABELS_PATH.exists():
-            _labels = LABELS_PATH.read_text().strip().split("\n")
-            # Clean up label format (some have index prefixes)
-            _labels = [l.strip().split(" ", 1)[-1] if " " in l.strip() else l.strip()
-                        for l in _labels]
-        else:
-            _labels = []
+            labels = LABELS_PATH.read_text().strip().split("\n")
+            labels = [l.strip().split(" ", 1)[-1] if " " in l.strip() else l.strip()
+                      for l in labels]
+
+        # Only set globals after everything succeeds
+        _interpreter = interp
+        _labels = labels
 
         logger.info(
             "Bird classifier loaded (TFLite, %d labels, %.1f MB)",
@@ -151,9 +159,9 @@ def verify_hummingbird(frame: np.ndarray) -> bool:
     try:
         start = time.time()
 
-        # Get model input details
-        input_details = _interpreter.get_input_details()
-        output_details = _interpreter.get_output_details()
+        # Use cached input/output details
+        input_details = _input_details
+        output_details = _output_details
 
         # Get expected input shape
         input_shape = input_details[0]["shape"]  # e.g. [1, 224, 224, 3]

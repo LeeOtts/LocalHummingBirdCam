@@ -201,7 +201,7 @@ class CameraStream:
         elif self.camera_type == "usb":
             self._usb_running = False
             if self._usb_thread.is_alive():
-                self._usb_thread.join(timeout=3)
+                self._usb_thread.join(timeout=10)
             self._backend.release()
 
         logger.info("Camera stopped (%s)", self.camera_type)
@@ -230,6 +230,15 @@ class FrameBuffer:
             jpegs = list(self._buffer)
 
         return [cv2.imdecode(j, cv2.IMREAD_COLOR) for j in jpegs]
+
+    def get_all_compressed(self) -> list[np.ndarray]:
+        """Return all buffered frames as raw JPEG numpy arrays (no decompression).
+
+        Use this instead of get_all() when writing to video — decompress
+        one frame at a time to avoid ~110MB memory spike on Pi 3B+ (1GB RAM).
+        """
+        with self._lock:
+            return list(self._buffer)
 
     def clear(self):
         with self._lock:

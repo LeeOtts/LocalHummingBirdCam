@@ -1113,23 +1113,30 @@ def live_audio():
     device = device.replace("hw:", "plughw:")
 
     def generate_audio():
-        # arecord -> ffmpeg -> mp3 stream
-        proc = sp.Popen(
-            f'arecord -D {device} -f S16_LE -r 16000 -c 2 -t raw | '
-            f'ffmpeg -f s16le -ar 16000 -ac 2 -i - -f mp3 -ab 64k -',
-            shell=True,
+        # arecord -> ffmpeg -> mp3 stream (no shell=True to prevent injection)
+        arecord = sp.Popen(
+            ["arecord", "-D", device, "-f", "S16_LE", "-r", "16000", "-c", "2", "-t", "raw"],
             stdout=sp.PIPE,
             stderr=sp.DEVNULL,
         )
+        ffmpeg = sp.Popen(
+            ["ffmpeg", "-f", "s16le", "-ar", "16000", "-ac", "2", "-i", "-", "-f", "mp3", "-ab", "64k", "-"],
+            stdin=arecord.stdout,
+            stdout=sp.PIPE,
+            stderr=sp.DEVNULL,
+        )
+        arecord.stdout.close()  # Allow arecord to receive SIGPIPE if ffmpeg exits
         try:
             while True:
-                chunk = proc.stdout.read(4096)
+                chunk = ffmpeg.stdout.read(4096)
                 if not chunk:
                     break
                 yield chunk
         finally:
-            proc.kill()
-            proc.wait()
+            ffmpeg.kill()
+            ffmpeg.wait()
+            arecord.kill()
+            arecord.wait()
 
     return Response(
         generate_audio(),
@@ -1185,17 +1192,27 @@ def rotate_camera():
     return {"ok": True, "rotation": angle}
 
 
+_recording_in_progress = False
+
+
 @app.route("/api/test-record", methods=["POST"])
 def test_record():
     """Trigger a test recording — full pipeline without Facebook posting."""
+    global _recording_in_progress
+
     if _monitor is None or not _monitor.running:
         return {"ok": False, "error": "Monitor not running"}, 503
+
+    if _recording_in_progress:
+        return {"ok": False, "error": "Recording already in progress"}, 429
 
     import threading
     from camera.recorder import ClipRecorder
     from social.comment_generator import generate_comment
 
     def _do_record():
+        global _recording_in_progress
+        _recording_in_progress = True
         try:
             recorder = ClipRecorder(_monitor.camera)
             logger.info("Test record triggered from dashboard")
@@ -1212,6 +1229,8 @@ def test_record():
                 logger.warning("Test record failed — no clip produced")
         except Exception:
             logger.exception("Test record failed")
+        finally:
+            _recording_in_progress = False
 
     threading.Thread(target=_do_record, daemon=True).start()
     return {"ok": True, "message": "Recording started — clip will appear in ~25 seconds"}
