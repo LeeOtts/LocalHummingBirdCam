@@ -91,7 +91,7 @@ class MotionColorDetector(Detector):
         diff = cv2.absdiff(gray, self.prev_gray)
 
         # Threshold the difference to get a binary motion mask
-        _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(diff, self.motion_threshold, 255, cv2.THRESH_BINARY)
 
         # Dilate to fill gaps in the motion region
         thresh = cv2.dilate(thresh, None, iterations=2)

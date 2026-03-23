@@ -23,6 +23,7 @@ class FacebookPoster:
         self.access_token = config.FACEBOOK_PAGE_ACCESS_TOKEN
         self._posts_today = 0
         self._today = date.today()
+        self._retry_in_progress = False
 
     def _check_rate_limit(self) -> bool:
         """Enforce daily post limit (uses location timezone for midnight)."""
@@ -54,11 +55,13 @@ class FacebookPoster:
         """
         if not self.page_id or not self.access_token:
             logger.error("Facebook credentials not configured")
-            self._save_to_retry_queue(mp4_path, caption)
+            if not self._retry_in_progress:
+                self._save_to_retry_queue(mp4_path, caption)
             return False
 
         if not self._check_rate_limit():
-            self._save_to_retry_queue(mp4_path, caption)
+            if not self._retry_in_progress:
+                self._save_to_retry_queue(mp4_path, caption)
             return False
 
         try:
@@ -115,7 +118,8 @@ class FacebookPoster:
 
         except requests.RequestException:
             logger.exception("Facebook upload failed for %s", mp4_path.name)
-            self._save_to_retry_queue(mp4_path, caption)
+            if not self._retry_in_progress:
+                self._save_to_retry_queue(mp4_path, caption)
             return False
 
     def post_text(self, message: str) -> bool:
@@ -173,16 +177,20 @@ class FacebookPoster:
             return
 
         remaining = []
-        for item in queue:
-            mp4_path = Path(item["mp4_path"])
-            if not mp4_path.exists():
-                logger.warning("Retry clip missing, skipping: %s", mp4_path)
-                continue
-            if not self._check_rate_limit():
-                remaining.append(item)
-                continue
-            success = self.post_video(mp4_path, item["caption"])
-            if not success:
-                remaining.append(item)
+        self._retry_in_progress = True
+        try:
+            for item in queue:
+                mp4_path = Path(item["mp4_path"])
+                if not mp4_path.exists():
+                    logger.warning("Retry clip missing, skipping: %s", mp4_path)
+                    continue
+                if not self._check_rate_limit():
+                    remaining.append(item)
+                    continue
+                success = self.post_video(mp4_path, item["caption"])
+                if not success:
+                    remaining.append(item)
+        finally:
+            self._retry_in_progress = False
 
         config.RETRY_QUEUE_FILE.write_text(json.dumps(remaining, indent=2))

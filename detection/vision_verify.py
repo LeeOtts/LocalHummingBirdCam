@@ -9,6 +9,7 @@ After that it runs fully offline.
 
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -19,12 +20,13 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# Lazy-loaded model
+# Lazy-loaded model (protected by _model_lock for thread safety)
 _interpreter = None
 _labels = None
 _load_attempted = False  # Prevents retrying every frame
 _input_details = None    # Cached after first load
 _output_details = None   # Cached after first load
+_model_lock = threading.Lock()
 
 MODEL_DIR = config.BASE_DIR / "models"
 MODEL_PATH = MODEL_DIR / "bird_classifier.tflite"
@@ -57,16 +59,23 @@ def _download_model():
         # Hosted on google-coral GitHub (the TFHub URL is broken/403)
         logger.info("Downloading bird classifier model (~3.4MB)...")
 
+        # Download to temp files first, then atomically move into place
+        # so a partial download doesn't block retries
+        model_tmp = MODEL_PATH.with_suffix(".tmp")
+        labels_tmp = LABELS_PATH.with_suffix(".tmp")
+
         urllib.request.urlretrieve(
             "https://raw.githubusercontent.com/google-coral/test_data/master/mobilenet_v2_1.0_224_inat_bird_quant.tflite",
-            str(MODEL_PATH),
+            str(model_tmp),
         )
+        model_tmp.replace(MODEL_PATH)
 
         # Download labels (964 species + background, includes Ruby-throated Hummingbird)
         urllib.request.urlretrieve(
             "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt",
-            str(LABELS_PATH),
+            str(labels_tmp),
         )
+        labels_tmp.replace(LABELS_PATH)
 
         logger.info("Bird classifier model downloaded successfully")
         return True
@@ -77,55 +86,58 @@ def _download_model():
 
 
 def _load_model():
-    """Load the TFLite bird classifier."""
+    """Load the TFLite bird classifier (thread-safe)."""
     global _interpreter, _labels, _load_attempted, _input_details, _output_details
 
     if _load_attempted:
         return
 
-    _load_attempted = True  # Don't retry every frame
+    with _model_lock:
+        if _load_attempted:
+            return
+        _load_attempted = True  # Don't retry every frame
 
-    if not _download_model():
-        logger.error("Bird classifier model not available")
-        return
+        if not _download_model():
+            logger.error("Bird classifier model not available")
+            return
 
-    try:
-        # Try ai_edge_litert first (Python 3.13+), then tflite_runtime, then full tf
         try:
-            from ai_edge_litert.interpreter import Interpreter
-        except ImportError:
+            # Try ai_edge_litert first (Python 3.13+), then tflite_runtime, then full tf
             try:
-                from tflite_runtime.interpreter import Interpreter
+                from ai_edge_litert.interpreter import Interpreter
             except ImportError:
-                from tensorflow.lite.python.interpreter import Interpreter
+                try:
+                    from tflite_runtime.interpreter import Interpreter
+                except ImportError:
+                    from tensorflow.lite.python.interpreter import Interpreter
 
-        interp = Interpreter(model_path=str(MODEL_PATH))
-        interp.allocate_tensors()
+            interp = Interpreter(model_path=str(MODEL_PATH))
+            interp.allocate_tensors()
 
-        # Cache input/output details (don't change between inferences)
-        _input_details = interp.get_input_details()
-        _output_details = interp.get_output_details()
+            # Cache input/output details (don't change between inferences)
+            _input_details = interp.get_input_details()
+            _output_details = interp.get_output_details()
 
-        # Load labels
-        labels = []
-        if LABELS_PATH.exists():
-            labels = LABELS_PATH.read_text().strip().split("\n")
-            labels = [l.strip().split(" ", 1)[-1] if " " in l.strip() else l.strip()
-                      for l in labels]
+            # Load labels
+            labels = []
+            if LABELS_PATH.exists():
+                labels = LABELS_PATH.read_text().strip().split("\n")
+                labels = [l.strip().split(" ", 1)[-1] if " " in l.strip() else l.strip()
+                          for l in labels]
 
-        # Only set globals after everything succeeds
-        _interpreter = interp
-        _labels = labels
+            # Only set globals after everything succeeds
+            _interpreter = interp
+            _labels = labels
 
-        logger.info(
-            "Bird classifier loaded (TFLite, %d labels, %.1f MB)",
-            len(_labels),
-            os.path.getsize(MODEL_PATH) / 1_048_576,
-        )
+            logger.info(
+                "Bird classifier loaded (TFLite, %d labels, %.1f MB)",
+                len(_labels),
+                os.path.getsize(MODEL_PATH) / 1_048_576,
+            )
 
-    except Exception:
-        logger.exception("Failed to load bird classifier")
-        _interpreter = None
+        except Exception:
+            logger.exception("Failed to load bird classifier")
+            _interpreter = None
 
 
 def _is_hummingbird_label(label: str) -> bool:
@@ -186,10 +198,12 @@ def verify_hummingbird(frame: np.ndarray) -> bool:
         # Get top 5 predictions
         if output.dtype == np.uint8:
             # Quantized model — convert to float
-            scale, zero_point = output_details[0].get("quantization", (1.0, 0))
-            if isinstance(scale, (list, tuple)):
-                scale = scale[0]
-                zero_point = zero_point[0]
+            quant = output_details[0].get("quantization", (1.0, 0))
+            scale, zero_point = quant[0], quant[1]
+            if isinstance(scale, (list, tuple, np.ndarray)):
+                scale = float(scale[0])
+            if isinstance(zero_point, (list, tuple, np.ndarray)):
+                zero_point = int(zero_point[0])
             scores = (output.astype(np.float32) - zero_point) * scale
         else:
             scores = output

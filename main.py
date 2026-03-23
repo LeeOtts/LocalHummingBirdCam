@@ -71,6 +71,7 @@ class HummingbirdMonitor:
         self._last_detection_time = 0.0
         self._detections_today = 0
         self._start_time = 0.0
+        self._counter_lock = threading.Lock()
         self.test_mode = config.TEST_MODE
 
         # Detection state for live feed overlay
@@ -99,13 +100,15 @@ class HummingbirdMonitor:
         return False, False
 
     def _save_post_state(self):
-        """Save morning/night post flags to disk."""
+        """Save morning/night post flags to disk (atomic write)."""
         try:
-            self._state_file.write_text(json.dumps({
+            tmp = self._state_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps({
                 "date": str(date.today()),
                 "morning_posted": self._morning_posted,
                 "night_posted": self._night_posted,
             }))
+            tmp.replace(self._state_file)
         except Exception:
             logger.exception("Failed to save post state")
 
@@ -154,6 +157,7 @@ class HummingbirdMonitor:
                 if self.camera.retry():
                     logger.info("Camera reconnected!")
                     self.detection_state = "idle"
+                    self.detector.reset()
                     recorder = ClipRecorder(self.camera)
                 continue
 
@@ -226,7 +230,8 @@ class HummingbirdMonitor:
                 if not verify_hummingbird(verify_frame):
                     self.detection_state = "rejected"
                     self._detection_state_time = time.time()
-                    self._rejected_today += 1
+                    with self._counter_lock:
+                        self._rejected_today += 1
                     logger.info("Bird classifier rejected — skipping recording")
                     self.detector.reset()
                     continue
@@ -234,7 +239,8 @@ class HummingbirdMonitor:
                 self.detection_state = "confirmed"
                 self._detection_state_time = time.time()
                 self._last_detection_time = time.time()
-                self._detections_today += 1
+                with self._counter_lock:
+                    self._detections_today += 1
                 logger.info("Hummingbird confirmed! Starting recording...")
 
                 # Reset detector state during recording
@@ -298,11 +304,13 @@ class HummingbirdMonitor:
     def _post_goodnight(self, schedule_info):
         """Post a goodnight recap with daily tally to Facebook."""
         try:
+            with self._counter_lock:
+                det, rej = self._detections_today, self._rejected_today
             caption = generate_good_night(
                 location=config.LOCATION_NAME,
                 sunset=schedule_info["sunset"],
-                detections=self._detections_today,
-                rejected=self._rejected_today,
+                detections=det,
+                rejected=rej,
             )
             logger.info("Goodnight post: %s", caption)
 
@@ -312,8 +320,9 @@ class HummingbirdMonitor:
                 self.poster.post_text(caption)
 
             # Reset daily counters
-            self._detections_today = 0
-            self._rejected_today = 0
+            with self._counter_lock:
+                self._detections_today = 0
+                self._rejected_today = 0
             self._morning_posted = False
             self._save_post_state()
         except Exception:
@@ -329,9 +338,11 @@ class HummingbirdMonitor:
 
             try:
                 logger.info("Generating caption for %s...", clip_path.name)
+                with self._counter_lock:
+                    det, rej = self._detections_today, self._rejected_today
                 caption = generate_comment(
-                    detections=self._detections_today,
-                    rejected=self._rejected_today,
+                    detections=det,
+                    rejected=rej,
                 )
 
                 # Save caption alongside the clip

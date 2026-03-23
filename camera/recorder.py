@@ -164,14 +164,16 @@ class ClipRecorder:
                     capture_output=True, text=True, timeout=60,
                 )
 
-                self._cleanup_temp_files(video_path, audio_path)
-
                 if mux_result.returncode != 0:
                     logger.warning("Audio mux failed, using video-only: %s",
                                    mux_result.stderr[-300:])
-                    # Fall back to video only
-                    if not mp4_path.exists():
+                    # Fall back to video only — rename temp video to final path
+                    if video_path.exists():
+                        video_path.rename(mp4_path)
+                    else:
                         self._write_mixed_frames_to_mp4(pre_jpegs, post_frames, mp4_path)
+
+                self._cleanup_temp_files(video_path, audio_path)
             else:
                 # No audio — just rename video
                 video_path.rename(mp4_path)
@@ -218,6 +220,7 @@ class ClipRecorder:
             writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
             if not writer.isOpened():
+                writer.release()
                 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                 writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
@@ -251,6 +254,7 @@ class ClipRecorder:
             writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 
             if not writer.isOpened():
+                writer.release()
                 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
                 writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
 

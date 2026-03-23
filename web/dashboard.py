@@ -551,6 +551,13 @@ DASHBOARD_HTML = """\
     <div class="toast" id="toast"></div>
 
     <script>
+        // Escape HTML to prevent XSS in dynamic content
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
         // Live-update status cards via AJAX (no page reload, no stream flicker)
         function pollStatus() {
             fetch('/api/status')
@@ -640,7 +647,7 @@ DASHBOARD_HTML = """\
                                     <video controls preload="metadata">
                                         <source src="/clips/${c.name}" type="video/mp4">
                                     </video>
-                                    ${c.caption ? `<div class="clip-caption">"${c.caption}"</div>` : ''}
+                                    ${c.caption ? `<div class="clip-caption">"${escapeHtml(c.caption)}"</div>` : ''}
                                     <div class="clip-info">${c.name} &mdash; ${c.size} &mdash; ${c.time}</div>
                                     <div class="clip-actions">
                                         <button class="btn btn-delete" onclick="deleteClip('${c.name}', 'clip-dyn-${i}')">Delete Clip</button>
@@ -664,7 +671,7 @@ DASHBOARD_HTML = """\
                     const box = document.getElementById('logBox');
                     box.innerHTML = data.logs.map(l => {
                         const display = (filter === 'all' || l.css_class === filter) ? '' : 'display:none;';
-                        return `<div class="log-line ${l.css_class}" style="${display}">${l.text}</div>`;
+                        return `<div class="log-line ${escapeHtml(l.css_class)}" style="${display}">${escapeHtml(l.text)}</div>`;
                     }).join('');
                 })
                 .catch(() => {});
@@ -1147,6 +1154,8 @@ def dashboard():
 
 @app.route("/clips/<filename>")
 def serve_clip(filename):
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return {"ok": False, "error": "Invalid filename"}, 400
     return send_from_directory(str(config.CLIPS_DIR), filename)
 
 
@@ -1281,6 +1290,7 @@ def test_mic():
     device = ClipRecorder._detect_audio_device()
     device = device.replace("hw:", "plughw:")
 
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_path = tmp.name
@@ -1294,11 +1304,25 @@ def test_mic():
             logger.warning("Mic test failed: %s", result.stderr[-200:])
             return {"ok": False, "error": "arecord failed"}, 500
 
-        from flask import send_file
+        from flask import send_file, after_this_request
+
+        @after_this_request
+        def _cleanup(response):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return response
+
         return send_file(tmp_path, mimetype="audio/wav", as_attachment=False)
 
     except Exception as e:
         logger.exception("Mic test error")
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
         return {"ok": False, "error": str(e)}, 500
 
 
@@ -1320,6 +1344,7 @@ def rotate_camera():
     return {"ok": True, "rotation": angle}
 
 
+_recording_lock = __import__("threading").Lock()
 _recording_in_progress = False
 
 
@@ -1331,8 +1356,10 @@ def test_record():
     if _monitor is None or not _monitor.running:
         return {"ok": False, "error": "Monitor not running"}, 503
 
-    if _recording_in_progress:
-        return {"ok": False, "error": "Recording already in progress"}, 429
+    with _recording_lock:
+        if _recording_in_progress:
+            return {"ok": False, "error": "Recording already in progress"}, 429
+        _recording_in_progress = True
 
     import threading
     from camera.recorder import ClipRecorder
@@ -1340,7 +1367,6 @@ def test_record():
 
     def _do_record():
         global _recording_in_progress
-        _recording_in_progress = True
         try:
             recorder = ClipRecorder(_monitor.camera)
             logger.info("Test record triggered from dashboard")
@@ -1390,8 +1416,10 @@ def toggle_test_mode():
         return {"ok": False, "error": "Monitor not running"}, 503
 
     _monitor.test_mode = not _monitor.test_mode
+    config.TEST_MODE = _monitor.test_mode
+    _update_env_value("TEST_MODE", "true" if _monitor.test_mode else "false")
     state = "TEST MODE" if _monitor.test_mode else "LIVE"
-    logger.info("Facebook posting toggled to: %s", state)
+    logger.info("Facebook posting toggled to: %s (saved to .env)", state)
     return {"ok": True, "test_mode": _monitor.test_mode}
 
 
@@ -1404,11 +1432,14 @@ def trigger_update():
         project_dir = str(config.BASE_DIR)
 
         # Fetch latest
-        subprocess.run(
+        fetch_result = subprocess.run(
             ["git", "fetch", "origin", "main", "--quiet"],
             capture_output=True, text=True, timeout=30,
             cwd=project_dir,
         )
+        if fetch_result.returncode != 0:
+            logger.error("git fetch failed: %s", fetch_result.stderr)
+            return {"ok": False, "error": "git fetch failed"}, 500
 
         # Compare
         local = subprocess.run(
