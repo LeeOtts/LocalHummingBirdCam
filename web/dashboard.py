@@ -68,12 +68,12 @@ DASHBOARD_HTML = """\
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #121a12;
-            color: #e0e0e0;
+            background: #141a11;
+            color: #e8e0d4;
             min-height: 100vh;
         }
         header {
-            background: #121a12;
+            background: #141a11;
             text-align: center;
             border-bottom: 3px solid #c4392a;
             padding: 0;
@@ -95,27 +95,27 @@ DASHBOARD_HTML = """\
             margin-bottom: 30px;
         }
         .status-card {
-            background: #1c2e1e;
+            background: #1c2a1a;
             border-radius: 10px;
             padding: 20px;
             text-align: center;
-            border: 1px solid #2d4a30;
+            border: 1px solid #3d4a2a;
         }
-        .status-card .label { color: #9aab8f; font-size: 0.85em; text-transform: uppercase; }
+        .status-card .label { color: #b0a58e; font-size: 0.85em; text-transform: uppercase; }
         .status-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
-        .status-card .value.green { color: #22c55e; }
-        .status-card .value.red { color: #ef4444; }
+        .status-card .value.green { color: #4caf50; }
+        .status-card .value.red { color: #e05535; }
         .status-card .value.yellow { color: #f0c040; }
-        .status-card .value.purple { color: #a78bfa; }
+        .status-card .value.purple { color: #b08ad4; }
 
         .live-feed {
-            background: #1c2e1e;
+            background: #1c2a1a;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #2d4a30;
+            border: 1px solid #3d4a2a;
         }
-        .live-feed h2 { color: #ffffff; margin-bottom: 15px; }
+        .live-feed h2 { color: #f5e6c8; margin-bottom: 15px; }
         .feed-container {
             position: relative;
             max-width: {{ video_width }}px;
@@ -135,12 +135,12 @@ DASHBOARD_HTML = """\
             transition: border-color 0.3s;
         }
         .feed-overlay.state-idle { border-color: transparent; }
-        .feed-overlay.state-sleeping { border-color: #a78bfa; box-shadow: 0 0 15px #a78bfa; }
+        .feed-overlay.state-sleeping { border-color: #b08ad4; box-shadow: 0 0 15px #b08ad4; }
         .feed-overlay.state-motion { border-color: #f0c040; }
-        .feed-overlay.state-verifying { border-color: #22c55e; }
-        .feed-overlay.state-confirmed { border-color: #22c55e; box-shadow: 0 0 20px #22c55e; }
-        .feed-overlay.state-rejected { border-color: #dc2626; }
-        .feed-overlay.state-camera_error { border-color: #ef4444; box-shadow: 0 0 20px #ef4444; }
+        .feed-overlay.state-verifying { border-color: #4caf50; }
+        .feed-overlay.state-confirmed { border-color: #4caf50; box-shadow: 0 0 20px #4caf50; }
+        .feed-overlay.state-rejected { border-color: #d44a2a; }
+        .feed-overlay.state-camera_error { border-color: #e05535; box-shadow: 0 0 20px #e05535; }
         .feed-overlay .state-label {
             position: absolute;
             top: 10px; left: 10px;
@@ -159,14 +159,14 @@ DASHBOARD_HTML = """\
             width: 40px; height: 40px;
             font-size: 1.2em;
             cursor: pointer;
-            color: #e0e0e0;
+            color: #e8e0d4;
             padding: 0;
             line-height: 40px;
             text-align: center;
         }
         .audio-toggle.active {
-            background: rgba(34, 197, 94, 0.7);
-            border-color: #22c55e;
+            background: rgba(212, 160, 23, 0.7);
+            border-color: #d4a017;
         }
         .feed-controls {
             text-align: center;
@@ -178,25 +178,25 @@ DASHBOARD_HTML = """\
             flex-wrap: wrap;
         }
         .btn-mark-yes {
-            background: #22c55e;
-            color: #121a12;
+            background: #d4a017;
+            color: #141a11;
             font-weight: bold;
         }
-        .btn-mark-yes:hover { background: #16a34a; }
+        .btn-mark-yes:hover { background: #b8880f; }
         .btn-mark-no {
-            background: #dc2626;
+            background: #d44a2a;
             color: white;
         }
-        .btn-mark-no:hover { background: #b91c1c; }
+        .btn-mark-no:hover { background: #b33a1a; }
         .training-stats {
-            color: #9aab8f;
+            color: #b0a58e;
             font-size: 0.85em;
         }
         .detection-legend {
             text-align: center;
             margin-top: 10px;
             font-size: 0.8em;
-            color: #9aab8f;
+            color: #b0a58e;
         }
         .legend-dot {
             display: inline-block;
@@ -207,13 +207,13 @@ DASHBOARD_HTML = """\
         }
 
         .section {
-            background: #1c2e1e;
+            background: #1c2a1a;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #2d4a30;
+            border: 1px solid #3d4a2a;
         }
-        .section h2 { color: #ffffff; margin-bottom: 15px; }
+        .section h2 { color: #f5e6c8; margin-bottom: 15px; }
         .section .section-actions {
             float: right;
         }
@@ -224,10 +224,10 @@ DASHBOARD_HTML = """\
             gap: 15px;
         }
         .clip-card {
-            background: #121a12;
+            background: #141a11;
             border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #2d4a30;
+            border: 1px solid #3d4a2a;
         }
         .clip-card video {
             width: 100%;
@@ -236,14 +236,14 @@ DASHBOARD_HTML = """\
         .clip-card .clip-info {
             padding: 10px;
             font-size: 0.85em;
-            color: #9aab8f;
+            color: #b0a58e;
         }
         .clip-card .clip-caption {
             padding: 8px 10px;
             font-size: 0.9em;
-            color: #e0e0e0;
-            background: #1c3a1e;
-            border-top: 1px solid #2d4a30;
+            color: #e8e0d4;
+            background: #1e2e18;
+            border-top: 1px solid #3d4a2a;
             font-style: italic;
             line-height: 1.4;
         }
@@ -251,7 +251,7 @@ DASHBOARD_HTML = """\
             padding: 8px 10px;
             display: flex;
             gap: 8px;
-            border-top: 1px solid #2d4a30;
+            border-top: 1px solid #3d4a2a;
         }
         .btn {
             padding: 6px 14px;
@@ -264,22 +264,22 @@ DASHBOARD_HTML = """\
             display: inline-block;
         }
         .btn-delete {
-            background: #dc2626;
+            background: #d44a2a;
             color: white;
         }
-        .btn-delete:hover { background: #b91c1c; }
+        .btn-delete:hover { background: #b33a1a; }
         .btn-delete-all {
-            background: #dc2626;
+            background: #d44a2a;
             color: white;
             font-size: 0.85em;
             padding: 6px 16px;
         }
-        .btn-delete-all:hover { background: #b91c1c; }
+        .btn-delete-all:hover { background: #b33a1a; }
         .btn-update {
-            background: #22c55e;
-            color: #121a12;
+            background: #d4a017;
+            color: #141a11;
         }
-        .btn-update:hover { background: #16a34a; }
+        .btn-update:hover { background: #b8880f; }
         .btn-update:disabled { background: #555; color: #999; cursor: wait; }
 
         .confirm-overlay {
@@ -293,8 +293,8 @@ DASHBOARD_HTML = """\
         }
         .confirm-overlay.active { display: flex; }
         .confirm-box {
-            background: #1c2e1e;
-            border: 2px solid #dc2626;
+            background: #1c2a1a;
+            border: 2px solid #d44a2a;
             border-radius: 12px;
             padding: 30px;
             text-align: center;
@@ -303,12 +303,12 @@ DASHBOARD_HTML = """\
         .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
         .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
         .btn-cancel {
-            background: #2d4a30;
-            color: #e0e0e0;
+            background: #3d4a2a;
+            color: #e8e0d4;
         }
 
         .log-box {
-            background: #0c140c;
+            background: #0f140b;
             border-radius: 8px;
             padding: 15px;
             font-family: 'Courier New', monospace;
@@ -320,9 +320,9 @@ DASHBOARD_HTML = """\
             white-space: pre-wrap;
             word-break: break-word;
         }
-        .log-box .log-info { color: #4ade80; }
+        .log-box .log-info { color: #66bb6a; }
         .log-box .log-warn { color: #f0c040; }
-        .log-box .log-error { color: #ef4444; }
+        .log-box .log-error { color: #e05535; }
 
         /* Mobile: make logs readable */
         @media (max-width: 768px) {
@@ -358,18 +358,18 @@ DASHBOARD_HTML = """\
         .refresh-bar {
             text-align: center;
             padding: 10px;
-            color: #9aab8f;
+            color: #b0a58e;
             font-size: 0.85em;
         }
-        .refresh-bar a { color: #22c55e; text-decoration: none; }
+        .refresh-bar a { color: #d4a017; text-decoration: none; }
 
         .toast {
             position: fixed;
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            background: #22c55e;
-            color: #121a12;
+            background: #d4a017;
+            color: #141a11;
             padding: 12px 24px;
             border-radius: 8px;
             font-weight: 600;
@@ -393,11 +393,11 @@ DASHBOARD_HTML = """\
             <h2>Live Camera Feed</h2>
             <div class="feed-container">
                 {% if status.camera_error %}
-                <div style="width:100%; height:360px; background:#0c140c; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                <div style="width:100%; height:360px; background:#0f140b; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
                     <div style="font-size:3em; margin-bottom:15px;">&#128247;</div>
-                    <div style="color:#dc2626; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
-                    <div style="color:#9aab8f; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
-                    <div style="color:#9aab8f; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
+                    <div style="color:#d44a2a; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
+                    <div style="color:#b0a58e; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
+                    <div style="color:#b0a58e; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
                 </div>
                 {% else %}
                 <img src="/feed" alt="Live camera feed" id="liveFeed">
@@ -411,9 +411,9 @@ DASHBOARD_HTML = """\
             <div class="feed-controls">
                 <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
-                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#2d4a30;">Test Mic</button>
-                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#2d4a30;">Test Record</button>
-                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#2d4a30; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
+                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#3d4a2a;">Test Mic</button>
+                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#3d4a2a;">Test Record</button>
+                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#3d4a2a; color:#e8e0d4; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
                     <option value="0" {% if status.camera_rotation == 0 %}selected{% endif %}>0° (Normal)</option>
                     <option value="90" {% if status.camera_rotation == 90 %}selected{% endif %}>90° CW</option>
                     <option value="180" {% if status.camera_rotation == 180 %}selected{% endif %}>180° (Upside Down)</option>
@@ -424,12 +424,12 @@ DASHBOARD_HTML = """\
                 </span>
             </div>
             <div class="detection-legend">
-                <span class="legend-dot" style="background:#22c55e;"></span> Confirmed
+                <span class="legend-dot" style="background:#4caf50;"></span> Confirmed
                 <span class="legend-dot" style="background:#f0c040;"></span> Motion detected
-                <span class="legend-dot" style="background:#dc2626;"></span> Rejected
+                <span class="legend-dot" style="background:#d44a2a;"></span> Rejected
                 <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
-                <span class="legend-dot" style="background:#a78bfa;"></span> Sleeping
-                <span class="legend-dot" style="background:#ef4444;"></span> Camera Error
+                <span class="legend-dot" style="background:#b08ad4;"></span> Sleeping
+                <span class="legend-dot" style="background:#e05535;"></span> Camera Error
             </div>
         </div>
 
@@ -459,7 +459,7 @@ DASHBOARD_HTML = """\
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #9aab8f; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
+            <p style="color: #b0a58e; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
             {% endif %}
         </div>
 
@@ -510,7 +510,7 @@ DASHBOARD_HTML = """\
                         {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
                     </button>
                     <button class="btn"
-                            style="margin-top: 6px; font-size: 0.7em; background:#2d4a30;"
+                            style="margin-top: 6px; font-size: 0.7em; background:#3d4a2a;"
                             id="testFbBtn"
                             onclick="testFacebookPost()">
                         Test FB Post
@@ -531,7 +531,7 @@ DASHBOARD_HTML = """\
                     <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
                         {{ status.schedule.status }}
                     </div>
-                    <div style="font-size: 0.75em; color: #9aab8f; margin-top: 8px;" id="stat-schedule-detail">
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 8px;" id="stat-schedule-detail">
                         {{ status.schedule.location }}<br>
                         Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
                         Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
@@ -554,14 +554,14 @@ DASHBOARD_HTML = """\
                     <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
                         {{ status.ram_str }}
                     </div>
-                    <div style="font-size: 0.75em; color: #9aab8f; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
                 </div>
                 <div class="status-card">
                     <div class="label">SD Card</div>
                     <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
                         {{ status.disk_str }}
                     </div>
-                    <div style="font-size: 0.75em; color: #9aab8f; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
                 </div>
                 <div class="status-card">
                     <div class="label">Camera</div>
@@ -573,7 +573,7 @@ DASHBOARD_HTML = """\
         <div class="section">
             <h2>Recent Logs
                 <div class="log-header-controls" style="float:right; display:flex; gap:8px;">
-                    <select id="logFilter" onchange="filterLogs()" style="background:#0d1117; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
+                    <select id="logFilter" onchange="filterLogs()" style="background:#12150e; color:#e8e0d4; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
                         <option value="all">All</option>
                         <option value="log-error">Errors</option>
                         <option value="log-warn">Warnings</option>
@@ -759,14 +759,14 @@ DASHBOARD_HTML = """\
                         const colors = {
                             'motion': '#f0c040',
                             'verifying': '#58a6ff',
-                            'confirmed': '#22c55e',
-                            'rejected': '#dc2626',
-                            'sleeping': '#a78bfa',
-                            'camera_error': '#ef4444',
+                            'confirmed': '#4caf50',
+                            'rejected': '#d44a2a',
+                            'sleeping': '#b08ad4',
+                            'camera_error': '#e05535',
                         };
                         label.textContent = labels[data.state] || data.state;
                         label.style.background = colors[data.state] || '#555';
-                        label.style.color = data.state === 'motion' ? '#1a1a2e' : 'white';
+                        label.style.color = data.state === 'motion' ? '#141a11' : 'white';
                     } else if (label) {
                         label.remove();
                     }
