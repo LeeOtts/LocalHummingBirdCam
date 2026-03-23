@@ -7,3 +7,5 @@ flask
 ai-edge-litert
 astral
 pytz
+pytest
+pytest-mock
