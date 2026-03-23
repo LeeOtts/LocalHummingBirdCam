@@ -5,7 +5,7 @@
 A Raspberry Pi-powered hummingbird feeder camera that turns your backyard into a tiny AI-powered media empire.
 
 When a Ruby-throated Hummingbird swings by for a drink, the system:
-- records a 30-second clip (with sound)
+- records a 25-second clip (with sound)
 - lets GPT-4o write something cheeky about it
 - and posts it straight to the **Backyard Hummers** Facebook page
 
@@ -19,8 +19,8 @@ My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi col
 
 ## What It Does
 
-- **Catches hummingbirds, not leaves** — 3-stage detection pipeline: motion, color, AI classifier (after an embarrassing number of false alarms involving wind, shadows, and betrayal)
-- **Records with sound** — 30-second clips (10s before + 20s after detection) because the wing buzz is half the drama
+- **Catches hummingbirds, not leaves** — 4-stage detection pipeline: motion, color, local AI classifier, and optional GPT-4o vision verify (after an embarrassing number of false alarms involving wind, shadows, and betrayal)
+- **Records with sound** — 25-second clips (5s before + 20s after detection) because the wing buzz is half the drama
 - **GPT-4o writes the captions** — chaotic, slightly unhinged, occasionally better than mine
 - **Posts to Facebook automatically** — your hummers, their moment of fame
 - **Live dashboard** — watch the feed, hear audio, and feel like you run a wildlife surveillance agency
@@ -124,7 +124,9 @@ The detection pipeline is basically a bouncer for birds:
 
 2. **Bird Species Classifier** *(~1-2 sec on Pi)* — The "are you actually a hummingbird?" check. MobileNetV2 trained on 964 bird species. Fully local, no cloud needed.
 
-3. **Record + Post** — 30 seconds of fame. GPT-4o adds commentary. Internet gets another hummer clip.
+3. **GPT-4o Vision Verify** — Optional second opinion from the cloud. Because sometimes even the AI needs a second AI to double-check.
+
+4. **Record + Post** — 25 seconds of fame. GPT-4o adds commentary. Internet gets another hummer clip.
 
 ## The Dashboard
 
@@ -169,8 +171,13 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `COLOR_MAX_AREA` | `5000` | Max (rejects big objects) |
 | `DETECTION_COOLDOWN_SECONDS` | `60` | Seconds between detections |
 | `MAX_POSTS_PER_DAY` | `10` | Daily Facebook post limit |
-| `CLIP_PRE_SECONDS` | `10` | Buffer before detection |
+| `CLIP_PRE_SECONDS` | `5` | Buffer before detection |
 | `CLIP_POST_SECONDS` | `20` | Record after detection |
+| `VIDEO_WIDTH` | `1920` | Video resolution width |
+| `VIDEO_HEIGHT` | `1080` | Video resolution height |
+| `VIDEO_FPS` | `15` | Frames per second |
+| `VIDEO_BITRATE` | `5000000` | Video bitrate (bps) |
+| `MAX_CLIPS_DISK_MB` | `2000` | Auto-delete oldest clips above this limit |
 | `NIGHT_MODE_ENABLED` | `true` | Auto sleep at sunset, wake at sunrise |
 | `LOCATION_LAT` | `35.1495` | Your latitude |
 | `LOCATION_LNG` | `-89.8733` | Your longitude |
@@ -191,6 +198,7 @@ Everything lives in `.env`. See `.env.example` for full details.
 | Camera check | `ls /dev/video*` |
 | List mics | `arecord -l` |
 | Pi temp | `vcgencmd measure_temp` |
+| Set timezone | `sudo timedatectl set-timezone America/Chicago` |
 | Dashboard | `http://hummingbirdcam.local:8080` |
 
 ## Project Structure
@@ -204,18 +212,24 @@ LocalHummingBirdCam/
 │   ├── stream.py            # USB + Pi Camera with rotation
 │   └── recorder.py          # Video + audio recording via ffmpeg
 ├── detection/
+│   ├── detector.py          # Base detector interface
 │   ├── motion_color.py      # Fast motion + color filter
 │   └── vision_verify.py     # MobileNetV2 bird classifier (TFLite)
 ├── social/
 │   ├── comment_generator.py # GPT-4o caption generation
 │   └── facebook_poster.py   # Facebook Graph API video upload
 ├── web/
-│   └── dashboard.py         # Flask dashboard with live feed
+│   ├── dashboard.py         # Flask dashboard with live feed
+│   └── static/              # Banner image and static assets
 ├── scripts/
-│   ├── setup_facebook_token.py  # Facebook token helper
-│   ├── auto_update.sh           # Git pull + restart
-│   ├── hummingbird.service      # systemd service
-│   └── install_dependencies.sh  # Full system setup
+│   ├── setup_facebook_token.py    # Facebook token helper
+│   ├── auto_update.sh             # Git pull + restart
+│   ├── hummingbird.service        # systemd service
+│   ├── hummingbird-updater.service # Auto-update service
+│   ├── hummingbird-updater.timer   # Update timer
+│   ├── hummingbird-sudoers         # Passwordless restart perms
+│   └── install_dependencies.sh     # Full system setup
+├── tests/                   # Unit tests for all the things
 ├── models/                  # Bird classifier (downloaded on first run)
 ├── clips/                   # Your hummingbird videos
 ├── training/                # Labeled frames for future training
