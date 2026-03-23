@@ -14,7 +14,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 # AZURE_OPENAI_DEPLOYMENT = your deployment name (e.g. "gpt-4o")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
 AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
 
 # Facebook
 FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
@@ -46,7 +46,7 @@ CAMERA_ROTATION = int(os.getenv("CAMERA_ROTATION", "0"))
 CAMERA_TYPE = os.getenv("CAMERA_TYPE", "usb")
 USB_CAMERA_INDEX = int(os.getenv("USB_CAMERA_INDEX", "0"))
 
-# Vision verification — use GPT-4o to confirm hummingbird before recording
+# Vision verification — use local MobileNetV2 bird classifier to confirm hummingbird
 VISION_VERIFY_ENABLED = os.getenv("VISION_VERIFY_ENABLED", "true").lower() in ("true", "1", "yes")
 
 # Audio — set AUDIO_DEVICE to the ALSA device (e.g. "hw:1,0" or "default")
