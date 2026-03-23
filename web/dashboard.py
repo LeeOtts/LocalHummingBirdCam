@@ -1165,7 +1165,10 @@ def dashboard():
 def serve_clip(filename):
     if "/" in filename or "\\" in filename or ".." in filename:
         return {"ok": False, "error": "Invalid filename"}, 400
-    return send_from_directory(str(config.CLIPS_DIR), filename)
+    resp = send_from_directory(str(config.CLIPS_DIR), filename)
+    resp.cache_control.max_age = 86400 * 30  # cache 30 days — clips don't change
+    resp.cache_control.public = True
+    return resp
 
 
 @app.route("/static/<filename>")
@@ -1173,7 +1176,10 @@ def serve_static(filename):
     if "/" in filename or "\\" in filename or ".." in filename:
         return {"ok": False, "error": "Invalid filename"}, 400
     static_dir = os.path.join(os.path.dirname(__file__), "static")
-    return send_from_directory(static_dir, filename)
+    resp = send_from_directory(static_dir, filename)
+    resp.cache_control.max_age = 86400 * 7  # cache 7 days
+    resp.cache_control.public = True
+    return resp
 
 
 @app.route("/api/clips/<filename>", methods=["DELETE"])
