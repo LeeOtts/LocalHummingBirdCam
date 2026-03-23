@@ -60,18 +60,24 @@ DASHBOARD_HTML = """\
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #0f1a0f;
+            background: #121a12;
             color: #e0e0e0;
             min-height: 100vh;
         }
         header {
-            background: linear-gradient(135deg, #1a2e1a, #0d2818);
-            padding: 20px;
+            background: #121a12;
             text-align: center;
-            border-bottom: 3px solid #b91c1c;
+            border-bottom: 3px solid #c4392a;
+            padding: 0;
+            overflow: hidden;
         }
-        header h1 { font-size: 1.8em; color: #ffffff; }
-        header p { color: #8faa8f; margin-top: 5px; }
+        .banner-img {
+            width: 100%;
+            max-width: 1000px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
 
         .status-grid {
@@ -81,13 +87,13 @@ DASHBOARD_HTML = """\
             margin-bottom: 30px;
         }
         .status-card {
-            background: #1a2e1a;
+            background: #1c2e1e;
             border-radius: 10px;
             padding: 20px;
             text-align: center;
-            border: 1px solid #2d4a2d;
+            border: 1px solid #2d4a30;
         }
-        .status-card .label { color: #8faa8f; font-size: 0.85em; text-transform: uppercase; }
+        .status-card .label { color: #9aab8f; font-size: 0.85em; text-transform: uppercase; }
         .status-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
         .status-card .value.green { color: #22c55e; }
         .status-card .value.red { color: #ef4444; }
@@ -95,11 +101,11 @@ DASHBOARD_HTML = """\
         .status-card .value.purple { color: #a78bfa; }
 
         .live-feed {
-            background: #1a2e1a;
+            background: #1c2e1e;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #2d4a2d;
+            border: 1px solid #2d4a30;
         }
         .live-feed h2 { color: #ffffff; margin-bottom: 15px; }
         .feed-container {
@@ -165,7 +171,7 @@ DASHBOARD_HTML = """\
         }
         .btn-mark-yes {
             background: #22c55e;
-            color: #0f1a0f;
+            color: #121a12;
             font-weight: bold;
         }
         .btn-mark-yes:hover { background: #16a34a; }
@@ -175,14 +181,14 @@ DASHBOARD_HTML = """\
         }
         .btn-mark-no:hover { background: #b91c1c; }
         .training-stats {
-            color: #8faa8f;
+            color: #9aab8f;
             font-size: 0.85em;
         }
         .detection-legend {
             text-align: center;
             margin-top: 10px;
             font-size: 0.8em;
-            color: #8faa8f;
+            color: #9aab8f;
         }
         .legend-dot {
             display: inline-block;
@@ -193,11 +199,11 @@ DASHBOARD_HTML = """\
         }
 
         .section {
-            background: #1a2e1a;
+            background: #1c2e1e;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #2d4a2d;
+            border: 1px solid #2d4a30;
         }
         .section h2 { color: #ffffff; margin-bottom: 15px; }
         .section .section-actions {
@@ -210,10 +216,10 @@ DASHBOARD_HTML = """\
             gap: 15px;
         }
         .clip-card {
-            background: #0f1a0f;
+            background: #121a12;
             border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #2d4a2d;
+            border: 1px solid #2d4a30;
         }
         .clip-card video {
             width: 100%;
@@ -222,14 +228,14 @@ DASHBOARD_HTML = """\
         .clip-card .clip-info {
             padding: 10px;
             font-size: 0.85em;
-            color: #8faa8f;
+            color: #9aab8f;
         }
         .clip-card .clip-caption {
             padding: 8px 10px;
             font-size: 0.9em;
             color: #e0e0e0;
-            background: #1a3a1a;
-            border-top: 1px solid #2d4a2d;
+            background: #1c3a1e;
+            border-top: 1px solid #2d4a30;
             font-style: italic;
             line-height: 1.4;
         }
@@ -237,7 +243,7 @@ DASHBOARD_HTML = """\
             padding: 8px 10px;
             display: flex;
             gap: 8px;
-            border-top: 1px solid #2d4a2d;
+            border-top: 1px solid #2d4a30;
         }
         .btn {
             padding: 6px 14px;
@@ -263,7 +269,7 @@ DASHBOARD_HTML = """\
         .btn-delete-all:hover { background: #b91c1c; }
         .btn-update {
             background: #22c55e;
-            color: #0f1a0f;
+            color: #121a12;
         }
         .btn-update:hover { background: #16a34a; }
         .btn-update:disabled { background: #555; color: #999; cursor: wait; }
@@ -279,7 +285,7 @@ DASHBOARD_HTML = """\
         }
         .confirm-overlay.active { display: flex; }
         .confirm-box {
-            background: #1a2e1a;
+            background: #1c2e1e;
             border: 2px solid #dc2626;
             border-radius: 12px;
             padding: 30px;
@@ -289,12 +295,12 @@ DASHBOARD_HTML = """\
         .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
         .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
         .btn-cancel {
-            background: #2d4a2d;
+            background: #2d4a30;
             color: #e0e0e0;
         }
 
         .log-box {
-            background: #0a140a;
+            background: #0c140c;
             border-radius: 8px;
             padding: 15px;
             font-family: 'Courier New', monospace;
@@ -312,7 +318,7 @@ DASHBOARD_HTML = """\
         .refresh-bar {
             text-align: center;
             padding: 10px;
-            color: #8faa8f;
+            color: #9aab8f;
             font-size: 0.85em;
         }
         .refresh-bar a { color: #22c55e; text-decoration: none; }
@@ -323,7 +329,7 @@ DASHBOARD_HTML = """\
             left: 50%;
             transform: translateX(-50%);
             background: #22c55e;
-            color: #0f1a0f;
+            color: #121a12;
             padding: 12px 24px;
             border-radius: 8px;
             font-weight: 600;
@@ -335,8 +341,7 @@ DASHBOARD_HTML = """\
 </head>
 <body>
     <header>
-        <h1>Backyard Hummers</h1>
-        <p>Bartlett's finest backyard hummers.</p>
+        <img src="/static/banner.png" alt="Backyard Hummers - Bartlett's Finest Backyard Hummers" class="banner-img">
     </header>
 
     <div class="container">
@@ -348,11 +353,11 @@ DASHBOARD_HTML = """\
             <h2>Live Camera Feed</h2>
             <div class="feed-container">
                 {% if status.camera_error %}
-                <div style="width:100%; height:360px; background:#0a140a; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                <div style="width:100%; height:360px; background:#0c140c; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
                     <div style="font-size:3em; margin-bottom:15px;">&#128247;</div>
                     <div style="color:#dc2626; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
-                    <div style="color:#8faa8f; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
-                    <div style="color:#8faa8f; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
+                    <div style="color:#9aab8f; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
+                    <div style="color:#9aab8f; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
                 </div>
                 {% else %}
                 <img src="/feed" alt="Live camera feed" id="liveFeed">
@@ -366,9 +371,9 @@ DASHBOARD_HTML = """\
             <div class="feed-controls">
                 <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
-                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#2d4a2d;">Test Mic</button>
-                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#2d4a2d;">Test Record</button>
-                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#2d4a2d; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
+                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#2d4a30;">Test Mic</button>
+                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#2d4a30;">Test Record</button>
+                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#2d4a30; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
                     <option value="0" {% if status.camera_rotation == 0 %}selected{% endif %}>0° (Normal)</option>
                     <option value="90" {% if status.camera_rotation == 90 %}selected{% endif %}>90° CW</option>
                     <option value="180" {% if status.camera_rotation == 180 %}selected{% endif %}>180° (Upside Down)</option>
@@ -414,7 +419,7 @@ DASHBOARD_HTML = """\
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #8faa8f; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
+            <p style="color: #9aab8f; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
             {% endif %}
         </div>
 
@@ -480,7 +485,7 @@ DASHBOARD_HTML = """\
                     <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
                         {{ status.schedule.status }}
                     </div>
-                    <div style="font-size: 0.75em; color: #8faa8f; margin-top: 8px;" id="stat-schedule-detail">
+                    <div style="font-size: 0.75em; color: #9aab8f; margin-top: 8px;" id="stat-schedule-detail">
                         {{ status.schedule.location }}<br>
                         Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
                         Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
@@ -503,14 +508,14 @@ DASHBOARD_HTML = """\
                     <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
                         {{ status.ram_str }}
                     </div>
-                    <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
+                    <div style="font-size: 0.75em; color: #9aab8f; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
                 </div>
                 <div class="status-card">
                     <div class="label">SD Card</div>
                     <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
                         {{ status.disk_str }}
                     </div>
-                    <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
+                    <div style="font-size: 0.75em; color: #9aab8f; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
                 </div>
                 <div class="status-card">
                     <div class="label">Camera</div>
@@ -1161,6 +1166,14 @@ def serve_clip(filename):
     if "/" in filename or "\\" in filename or ".." in filename:
         return {"ok": False, "error": "Invalid filename"}, 400
     return send_from_directory(str(config.CLIPS_DIR), filename)
+
+
+@app.route("/static/<filename>")
+def serve_static(filename):
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return {"ok": False, "error": "Invalid filename"}, 400
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    return send_from_directory(static_dir, filename)
 
 
 @app.route("/api/clips/<filename>", methods=["DELETE"])
