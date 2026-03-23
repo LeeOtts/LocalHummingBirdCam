@@ -3,7 +3,6 @@ opencv-python-headless
 openai>=1.0
 requests
 python-dotenv
-Pillow
 flask
 ai-edge-litert
 astral

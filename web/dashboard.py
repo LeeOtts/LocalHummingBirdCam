@@ -29,7 +29,8 @@ def _update_env_value(key: str, value) -> bool:
             with open(env_path, "r") as f:
                 lines = f.readlines()
             for i, line in enumerate(lines):
-                if line.strip().startswith(f"{key}="):
+                stripped = line.strip().lstrip("# ")
+                if stripped.startswith(f"{key}="):
                     lines[i] = f"{key}={value}\n"
                     found = True
                     break
