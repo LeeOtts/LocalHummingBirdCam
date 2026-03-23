@@ -312,16 +312,44 @@ DASHBOARD_HTML = """\
             border-radius: 8px;
             padding: 15px;
             font-family: 'Courier New', monospace;
-            font-size: 0.8em;
-            max-height: 400px;
+            font-size: 0.85em;
+            max-height: 500px;
             overflow-y: auto;
+            overflow-x: auto;
             line-height: 1.6;
             white-space: pre-wrap;
-            word-break: break-all;
+            word-break: break-word;
         }
         .log-box .log-info { color: #4ade80; }
         .log-box .log-warn { color: #f0c040; }
         .log-box .log-error { color: #ef4444; }
+
+        /* Mobile: make logs readable */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .log-box {
+                font-size: 0.78em;
+                padding: 10px;
+                max-height: 450px;
+                line-height: 1.5;
+            }
+            .log-header-controls {
+                float: none !important;
+                display: flex;
+                gap: 8px;
+                margin-top: 8px;
+            }
+            .log-header-controls select,
+            .log-header-controls button {
+                font-size: 0.85em !important;
+                padding: 6px 12px !important;
+                flex: 1;
+            }
+            .status-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+                gap: 10px !important;
+            }
+        }
 
         .refresh-bar {
             text-align: center;
@@ -534,14 +562,14 @@ DASHBOARD_HTML = """\
 
         <div class="section">
             <h2>Recent Logs
-                <div style="float:right; display:flex; gap:8px;">
-                    <select id="logFilter" onchange="filterLogs()" style="background:#0d1117; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:4px 8px; font-size:0.75em;">
+                <div class="log-header-controls" style="float:right; display:flex; gap:8px;">
+                    <select id="logFilter" onchange="filterLogs()" style="background:#0d1117; color:#e0e0e0; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
                         <option value="all">All</option>
                         <option value="log-error">Errors</option>
                         <option value="log-warn">Warnings</option>
                         <option value="log-info">Info</option>
                     </select>
-                    <button class="btn btn-delete" onclick="clearLogs()" style="font-size:0.6em; padding:4px 12px;">Clear Logs</button>
+                    <button class="btn btn-delete" onclick="clearLogs()" style="font-size:0.7em; padding:6px 14px;">Clear Logs</button>
                 </div>
             </h2>
             <div class="log-box" id="logBox">
