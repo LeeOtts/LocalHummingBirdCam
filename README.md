@@ -1,23 +1,34 @@
 # Backyard Hummers
 
-*Where the birds are fast and the jokes are faster.*
+*Bartlett's finest backyard hummers.*
 
-A Raspberry Pi-powered hummingbird feeder camera that catches those little showoffs in action. When a Ruby-throated Hummingbird swings by for a drink, the system records a 30-second clip with sound, gets GPT-4o to write something inappropriately funny about it, and posts it straight to the **Backyard Hummers** Facebook page.
+A Raspberry Pi-powered hummingbird feeder camera that turns your backyard into a tiny AI-powered media empire.
 
-My wife mentioned she saw an AI-powered hummingbird feeder camera online. I looked at the Raspberry Pi collecting dust on my desk and said "I can build that." So here we are.
+When a Ruby-throated Hummingbird swings by for a drink, the system:
+- records a 30-second clip (with sound)
+- lets GPT-4o write something cheeky about it
+- and posts it straight to the **Backyard Hummers** Facebook page
+
+Follow the chaos here: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
+
+My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi collecting dust on my desk and said:
+
+> "I can build a better hummer."
+
+...and now I accidentally run Bartlett's premier hummer surveillance operation.
 
 ## What It Does
 
-- **Catches hummingbirds, not leaves** — 3-stage detection pipeline: motion filter, color filter, then a local AI bird species classifier confirms it's actually a Ruby-throated Hummingbird before recording
-- **Records with sound** — 30-second clips (10s before + 20s after detection) via USB camera with mic
-- **GPT-4o writes the captions** — cheeky, on-brand captions for the Backyard Hummers page via Azure OpenAI
-- **Posts to Facebook automatically** — clip + caption, straight to your page with daily rate limiting
-- **Live dashboard** — watch the feed, hear live audio, see detections in real-time, manage clips, toggle posting on/off
-- **Night mode** — auto sleep/wake based on sunrise and sunset at your location
-- **Good morning / goodnight posts** — daily greeting and recap with hummer tallies
-- **Trains itself** — see a hummingbird the system missed? Hit "I See a Hummingbird!" to save the frame for future training
-- **One-button updates** — push code to GitHub, hit "Check for Update" on the dashboard, done
-- **Graceful failures** — camera unplugged? Dashboard still works, shows the error, and auto-recovers when you plug it back in
+- **Catches hummingbirds, not leaves** — 3-stage detection pipeline: motion, color, AI classifier (after an embarrassing number of false alarms involving wind, shadows, and betrayal)
+- **Records with sound** — 30-second clips (10s before + 20s after detection) because the wing buzz is half the drama
+- **GPT-4o writes the captions** — chaotic, slightly unhinged, occasionally better than mine
+- **Posts to Facebook automatically** — your hummers, their moment of fame
+- **Live dashboard** — watch the feed, hear audio, and feel like you run a wildlife surveillance agency
+- **Night mode** — auto sleep/wake based on sunrise and sunset (the birds rest... eventually so do I)
+- **Good morning / goodnight posts** — daily check-ins with hummer stats
+- **Trains itself** — teach it "bird vs leaf vs absolute nonsense"
+- **One-button updates** — because I refuse to pretend I enjoy manual deployments
+- **Graceful failures** — camera unplugged? It complains politely and fixes itself later
 
 ## Hardware
 
@@ -25,7 +36,7 @@ My wife mentioned she saw an AI-powered hummingbird feeder camera online. I look
 - USB webcam with built-in mic
 - 32GB+ SD card
 - Power supply (5V/2.5A minimum)
-- Hummingbird feeder (the real star of the show)
+- Hummingbird feeder (the actual MVP)
 
 ## Fresh Install
 
@@ -89,11 +100,7 @@ source venv/bin/activate
 python scripts/setup_facebook_token.py
 ```
 
-Grab these from [Meta Developer Dashboard](https://developers.facebook.com):
-- **App ID** and **App Secret** — Settings > Basic
-- **Short-lived token** — from the [Graph API Explorer](https://developers.facebook.com/tools/explorer/) with `pages_manage_posts` and `pages_read_engagement` permissions
-
-The script swaps it for a **permanent** token and saves it. One and done.
+Grab your **App ID**, **App Secret**, and **short-lived token**. The script converts it to a permanent token.
 
 ### 7. Fire It Up
 
@@ -107,44 +114,45 @@ sudo systemctl start hummingbird
 http://hummingbirdcam.local:8080
 ```
 
-Starts in **Test Mode** (no Facebook posting) so you can make sure everything works first.
+Starts in **Test Mode** so you don't accidentally spam your page.
 
 ## How It Catches Them
 
-The detection pipeline has 3 stages — cheap and fast first, smart second:
+The detection pipeline is basically a bouncer for birds:
 
-1. **Motion + Color** *(every frame, ~1ms)* — looks for small moving objects with hummingbird colors (iridescent green, ruby red, orange). Needs 5 consecutive frames to trigger. Ignores wind, shadows, and your neighbor walking by.
+1. **Motion + Color** *(~1ms)* — Fast, cheap, slightly paranoid. Doesn't freak out over every leaf anymore.
 
-2. **Bird Species Classifier** *(local AI, ~1-2 sec on Pi)* — a MobileNetV2 model trained on 964 bird species via iNaturalist. Specifically looks for **Ruby-throated Hummingbird** with 25% minimum confidence. Runs entirely on the Pi via TFLite, no internet needed.
+2. **Bird Species Classifier** *(~1-2 sec on Pi)* — The "are you actually a hummingbird?" check. MobileNetV2 trained on 964 bird species. Fully local, no cloud needed.
 
-3. **Record + Post** — captures 30 seconds of video with audio, GPT-4o writes something witty, and it goes to Facebook.
+3. **Record + Post** — 30 seconds of fame. GPT-4o adds commentary. Internet gets another hummer clip.
 
 ## The Dashboard
 
-Hit `http://hummingbirdcam.local:8080` and you get:
+Hit `http://hummingbirdcam.local:8080` and welcome to mission control:
 
-- **Live camera feed** with real-time detection overlay and live audio (muted by default)
-  - Green border = hummingbird confirmed, recording
-  - Yellow border = motion detected
-  - Blue border = verifying with classifier
-  - Red border = rejected, not a hummingbird
-  - Purple border = sleeping (night mode)
+- **Live feed** with overlays and audio (yes, you can hear them judging you)
+- **Detection states:**
+  - Green = hummingbird confirmed
+  - Yellow = motion detected
+  - Blue = verifying
+  - Red = rejected
+  - Purple = sleeping
   - Red glow = camera error
-- **Camera controls** — rotation (0/90/180/270), test record, test mic
-- **Training buttons** — "I See a Hummingbird!" / "Not a Hummingbird" to save labeled frames
-- **Recent clips** — watch, see the caption, delete individually or all at once
-- **App Status** — uptime, detections, rejections, posts, clips, cooldown, test mode toggle, version, schedule, update button
-- **Hardware** — CPU temperature, RAM usage, SD card space, camera status
-- **Logs** — filterable (all/errors/warnings/info), clearable, newest first
+- **Camera controls** — rotation, test recording, mic test
+- **Training buttons** — help the AI get smarter
+- **Recent clips** — review, delete, admire your regulars
+- **App status** — uptime, detections, posts, cooldowns, version, schedule
+- **Hardware stats** — CPU temp, RAM, disk space
+- **Logs** — because something always breaks eventually
 
 ## Configuration
 
-Everything lives in `.env`. See `.env.example` for all options:
+Everything lives in `.env`. See `.env.example` for full details.
 
 | Setting | Default | What It Does |
 |---|---|---|
 | `OPENAI_API_KEY` | | API key (Azure or OpenAI) |
-| `AZURE_OPENAI_ENDPOINT` | | Azure endpoint URL (leave blank for direct OpenAI) |
+| `AZURE_OPENAI_ENDPOINT` | | Azure endpoint URL (blank = direct OpenAI) |
 | `AZURE_OPENAI_DEPLOYMENT` | `gpt-4o` | Azure model deployment name |
 | `AZURE_OPENAI_API_VERSION` | `2024-12-01-preview` | Azure API version |
 | `FACEBOOK_PAGE_ID` | | Your Facebook page ID |
@@ -158,7 +166,7 @@ Everything lives in `.env`. See `.env.example` for all options:
 | `TEST_MODE` | `true` | Skip Facebook posting |
 | `MOTION_THRESHOLD` | `15.0` | Motion sensitivity |
 | `COLOR_MIN_AREA` | `300` | Min hummingbird-colored pixels |
-| `COLOR_MAX_AREA` | `5000` | Max (rejects big objects like shirts) |
+| `COLOR_MAX_AREA` | `5000` | Max (rejects big objects) |
 | `DETECTION_COOLDOWN_SECONDS` | `60` | Seconds between detections |
 | `MAX_POSTS_PER_DAY` | `10` | Daily Facebook post limit |
 | `CLIP_PRE_SECONDS` | `10` | Buffer before detection |
@@ -168,8 +176,8 @@ Everything lives in `.env`. See `.env.example` for all options:
 | `LOCATION_LNG` | `-89.8740` | Your longitude |
 | `LOCATION_TIMEZONE` | `America/Chicago` | Your timezone |
 | `LOCATION_NAME` | `Bartlett, TN` | Shown on dashboard |
-| `WAKE_BEFORE_SUNRISE_MIN` | `30` | Wake up this many min before sunrise |
-| `SLEEP_AFTER_SUNSET_MIN` | `30` | Sleep this many min after sunset |
+| `WAKE_BEFORE_SUNRISE_MIN` | `30` | Wake up early |
+| `SLEEP_AFTER_SUNSET_MIN` | `30` | Stay up late |
 | `WEB_PORT` | `8080` | Dashboard port |
 
 ## Cheat Sheet
@@ -180,7 +188,7 @@ Everything lives in `.env`. See `.env.example` for all options:
 | Restart | `sudo systemctl restart hummingbird` |
 | Stop | `sudo systemctl stop hummingbird` |
 | Live logs | `journalctl -u hummingbird -f` |
-| Camera detected? | `ls /dev/video*` |
+| Camera check | `ls /dev/video*` |
 | List mics | `arecord -l` |
 | Pi temp | `vcgencmd measure_temp` |
 | Dashboard | `http://hummingbirdcam.local:8080` |
@@ -189,8 +197,8 @@ Everything lives in `.env`. See `.env.example` for all options:
 
 ```
 LocalHummingBirdCam/
-├── main.py                  # Entry point, detection loop
-├── config.py                # All settings from .env
+├── main.py                  # The brains
+├── config.py                # All the knobs
 ├── schedule.py              # Sunrise/sunset night mode
 ├── camera/
 │   ├── stream.py            # USB + Pi Camera with rotation
@@ -199,7 +207,7 @@ LocalHummingBirdCam/
 │   ├── motion_color.py      # Fast motion + color filter
 │   └── vision_verify.py     # MobileNetV2 bird classifier (TFLite)
 ├── social/
-│   ├── comment_generator.py # GPT-4o caption generation (Azure/OpenAI)
+│   ├── comment_generator.py # GPT-4o caption generation
 │   └── facebook_poster.py   # Facebook Graph API video upload
 ├── web/
 │   └── dashboard.py         # Flask dashboard with live feed
@@ -209,13 +217,17 @@ LocalHummingBirdCam/
 │   ├── hummingbird.service      # systemd service
 │   └── install_dependencies.sh  # Full system setup
 ├── models/                  # Bird classifier (downloaded on first run)
-├── clips/                   # Recorded hummingbird videos
+├── clips/                   # Your hummingbird videos
 ├── training/                # Labeled frames for future training
-│   ├── hummingbird/
-│   └── not_hummingbird/
 └── logs/                    # App logs with rotation
 ```
 
----
+## Final Notes
 
-*Built for the Backyard Hummers Facebook page. Source code: [github.com/LeeOtts/LocalHummingBirdCam](https://github.com/LeeOtts/LocalHummingBirdCam)*
+Took an embarrassing number of false alarms before it stopped getting emotionally invested in leaves.
+
+Yes, this is completely over-engineered. No, I do not regret it.
+
+Watch the birds in action: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
+
+Source code: [github.com/LeeOtts/LocalHummingBirdCam](https://github.com/LeeOtts/LocalHummingBirdCam)
