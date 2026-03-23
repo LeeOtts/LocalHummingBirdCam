@@ -11,6 +11,7 @@ venv/
 .env
 
 # Project artifacts
+.post_state.json
 clips/*.mp4
 clips/*.h264
 clips/*.txt

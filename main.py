@@ -7,11 +7,13 @@ records 30-second clips, generates funny comments via ChatGPT, and posts
 to the "Backyard Hummers" Facebook page.
 """
 
+import json
 import logging
 import signal
 import sys
 import threading
 import time
+from datetime import date
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from queue import Empty, Queue
@@ -77,8 +79,35 @@ class HummingbirdMonitor:
         self._detection_state_time = 0.0
         self._rejected_today = 0
         self._sleeping = False
-        self._morning_posted = False
-        self._night_posted = False
+        self._state_file = Path(config.BASE_DIR) / ".post_state.json"
+        self._morning_posted, self._night_posted = self._load_post_state()
+
+    def _load_post_state(self) -> tuple:
+        """Load today's morning/night post flags from disk to prevent duplicates on restart."""
+        try:
+            if self._state_file.exists():
+                data = json.loads(self._state_file.read_text())
+                if data.get("date") == str(date.today()):
+                    morning = data.get("morning_posted", False)
+                    night = data.get("night_posted", False)
+                    logger.info("Restored post state: morning=%s, night=%s", morning, night)
+                    return morning, night
+                # Stale date — reset
+                logger.info("Post state is from %s, resetting for today", data.get("date"))
+        except Exception:
+            logger.exception("Failed to load post state")
+        return False, False
+
+    def _save_post_state(self):
+        """Save morning/night post flags to disk."""
+        try:
+            self._state_file.write_text(json.dumps({
+                "date": str(date.today()),
+                "morning_posted": self._morning_posted,
+                "night_posted": self._night_posted,
+            }))
+        except Exception:
+            logger.exception("Failed to save post state")
 
     def start(self):
         """Start all components."""
@@ -143,6 +172,7 @@ class HummingbirdMonitor:
                     # End-of-day post with tally
                     if not self._night_posted:
                         self._night_posted = True
+                        self._save_post_state()
                         self._post_goodnight(schedule_info)
 
                 time.sleep(30)  # Check every 30 seconds if it's daytime yet
@@ -150,17 +180,20 @@ class HummingbirdMonitor:
             elif self._sleeping:
                 self._sleeping = False
                 self._night_posted = False  # Reset for next night
+                self._save_post_state()
                 self.detection_state = "idle"
                 logger.info("Good morning! Waking up and starting detection.")
 
                 # Morning post
                 if not self._morning_posted:
                     self._morning_posted = True
+                    self._save_post_state()
                     self._post_goodmorning()
 
             # First-ever wake up (not coming from sleep)
             elif not self._morning_posted and config.NIGHT_MODE_ENABLED:
                 self._morning_posted = True
+                self._save_post_state()
                 self._post_goodmorning()
 
             try:
@@ -282,6 +315,7 @@ class HummingbirdMonitor:
             self._detections_today = 0
             self._rejected_today = 0
             self._morning_posted = False
+            self._save_post_state()
         except Exception:
             logger.exception("Failed to post goodnight recap")
 
