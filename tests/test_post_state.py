@@ -25,6 +25,9 @@ def _make_monitor(state_file: Path):
     monitor._state_file = state_file
     monitor._morning_posted = False
     monitor._night_posted = False
+    monitor._yesterday_detections = 0
+    monitor._all_time_record = 0
+    monitor._total_lifetime_detections = 0
     return monitor
 
 

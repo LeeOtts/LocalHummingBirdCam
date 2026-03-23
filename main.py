@@ -13,7 +13,7 @@ import signal
 import sys
 import threading
 import time
-from datetime import date
+from datetime import date, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from queue import Empty, Queue
@@ -59,6 +59,23 @@ def setup_logging():
 logger = logging.getLogger(__name__)
 
 
+def _get_day_part(hour: int) -> str:
+    """Return a human-friendly time-of-day label."""
+    if hour < 8:
+        return "early morning"
+    if hour < 11:
+        return "mid-morning"
+    if hour < 14:
+        return "midday"
+    if hour < 17:
+        return "afternoon"
+    return "evening"
+
+
+# Milestone thresholds for lifetime detection counts
+_MILESTONES = {100, 250, 500, 1000, 1500, 2000, 2500, 3000, 5000, 10000}
+
+
 class HummingbirdMonitor:
     """Main application controller."""
 
@@ -81,6 +98,13 @@ class HummingbirdMonitor:
         self._rejected_today = 0
         self._sleeping = False
         self._state_file = Path(config.BASE_DIR) / ".post_state.json"
+
+        # Engagement tracking
+        self._detection_hours: list = []  # hour ints for peak-hour calc
+        self._yesterday_detections = 0
+        self._all_time_record = 0
+        self._total_lifetime_detections = 0
+
         self._morning_posted, self._night_posted = self._load_post_state()
 
     def _load_post_state(self) -> tuple:
@@ -88,6 +112,11 @@ class HummingbirdMonitor:
         try:
             if self._state_file.exists():
                 data = json.loads(self._state_file.read_text())
+                # Always restore lifetime stats regardless of date
+                self._all_time_record = data.get("all_time_record", 0)
+                self._total_lifetime_detections = data.get("total_lifetime_detections", 0)
+                self._yesterday_detections = data.get("yesterday_detections", 0)
+
                 if data.get("date") == str(date.today()):
                     morning = data.get("morning_posted", False)
                     night = data.get("night_posted", False)
@@ -100,13 +129,16 @@ class HummingbirdMonitor:
         return False, False
 
     def _save_post_state(self):
-        """Save morning/night post flags to disk (atomic write)."""
+        """Save morning/night post flags and engagement stats to disk (atomic write)."""
         try:
             tmp = self._state_file.with_suffix(".tmp")
             tmp.write_text(json.dumps({
                 "date": str(date.today()),
                 "morning_posted": self._morning_posted,
                 "night_posted": self._night_posted,
+                "yesterday_detections": self._yesterday_detections,
+                "all_time_record": self._all_time_record,
+                "total_lifetime_detections": self._total_lifetime_detections,
             }))
             tmp.replace(self._state_file)
         except Exception:
@@ -241,6 +273,8 @@ class HummingbirdMonitor:
                 self._last_detection_time = time.time()
                 with self._counter_lock:
                     self._detections_today += 1
+                    self._total_lifetime_detections += 1
+                    self._detection_hours.append(datetime.now().hour)
                 logger.info("Hummingbird confirmed! Starting recording...")
 
                 # Reset detector state during recording
@@ -287,10 +321,14 @@ class HummingbirdMonitor:
     def _post_goodmorning(self):
         """Post a good morning greeting to Facebook."""
         try:
+            now = datetime.now()
             schedule_info = get_schedule_info()
             caption = generate_good_morning(
                 location=config.LOCATION_NAME,
                 sunrise=schedule_info["sunrise"],
+                day_of_week=now.strftime("%A"),
+                month=now.strftime("%B"),
+                yesterday_detections=self._yesterday_detections or None,
             )
             logger.info("Morning post: %s", caption)
 
@@ -304,13 +342,31 @@ class HummingbirdMonitor:
     def _post_goodnight(self, schedule_info):
         """Post a goodnight recap with daily tally to Facebook."""
         try:
+            now = datetime.now()
             with self._counter_lock:
                 det, rej = self._detections_today, self._rejected_today
+                hours = list(self._detection_hours)
+
+            # Calculate peak hour
+            peak_hour = None
+            if hours:
+                most_common = max(set(hours), key=hours.count)
+                h = most_common % 12 or 12
+                ampm = "AM" if most_common < 12 else "PM"
+                peak_hour = f"{h} {ampm}"
+
+            # Check for new record
+            is_record = det > self._all_time_record and det > 0
+
             caption = generate_good_night(
                 location=config.LOCATION_NAME,
                 sunset=schedule_info["sunset"],
                 detections=det,
                 rejected=rej,
+                day_of_week=now.strftime("%A"),
+                month=now.strftime("%B"),
+                peak_hour=peak_hour,
+                is_record=is_record,
             )
             logger.info("Goodnight post: %s", caption)
 
@@ -319,10 +375,16 @@ class HummingbirdMonitor:
             else:
                 self.poster.post_text(caption)
 
+            # Rotate daily stats before resetting
+            self._yesterday_detections = det
+            if det > self._all_time_record:
+                self._all_time_record = det
+
             # Reset daily counters
             with self._counter_lock:
                 self._detections_today = 0
                 self._rejected_today = 0
+                self._detection_hours.clear()
             self._morning_posted = False
             self._save_post_state()
         except Exception:
@@ -338,11 +400,32 @@ class HummingbirdMonitor:
 
             try:
                 logger.info("Generating caption for %s...", clip_path.name)
+                now = datetime.now()
+                schedule_info = get_schedule_info()
                 with self._counter_lock:
                     det, rej = self._detections_today, self._rejected_today
+                    lifetime = self._total_lifetime_detections
+
+                elapsed = time.time() - self._last_detection_time if self._last_detection_time else None
+                # Only mention gap if under 2 hours and not the current detection
+                seconds_since = int(elapsed) if elapsed and elapsed < 7200 and elapsed > 5 else None
+
+                milestone = None
+                if lifetime in _MILESTONES:
+                    milestone = f"Lifetime visitor #{lifetime}!"
+
                 caption = generate_comment(
                     detections=det,
                     rejected=rej,
+                    visit_number=det,
+                    time_of_day=now.strftime("%I:%M %p").lstrip("0"),
+                    day_part=_get_day_part(now.hour),
+                    day_of_week=now.strftime("%A"),
+                    seconds_since_last=seconds_since,
+                    month=now.strftime("%B"),
+                    sunrise=schedule_info.get("sunrise", ""),
+                    sunset=schedule_info.get("sunset", ""),
+                    milestone=milestone,
                 )
 
                 # Save caption alongside the clip

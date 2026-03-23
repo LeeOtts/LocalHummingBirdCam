@@ -336,7 +336,7 @@ DASHBOARD_HTML = """\
 <body>
     <header>
         <h1>Backyard Hummers</h1>
-        <p>Where the birds are fast and the jokes are faster</p>
+        <p>Bartlett's finest backyard hummers.</p>
     </header>
 
     <div class="container">
