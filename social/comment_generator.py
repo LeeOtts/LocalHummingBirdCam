@@ -1,5 +1,6 @@
 """Generate funny Facebook post captions using OpenAI / Azure OpenAI."""
 
+import collections
 import logging
 import random
 
@@ -7,16 +8,29 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# Singleton client — reuses connection pool
+# Singleton client — reuses connection pool, recreated when config changes
 _client = None
+_client_config: tuple = ()
+
+# Rolling buffer of recent captions to avoid repetition
+MAX_RECENT_CAPTIONS = 10
+_recent_captions: collections.deque = collections.deque(maxlen=MAX_RECENT_CAPTIONS)
 
 
 def _get_client():
-    global _client
-    if _client is not None:
+    global _client, _client_config
+    current_config = (
+        config.OPENAI_API_KEY,
+        config.AZURE_OPENAI_ENDPOINT,
+        config.AZURE_OPENAI_API_VERSION,
+    )
+
+    if _client is not None and _client_config == current_config:
         return _client
 
     if not config.OPENAI_API_KEY:
+        _client = None
+        _client_config = ()
         return None
 
     # Azure OpenAI — needs endpoint, key, and api-version
@@ -34,6 +48,7 @@ def _get_client():
         _client = OpenAI(api_key=config.OPENAI_API_KEY)
         logger.info("Using OpenAI direct")
 
+    _client_config = current_config
     return _client
 
 SYSTEM_PROMPT = """\
@@ -105,16 +120,26 @@ def generate_comment(detections: int = 0, rejected: int = 0) -> str:
     try:
         client = _get_client()
         prompt = SYSTEM_PROMPT.format(detections=detections, rejected=rejected)
+        messages: list = [
+            {"role": "system", "content": prompt},
+        ]
+        if _recent_captions:
+            avoid_text = "\n".join(f"- {c}" for c in _recent_captions)
+            messages.append({"role": "user", "content":
+                f"Here are the recent captions already posted — do NOT "
+                f"repeat similar phrasing or structure:\n{avoid_text}"})
+            messages.append({"role": "assistant", "content":
+                "Got it, I'll write something fresh."})
+        messages.append({"role": "user", "content":
+            "Write a post for a new hummingbird sighting video."})
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": "Write a post for a new hummingbird sighting video."},
-            ],
+            messages=messages,
             max_tokens=200,
             temperature=1.0,
         )
-        caption = response.choices[0].message.content.strip()
+        caption = (response.choices[0].message.content or "").strip()
+        _recent_captions.append(caption)
         logger.info("Generated caption: %s", caption)
         return caption
 
@@ -200,7 +225,7 @@ def generate_good_morning(location: str, sunrise: str) -> str:
             max_tokens=200,
             temperature=1.0,
         )
-        caption = response.choices[0].message.content.strip()
+        caption = (response.choices[0].message.content or "").strip()
         logger.info("Morning post: %s", caption)
         return caption
 
@@ -228,7 +253,7 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
             max_tokens=200,
             temperature=1.0,
         )
-        caption = response.choices[0].message.content.strip()
+        caption = (response.choices[0].message.content or "").strip()
         logger.info("Night post: %s", caption)
         return caption
 

@@ -17,12 +17,17 @@ from social.comment_generator import (
 
 @pytest.fixture(autouse=True)
 def _reset_client():
-    """Reset the singleton _client before each test."""
+    """Reset the singleton _client and recent captions before each test."""
     import social.comment_generator as cg
-    orig = cg._client
+    orig_client = cg._client
+    orig_config = cg._client_config
     cg._client = None
+    cg._client_config = ()
+    cg._recent_captions.clear()
     yield
-    cg._client = orig
+    cg._client = orig_client
+    cg._client_config = orig_config
+    cg._recent_captions.clear()
 
 
 class TestNoApiKey:
@@ -229,3 +234,95 @@ class TestAzureVsDirectClient:
 
         client = cg._get_client()
         assert client is None
+
+    def test_client_recreated_on_config_change(self, monkeypatch):
+        """When config values change, _get_client() creates a new client."""
+        import config
+        import social.comment_generator as cg
+
+        monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
+
+        # First call with key-1
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "key-1")
+        mock_openai_cls = MagicMock()
+        with patch.dict("sys.modules", {"openai": MagicMock(OpenAI=mock_openai_cls)}):
+            client1 = cg._get_client()
+
+        # Change key and call again
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "key-2")
+        mock_openai_cls2 = MagicMock()
+        with patch.dict("sys.modules", {"openai": MagicMock(OpenAI=mock_openai_cls2)}):
+            client2 = cg._get_client()
+
+        assert client1 is not client2
+        mock_openai_cls2.assert_called_once_with(api_key="key-2")
+
+
+class TestRecentCaptionDeduplication:
+    """Test that recent captions are passed to the LLM for deduplication."""
+
+    def test_first_call_has_no_recent_captions(self, monkeypatch):
+        """First call should not include recent captions in messages."""
+        import config
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
+        monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "First caption"
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("social.comment_generator._get_client", return_value=mock_client):
+            generate_comment(detections=1, rejected=0)
+
+        call_args = mock_client.chat.completions.create.call_args
+        messages = call_args.kwargs.get("messages") or call_args[1].get("messages")
+        # Should be just system + user (no avoidance context)
+        assert len(messages) == 2
+
+    def test_subsequent_calls_include_recent_captions(self, monkeypatch):
+        """After generating captions, subsequent calls include them for avoidance."""
+        import config
+        import social.comment_generator as cg
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
+        monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Caption one"
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("social.comment_generator._get_client", return_value=mock_client):
+            generate_comment(detections=1, rejected=0)
+
+            mock_response.choices[0].message.content = "Caption two"
+            generate_comment(detections=2, rejected=0)
+
+        # Second call should have system + avoidance user + assistant ack + user = 4 messages
+        second_call = mock_client.chat.completions.create.call_args_list[1]
+        messages = second_call.kwargs.get("messages") or second_call[1].get("messages")
+        assert len(messages) == 4
+        assert "Caption one" in messages[1]["content"]
+
+    def test_captions_added_to_recent_buffer(self, monkeypatch):
+        """Generated captions are stored in _recent_captions."""
+        import config
+        import social.comment_generator as cg
+        monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
+        monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Stored caption"
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("social.comment_generator._get_client", return_value=mock_client):
+            generate_comment()
+
+        assert "Stored caption" in cg._recent_captions
