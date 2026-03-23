@@ -19,6 +19,30 @@ app = Flask(__name__)
 _monitor = None
 
 
+def _update_env_value(key: str, value) -> bool:
+    """Update or add a key=value in the .env file so it persists across restarts."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    try:
+        lines = []
+        found = False
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+            for i, line in enumerate(lines):
+                if line.strip().startswith(f"{key}="):
+                    lines[i] = f"{key}={value}\n"
+                    found = True
+                    break
+        if not found:
+            lines.append(f"{key}={value}\n")
+        with open(env_path, "w") as f:
+            f.writelines(lines)
+        return True
+    except Exception:
+        logger.exception("Failed to save %s to .env", key)
+        return False
+
+
 def set_monitor(monitor):
     global _monitor
     _monitor = monitor
@@ -1289,7 +1313,9 @@ def rotate_camera():
         return {"ok": False, "error": "Invalid rotation (0, 90, 180, 270)"}, 400
 
     _monitor.camera.rotation = angle
-    logger.info("Camera rotation changed to %d°", angle)
+    config.CAMERA_ROTATION = angle
+    _update_env_value("CAMERA_ROTATION", angle)
+    logger.info("Camera rotation changed to %d° (saved to .env)", angle)
     return {"ok": True, "rotation": angle}
 
 
