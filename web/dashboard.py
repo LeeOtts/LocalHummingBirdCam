@@ -104,7 +104,7 @@ DASHBOARD_HTML = """\
         .live-feed h2 { color: #ffffff; margin-bottom: 15px; }
         .feed-container {
             position: relative;
-            max-width: 640px;
+            max-width: {{ video_width }}px;
             margin: 0 auto;
         }
         .feed-container img {
@@ -1149,6 +1149,7 @@ def dashboard():
         status=_get_status(),
         clips=_get_recent_clips(),
         logs=_get_recent_logs(),
+        video_width=config.VIDEO_WIDTH,
     )
 
 

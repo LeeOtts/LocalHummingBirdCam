@@ -210,8 +210,8 @@ class CameraStream:
 class FrameBuffer:
     """Thread-safe rolling buffer storing JPEG-compressed frames to save RAM.
 
-    Raw frames at 640x480 BGR = ~921KB each. At 24fps x 10s = 240 frames = ~221MB.
-    JPEG compressed at quality 80 = ~30-50KB each. 240 frames = ~7-12MB.
+    Raw frames at 1280x720 BGR = ~2.76MB each — uncompressed buffers would be huge.
+    JPEG compressed at quality 80 = ~80-120KB each, keeping memory usage manageable.
     """
 
     def __init__(self, maxlen: int):

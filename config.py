@@ -28,12 +28,12 @@ DETECTION_COOLDOWN_SECONDS = int(os.getenv("DETECTION_COOLDOWN_SECONDS", "60"))
 MAX_POSTS_PER_DAY = int(os.getenv("MAX_POSTS_PER_DAY", "10"))
 
 # Video settings
-VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "640"))
-VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "480"))
+VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "1280"))
+VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "720"))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", "15"))
 CLIP_PRE_SECONDS = int(os.getenv("CLIP_PRE_SECONDS", "5"))
 CLIP_POST_SECONDS = int(os.getenv("CLIP_POST_SECONDS", "20"))
-VIDEO_BITRATE = int(os.getenv("VIDEO_BITRATE", "1500000"))
+VIDEO_BITRATE = int(os.getenv("VIDEO_BITRATE", "3000000"))
 
 # Derived
 CLIP_TOTAL_SECONDS = CLIP_PRE_SECONDS + CLIP_POST_SECONDS
