@@ -18,7 +18,16 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from queue import Empty, Queue
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from pytz import timezone as _pytz_tz
+    ZoneInfo = lambda key: _pytz_tz(key)
+
 import config
+
+_local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
+
 from camera.recorder import ClipRecorder
 from camera.stream import CameraStream
 from detection.motion_color import MotionColorDetector
@@ -29,13 +38,29 @@ from social.facebook_poster import FacebookPoster
 from web.dashboard import start_web_server
 
 
+class _TZFormatter(logging.Formatter):
+    """Logging formatter that converts timestamps to the configured timezone."""
+
+    def __init__(self, fmt=None, datefmt=None, tz=None):
+        super().__init__(fmt, datefmt)
+        self._tz = tz
+
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=self._tz)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def setup_logging():
-    """Configure logging with rotation."""
+    """Configure logging with rotation — timestamps in local timezone."""
     config.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-    formatter = logging.Formatter(
+    local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
+    formatter = _TZFormatter(
         "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        tz=local_tz,
     )
 
     # File handler with rotation (5MB per file, keep 5 backups)
@@ -274,7 +299,7 @@ class HummingbirdMonitor:
                 with self._counter_lock:
                     self._detections_today += 1
                     self._total_lifetime_detections += 1
-                    self._detection_hours.append(datetime.now().hour)
+                    self._detection_hours.append(datetime.now(tz=_local_tz).hour)
                 logger.info("Hummingbird confirmed! Starting recording...")
 
                 # Reset detector state during recording
@@ -321,7 +346,7 @@ class HummingbirdMonitor:
     def _post_goodmorning(self):
         """Post a good morning greeting to Facebook."""
         try:
-            now = datetime.now()
+            now = datetime.now(tz=_local_tz)
             schedule_info = get_schedule_info()
             caption = generate_good_morning(
                 location=config.LOCATION_NAME,
@@ -342,7 +367,7 @@ class HummingbirdMonitor:
     def _post_goodnight(self, schedule_info):
         """Post a goodnight recap with daily tally to Facebook."""
         try:
-            now = datetime.now()
+            now = datetime.now(tz=_local_tz)
             with self._counter_lock:
                 det, rej = self._detections_today, self._rejected_today
                 hours = list(self._detection_hours)
@@ -400,7 +425,7 @@ class HummingbirdMonitor:
 
             try:
                 logger.info("Generating caption for %s...", clip_path.name)
-                now = datetime.now()
+                now = datetime.now(tz=_local_tz)
                 schedule_info = get_schedule_info()
                 with self._counter_lock:
                     det, rej = self._detections_today, self._rejected_today

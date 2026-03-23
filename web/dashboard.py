@@ -6,9 +6,17 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from pytz import timezone as _pytz_tz
+    ZoneInfo = lambda key: _pytz_tz(key)
+
 from flask import Flask, Response, render_template_string, send_from_directory, request, redirect, url_for
 
 import config
+
+_local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 from schedule import get_schedule_info
 
 logger = logging.getLogger(__name__)
@@ -1100,7 +1108,7 @@ def _get_recent_clips(limit=12):
     clips = []
     for p in mp4s:
         size_mb = p.stat().st_size / 1_048_576
-        mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        mtime = datetime.fromtimestamp(p.stat().st_mtime, tz=_local_tz).strftime("%Y-%m-%d %H:%M:%S")
 
         # Load caption if it exists
         caption_path = p.with_suffix(".txt")
@@ -1569,7 +1577,7 @@ def mark_training():
             frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_I420)
 
         # Save with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        timestamp = datetime.now(tz=_local_tz).strftime("%Y%m%d_%H%M%S_%f")
         filename = f"{label}_{timestamp}.jpg"
         filepath = label_dir / filename
         cv2.imwrite(str(filepath), frame)

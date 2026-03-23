@@ -6,9 +6,17 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from pytz import timezone as _pytz_tz
+    ZoneInfo = lambda key: _pytz_tz(key)
+
 import cv2
 
 import config
+
+_local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +40,7 @@ class ClipRecorder:
 
     def _record_picamera(self) -> Path | None:
         """Record using picamera2 CircularOutput."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=_local_tz).strftime("%Y%m%d_%H%M%S")
         h264_path = config.CLIPS_DIR / f"hummer_{timestamp}.h264"
         mp4_path = config.CLIPS_DIR / f"hummer_{timestamp}.mp4"
 
@@ -72,7 +80,7 @@ class ClipRecorder:
         Audio is captured separately via ffmpeg from the ALSA device and
         muxed into the final MP4.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=_local_tz).strftime("%Y%m%d_%H%M%S")
         mp4_path = config.CLIPS_DIR / f"hummer_{timestamp}.mp4"
         video_path = config.CLIPS_DIR / f"_video_{timestamp}.mp4"
         audio_path = config.CLIPS_DIR / f"_audio_{timestamp}.wav"
