@@ -81,7 +81,7 @@ DASHBOARD_HTML = """\
         }
         .banner-img {
             width: 100%;
-            max-width: 1000px;
+            max-width: 700px;
             height: auto;
             display: block;
             margin: 0 auto;
@@ -327,6 +327,10 @@ DASHBOARD_HTML = """\
         /* Mobile: make logs readable */
         @media (max-width: 768px) {
             .container { padding: 10px; }
+            .banner-img {
+                max-width: 100%;
+                padding: 0 10px;
+            }
             .log-box {
                 font-size: 0.78em;
                 padding: 10px;
