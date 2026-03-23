@@ -625,16 +625,19 @@ DASHBOARD_HTML = """\
         }
         setInterval(pollStatus, 5000);
 
-        // Poll clips list and update if changed
-        let knownClips = new Set([{% for clip in clips %}'{{ clip.name }}',{% endfor %}]);
+        // Poll clips list and update if changed (names OR captions)
+        let knownClipsFingerprint = '';
+
+        function clipsFingerprint(clips) {
+            return clips.map(c => c.name + '|' + (c.caption || '')).join(';');
+        }
 
         function pollClips() {
             fetch('/api/clips/list')
                 .then(r => r.json())
                 .then(data => {
-                    const newNames = new Set(data.clips.map(c => c.name));
-                    // Check if clips changed
-                    if (newNames.size !== knownClips.size || ![...newNames].every(n => knownClips.has(n))) {
+                    const fp = clipsFingerprint(data.clips);
+                    if (fp !== knownClipsFingerprint) {
                         // Rebuild clips section
                         const grid = document.querySelector('.clip-grid');
                         if (!grid && data.clips.length > 0) {
@@ -655,7 +658,7 @@ DASHBOARD_HTML = """\
                                 </div>
                             `).join('');
                         }
-                        knownClips = newNames;
+                        knownClipsFingerprint = fp;
                     }
                 })
                 .catch(() => {});
