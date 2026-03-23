@@ -13,7 +13,7 @@ Follow the chaos here: [facebook.com/backyard.hummers](https://www.facebook.com/
 
 My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi collecting dust on my desk and said:
 
-> "I can build a better hummer."
+> "Hold my nectar — I can do that."
 
 ...and now I accidentally run Bartlett's premier hummer surveillance operation.
 
