@@ -453,6 +453,26 @@ DASHBOARD_HTML = """\
                 </button>
             </div>
             <div class="status-card">
+                <div class="label">CPU Temp</div>
+                <div class="value {{ 'red' if status.cpu_temp and status.cpu_temp > 75 else 'yellow' if status.cpu_temp and status.cpu_temp > 60 else 'green' }}" id="stat-temp">
+                    {{ status.cpu_temp_str }}
+                </div>
+            </div>
+            <div class="status-card">
+                <div class="label">RAM</div>
+                <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
+                    {{ status.ram_str }}
+                </div>
+                <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
+            </div>
+            <div class="status-card">
+                <div class="label">SD Card</div>
+                <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
+                    {{ status.disk_str }}
+                </div>
+                <div style="font-size: 0.75em; color: #8faa8f; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
+            </div>
+            <div class="status-card">
                 <div class="label">Schedule</div>
                 <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
                     {{ status.schedule.status }}
@@ -534,6 +554,22 @@ DASHBOARD_HTML = """\
                     tmBtn.className = 'btn ' + (d.test_mode ? 'btn-cancel' : 'btn-delete');
 
                     el('stat-version').textContent = d.git_commit;
+
+                    // Pi health
+                    if (d.cpu_temp_str) {
+                        el('stat-temp').textContent = d.cpu_temp_str;
+                        el('stat-temp').className = 'value ' + (d.cpu_temp > 75 ? 'red' : d.cpu_temp > 60 ? 'yellow' : 'green');
+                    }
+                    if (d.ram_str) {
+                        el('stat-ram').textContent = d.ram_str;
+                        el('stat-ram').className = 'value ' + (d.ram_percent > 85 ? 'red' : d.ram_percent > 70 ? 'yellow' : 'green');
+                        el('stat-ram-pct').textContent = Math.round(d.ram_percent) + '% used';
+                    }
+                    if (d.disk_str) {
+                        el('stat-disk').textContent = d.disk_str;
+                        el('stat-disk').className = 'value ' + (d.disk_percent > 90 ? 'red' : d.disk_percent > 75 ? 'yellow' : 'green');
+                        el('stat-disk-pct').textContent = Math.round(d.disk_percent) + '% used (' + d.disk_free_gb.toFixed(1) + ' GB free)';
+                    }
 
                     if (d.schedule) {
                         el('stat-schedule').textContent = d.schedule.status;
@@ -946,6 +982,62 @@ def _get_status():
         s.git_commit = result.stdout.strip() if result.returncode == 0 else "unknown"
     except Exception:
         s.git_commit = "unknown"
+
+    # Pi CPU temperature
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["vcgencmd", "measure_temp"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            # Output: "temp=45.6'C"
+            temp_str = result.stdout.strip().replace("temp=", "").replace("'C", "")
+            s.cpu_temp = float(temp_str)
+            s.cpu_temp_str = f"{s.cpu_temp:.1f}°C"
+        else:
+            s.cpu_temp = None
+            s.cpu_temp_str = "N/A"
+    except Exception:
+        s.cpu_temp = None
+        s.cpu_temp_str = "N/A"
+
+    # SD card / disk usage
+    try:
+        import shutil
+        usage = shutil.disk_usage("/")
+        s.disk_total_gb = usage.total / (1024 ** 3)
+        s.disk_used_gb = usage.used / (1024 ** 3)
+        s.disk_free_gb = usage.free / (1024 ** 3)
+        s.disk_percent = (usage.used / usage.total) * 100
+        s.disk_str = f"{s.disk_used_gb:.1f}/{s.disk_total_gb:.1f} GB"
+    except Exception:
+        s.disk_total_gb = 0
+        s.disk_used_gb = 0
+        s.disk_free_gb = 0
+        s.disk_percent = 0
+        s.disk_str = "N/A"
+
+    # RAM usage
+    try:
+        with open("/proc/meminfo") as f:
+            meminfo = {}
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    meminfo[parts[0].rstrip(":")] = int(parts[1])
+        total_mb = meminfo.get("MemTotal", 0) / 1024
+        available_mb = meminfo.get("MemAvailable", 0) / 1024
+        used_mb = total_mb - available_mb
+        s.ram_total_mb = total_mb
+        s.ram_used_mb = used_mb
+        s.ram_percent = (used_mb / total_mb * 100) if total_mb > 0 else 0
+        s.ram_str = f"{used_mb:.0f}/{total_mb:.0f} MB"
+    except Exception:
+        s.ram_total_mb = 0
+        s.ram_used_mb = 0
+        s.ram_percent = 0
+        s.ram_str = "N/A"
 
     return s
 
@@ -1429,6 +1521,13 @@ def api_status():
         "rejected_today": s.rejected_today,
         "training_count": s.training_count,
         "git_commit": s.git_commit,
+        "cpu_temp": s.cpu_temp,
+        "cpu_temp_str": s.cpu_temp_str,
+        "ram_str": s.ram_str,
+        "ram_percent": s.ram_percent,
+        "disk_str": s.disk_str,
+        "disk_percent": s.disk_percent,
+        "disk_free_gb": s.disk_free_gb,
         "schedule": s.schedule,
     }
 
