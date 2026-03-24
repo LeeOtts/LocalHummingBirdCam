@@ -185,6 +185,36 @@ class CameraStream:
             # Resize to lores dimensions for detection
             return cv2.resize(frame, (config.LORES_WIDTH, config.LORES_HEIGHT))
 
+    def capture_snapshot(self, output_path) -> bool:
+        """Save the current camera frame as a JPEG file.
+
+        Returns True on success, False if camera unavailable or frame is None.
+        """
+        try:
+            if not self.is_available:
+                logger.warning("Cannot capture snapshot — camera not available")
+                return False
+
+            if self.camera_type == "picamera":
+                frame = self._backend.capture_array("main")
+                # picamera2 returns RGB, OpenCV needs BGR
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                frame = self._apply_rotation(frame)
+            else:
+                with self._usb_lock:
+                    frame = self._usb_latest_frame
+
+            if frame is None:
+                logger.warning("Cannot capture snapshot — no frame available")
+                return False
+
+            cv2.imwrite(str(output_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            logger.info("Snapshot saved: %s", output_path)
+            return True
+        except Exception:
+            logger.exception("Snapshot capture failed")
+            return False
+
     def stop(self):
         """Stop the camera."""
         if self.camera_type is None or self._backend is None:

@@ -355,8 +355,21 @@ class HummingbirdMonitor:
         except Exception:
             logger.exception("Clip cleanup failed")
 
+    def _get_todays_clip(self):
+        """Return the most recent clip from today, or None."""
+        try:
+            today_str = datetime.now(tz=_local_tz).strftime("%Y%m%d")
+            clips = sorted(
+                config.CLIPS_DIR.glob(f"hummer_{today_str}_*.mp4"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            return clips[0] if clips else None
+        except Exception:
+            return None
+
     def _post_goodmorning(self):
-        """Post a good morning greeting to Facebook."""
+        """Post a good morning greeting to Facebook with a live camera snapshot."""
         try:
             now = datetime.now(tz=_local_tz)
             schedule_info = get_schedule_info()
@@ -371,8 +384,23 @@ class HummingbirdMonitor:
 
             if self.test_mode:
                 logger.info("TEST MODE — skipping morning Facebook post")
-            else:
-                self.poster.post_text(caption)
+                return
+
+            # Try to attach a live camera snapshot
+            snapshot_path = config.CLIPS_DIR / f"morning_{now.strftime('%Y%m%d')}.jpg"
+            if self.camera.capture_snapshot(snapshot_path):
+                logger.info("Morning post: attaching camera snapshot")
+                success = self.poster.post_photo(snapshot_path, caption)
+                try:
+                    snapshot_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                if success:
+                    return
+
+            # Fallback to text-only
+            logger.info("Morning post: no snapshot available, posting text-only")
+            self.poster.post_text(caption)
         except Exception:
             logger.exception("Failed to post morning greeting")
 
@@ -410,7 +438,30 @@ class HummingbirdMonitor:
             if self.test_mode:
                 logger.info("TEST MODE — skipping goodnight Facebook post")
             else:
-                self.poster.post_text(caption)
+                posted = False
+
+                # Try to attach today's last video clip
+                clip = self._get_todays_clip()
+                if clip:
+                    logger.info("Goodnight post: attaching today's clip %s", clip.name)
+                    posted = self.poster.post_video(clip, caption)
+
+                # Fallback: try a live camera snapshot
+                if not posted:
+                    now_ts = datetime.now(tz=_local_tz)
+                    snapshot_path = config.CLIPS_DIR / f"goodnight_{now_ts.strftime('%Y%m%d')}.jpg"
+                    if self.camera.capture_snapshot(snapshot_path):
+                        logger.info("Goodnight post: no clips today, attaching snapshot")
+                        posted = self.poster.post_photo(snapshot_path, caption)
+                        try:
+                            snapshot_path.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+
+                # Final fallback: text-only
+                if not posted:
+                    logger.info("Goodnight post: no media available, posting text-only")
+                    self.poster.post_text(caption)
 
             # Rotate daily stats before resetting
             self._yesterday_detections = det

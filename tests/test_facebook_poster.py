@@ -167,6 +167,57 @@ class TestRetryFailedPosts:
         poster.retry_failed_posts()
 
 
+class TestPostPhoto:
+    """Test post_photo() image uploads."""
+
+    def test_post_photo_success(self, poster, tmp_path):
+        """post_photo() should upload image and return True on success."""
+        image = tmp_path / "test.jpg"
+        image.write_bytes(b"fake image data")
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"id": "photo-123", "post_id": "page_photo-123"}
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("social.facebook_poster.requests.post", return_value=mock_resp) as mock_post:
+            result = poster.post_photo(image, "Test caption")
+
+        assert result is True
+        mock_post.assert_called_once()
+        call_url = mock_post.call_args[0][0]
+        assert "/photos" in call_url
+
+    def test_post_photo_no_credentials(self, monkeypatch, tmp_path):
+        """post_photo() returns False when no credentials."""
+        import config
+        monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "")
+        monkeypatch.setattr(config, "FACEBOOK_PAGE_ACCESS_TOKEN", "")
+
+        p = FacebookPoster()
+        image = tmp_path / "test.jpg"
+        image.write_bytes(b"data")
+        assert p.post_photo(image, "test") is False
+
+    def test_post_photo_rate_limited(self, poster, tmp_path):
+        """post_photo() returns False when at daily post limit."""
+        poster._posts_today = 5  # limit is 5
+        image = tmp_path / "test.jpg"
+        image.write_bytes(b"data")
+        assert poster.post_photo(image, "test") is False
+
+    def test_post_photo_api_error(self, poster, tmp_path):
+        """post_photo() returns False and logs on API error."""
+        import requests as req
+
+        image = tmp_path / "test.jpg"
+        image.write_bytes(b"data")
+
+        with patch("social.facebook_poster.requests.post", side_effect=req.RequestException("fail")):
+            result = poster.post_photo(image, "test")
+
+        assert result is False
+
+
 class TestMissingCredentials:
     """Test behavior when Facebook credentials are missing."""
 

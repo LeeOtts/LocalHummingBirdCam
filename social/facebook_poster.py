@@ -267,6 +267,40 @@ class FacebookPoster:
             logger.exception("Facebook text post failed")
             return False
 
+    def post_photo(self, image_path: Path, caption: str) -> bool:
+        """Upload a photo to the Facebook Page with the given caption."""
+        if not self.page_id or not self.access_token:
+            logger.error("Facebook credentials not configured")
+            return False
+
+        if not self._check_rate_limit():
+            return False
+
+        try:
+            with open(image_path, "rb") as f:
+                resp = requests.post(
+                    f"{GRAPH_API_BASE}/{self.page_id}/photos",
+                    data={
+                        "message": caption,
+                        "access_token": self.access_token,
+                    },
+                    files={"source": f},
+                    timeout=60,
+                )
+            resp.raise_for_status()
+            resp_data = resp.json()
+            post_id = resp_data.get("post_id", resp_data.get("id", "unknown"))
+            logger.info("Photo posted! Post ID: %s | Full response: %s", post_id, resp_data)
+
+            self._posts_today += 1
+            return True
+
+        except requests.RequestException as e:
+            if hasattr(e, "response") and e.response is not None:
+                logger.error("Facebook response: %s", e.response.text)
+            logger.exception("Facebook photo upload failed for %s", image_path.name)
+            return False
+
     def _save_to_retry_queue(self, mp4_path: Path, caption: str):
         """Save failed posts to a JSON retry queue for later."""
         queue = []
