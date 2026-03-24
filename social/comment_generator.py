@@ -3,14 +3,21 @@
 import collections
 import logging
 import random
+import threading
 
 import config
+
+try:
+    from openai import OpenAIError as _OpenAIError
+except ImportError:
+    _OpenAIError = Exception  # Fallback if openai not installed
 
 logger = logging.getLogger(__name__)
 
 # Singleton client — reuses connection pool, recreated when config changes
 _client = None
 _client_config: tuple = ()
+_client_lock = threading.Lock()
 
 # Rolling buffer of recent captions to avoid repetition
 MAX_RECENT_CAPTIONS = 10
@@ -28,28 +35,32 @@ def _get_client():
     if _client is not None and _client_config == current_config:
         return _client
 
-    if not config.OPENAI_API_KEY:
-        _client = None
-        _client_config = ()
-        return None
+    with _client_lock:
+        # Double-check after acquiring lock
+        if _client is not None and _client_config == current_config:
+            return _client
 
-    # Azure OpenAI — needs endpoint, key, and api-version
-    if config.AZURE_OPENAI_ENDPOINT:
-        from openai import AzureOpenAI
-        _client = AzureOpenAI(
-            azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
-            api_key=config.OPENAI_API_KEY,
-            api_version=config.AZURE_OPENAI_API_VERSION,
-        )
-        logger.info("Using Azure OpenAI (endpoint: %s, deployment: %s)",
-                     config.AZURE_OPENAI_ENDPOINT, config.AZURE_OPENAI_DEPLOYMENT)
-    else:
-        from openai import OpenAI
-        _client = OpenAI(api_key=config.OPENAI_API_KEY)
-        logger.info("Using OpenAI direct")
+        if not config.OPENAI_API_KEY:
+            _client = None
+            _client_config = ()
+            return None
 
-    _client_config = current_config
-    return _client
+        import openai as _openai
+        # Azure OpenAI — needs endpoint, key, and api-version
+        if config.AZURE_OPENAI_ENDPOINT:
+            _client = _openai.AzureOpenAI(
+                azure_endpoint=config.AZURE_OPENAI_ENDPOINT,
+                api_key=config.OPENAI_API_KEY,
+                api_version=config.AZURE_OPENAI_API_VERSION,
+            )
+            logger.info("Using Azure OpenAI (endpoint: %s, deployment: %s)",
+                         config.AZURE_OPENAI_ENDPOINT, config.AZURE_OPENAI_DEPLOYMENT)
+        else:
+            _client = _openai.OpenAI(api_key=config.OPENAI_API_KEY)
+            logger.info("Using OpenAI direct")
+
+        _client_config = current_config
+        return _client
 
 SYSTEM_PROMPT = """\
 You are the voice of a Facebook page called "Backyard Hummers," an automated \
@@ -206,7 +217,7 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
         logger.info("Generated caption: %s", caption)
         return caption
 
-    except Exception:
+    except _OpenAIError:
         logger.exception("OpenAI API call failed, using fallback caption")
         return random.choice(FALLBACK_CAPTIONS)
 
@@ -328,7 +339,7 @@ def generate_good_morning(location: str, sunrise: str, **kwargs) -> str:
         logger.info("Morning post: %s", caption)
         return caption
 
-    except Exception:
+    except _OpenAIError:
         logger.exception("OpenAI API call failed for morning post")
         return f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
 
@@ -366,6 +377,6 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
         logger.info("Night post: %s", caption)
         return caption
 
-    except Exception:
+    except _OpenAIError:
         logger.exception("OpenAI API call failed for night post")
         return f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."

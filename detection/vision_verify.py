@@ -7,6 +7,7 @@ The model is downloaded on first run from Hugging Face and cached locally.
 After that it runs fully offline.
 """
 
+import hashlib
 import logging
 import os
 import threading
@@ -42,6 +43,44 @@ HUMMINGBIRD_KEYWORDS = [
 # Minimum confidence to accept a hummingbird classification
 MIN_CONFIDENCE = 0.25
 
+# SHA-256 checksum for integrity verification (empty string = skip check)
+_MODEL_SHA256 = ""  # Populated on first successful download if desired
+
+_MODEL_URL = "https://raw.githubusercontent.com/google-coral/test_data/master/mobilenet_v2_1.0_224_inat_bird_quant.tflite"
+_LABELS_URL = "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt"
+_DOWNLOAD_TIMEOUT = 30
+_DOWNLOAD_RETRIES = 2
+
+
+def _download_file(url: str, dest: Path, checksum: str = "") -> bool:
+    """Download a file with retry logic and optional SHA-256 verification."""
+    import urllib.request
+    import urllib.error
+
+    tmp = dest.with_suffix(".tmp")
+    for attempt in range(1, _DOWNLOAD_RETRIES + 1):
+        try:
+            logger.info("Downloading %s (attempt %d/%d)...", dest.name, attempt, _DOWNLOAD_RETRIES)
+            urllib.request.urlretrieve(url, str(tmp))
+
+            # Verify checksum if provided
+            if checksum:
+                sha = hashlib.sha256(tmp.read_bytes()).hexdigest()
+                if sha != checksum:
+                    logger.error("Checksum mismatch for %s: expected %s, got %s", dest.name, checksum, sha)
+                    tmp.unlink(missing_ok=True)
+                    continue
+
+            tmp.replace(dest)
+            return True
+        except (urllib.error.URLError, OSError) as e:
+            logger.warning("Download failed for %s: %s", dest.name, e)
+            tmp.unlink(missing_ok=True)
+            if attempt < _DOWNLOAD_RETRIES:
+                time.sleep(2 * attempt)  # Simple backoff
+
+    return False
+
 
 def _download_model():
     """Download a pre-trained bird classifier TFLite model if not present."""
@@ -50,39 +89,16 @@ def _download_model():
     if MODEL_PATH.exists() and LABELS_PATH.exists():
         return True
 
-    try:
-        import urllib.request
-        import zipfile
-        import tempfile
-
-        # iNaturalist MobileNetV2 bird classifier (964 species, ~3.4MB)
-        # Hosted on google-coral GitHub (the TFHub URL is broken/403)
-        logger.info("Downloading bird classifier model (~3.4MB)...")
-
-        # Download to temp files first, then atomically move into place
-        # so a partial download doesn't block retries
-        model_tmp = MODEL_PATH.with_suffix(".tmp")
-        labels_tmp = LABELS_PATH.with_suffix(".tmp")
-
-        urllib.request.urlretrieve(
-            "https://raw.githubusercontent.com/google-coral/test_data/master/mobilenet_v2_1.0_224_inat_bird_quant.tflite",
-            str(model_tmp),
-        )
-        model_tmp.replace(MODEL_PATH)
-
-        # Download labels (964 species + background, includes Ruby-throated Hummingbird)
-        urllib.request.urlretrieve(
-            "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt",
-            str(labels_tmp),
-        )
-        labels_tmp.replace(LABELS_PATH)
-
-        logger.info("Bird classifier model downloaded successfully")
-        return True
-
-    except Exception:
-        logger.exception("Failed to download bird classifier model")
+    if not _download_file(_MODEL_URL, MODEL_PATH, _MODEL_SHA256):
+        logger.error("Failed to download bird classifier model after %d attempts", _DOWNLOAD_RETRIES)
         return False
+
+    if not _download_file(_LABELS_URL, LABELS_PATH):
+        logger.error("Failed to download bird labels after %d attempts", _DOWNLOAD_RETRIES)
+        return False
+
+    logger.info("Bird classifier model downloaded successfully")
+    return True
 
 
 def _load_model():

@@ -184,6 +184,25 @@ class CameraStream:
             self.frame_buffer.add(frame)
             time.sleep(interval)
 
+    def get_full_res_frame(self) -> np.ndarray | None:
+        """Return a copy of the latest full-resolution frame, or None.
+
+        Thread-safe — callers should not access _usb_lock/_usb_latest_frame directly.
+        For picamera, captures from the 'main' stream.
+        """
+        if self.camera_type == "picamera":
+            try:
+                frame = self._backend.capture_array("main")
+                return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            except Exception:
+                return None
+        elif self.camera_type == "usb":
+            with self._usb_lock:
+                if self._usb_latest_frame is not None:
+                    return self._usb_latest_frame.copy()
+            return None
+        return None
+
     def capture_lores_array(self) -> np.ndarray:
         """Capture a low-resolution frame for detection."""
         if self.camera_type == "picamera":
@@ -208,14 +227,10 @@ class CameraStream:
                 logger.warning("Cannot capture snapshot — camera not available")
                 return False
 
-            if self.camera_type == "picamera":
-                frame = self._backend.capture_array("main")
-                # picamera2 returns RGB, OpenCV needs BGR
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            frame = self.get_full_res_frame()
+
+            if self.camera_type == "picamera" and frame is not None:
                 frame = self._apply_rotation(frame)
-            else:
-                with self._usb_lock:
-                    frame = self._usb_latest_frame
 
             if frame is None:
                 logger.warning("Cannot capture snapshot — no frame available")

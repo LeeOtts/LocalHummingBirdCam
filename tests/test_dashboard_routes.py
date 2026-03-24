@@ -461,3 +461,56 @@ class TestTestRecord:
         m.running = False
         resp = c.post("/api/test-record")
         assert resp.status_code == 503
+
+
+class TestRateLimiting:
+    """Test login attempt rate limiting."""
+
+    def test_returns_429_after_max_failed_attempts(self, tmp_path, monkeypatch):
+        import config
+        from web import dashboard
+
+        monkeypatch.setattr(config, "WEB_PASSWORD", "secret")
+        monkeypatch.setattr(config, "CLIPS_DIR", tmp_path)
+        monkeypatch.setattr(config, "LOGS_DIR", tmp_path)
+        monkeypatch.setattr(config, "TRAINING_DIR", tmp_path / "training")
+
+        # Clear any prior rate limit state
+        dashboard._auth_failures.clear()
+        dashboard.app.config["TESTING"] = True
+
+        with dashboard.app.test_client() as c:
+            # Send 5 failed attempts
+            for _ in range(5):
+                resp = c.get("/api/status")
+                assert resp.status_code == 401
+
+            # 6th attempt should be rate limited
+            resp = c.get("/api/status")
+            assert resp.status_code == 429
+
+        dashboard._auth_failures.clear()
+
+    def test_allows_after_window_expires(self, tmp_path, monkeypatch):
+        import config
+        from web import dashboard
+        import time as _time
+
+        monkeypatch.setattr(config, "WEB_PASSWORD", "secret")
+        monkeypatch.setattr(config, "CLIPS_DIR", tmp_path)
+        monkeypatch.setattr(config, "LOGS_DIR", tmp_path)
+        monkeypatch.setattr(config, "TRAINING_DIR", tmp_path / "training")
+
+        dashboard._auth_failures.clear()
+        dashboard.app.config["TESTING"] = True
+
+        # Inject old timestamps (> 5 min ago)
+        old_time = _time.time() - 400
+        dashboard._auth_failures["127.0.0.1"] = [old_time] * 10
+
+        with dashboard.app.test_client() as c:
+            resp = c.get("/api/status")
+            # Should get 401 (auth required), not 429 (rate limited)
+            assert resp.status_code == 401
+
+        dashboard._auth_failures.clear()
