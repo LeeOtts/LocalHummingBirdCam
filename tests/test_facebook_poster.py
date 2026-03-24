@@ -176,21 +176,30 @@ class TestPostPhoto:
     """Test post_photo() image uploads."""
 
     def test_post_photo_success(self, poster, tmp_path):
-        """post_photo() should upload image and return True on success."""
+        """post_photo() should upload unpublished photo then create feed post."""
         image = tmp_path / "test.jpg"
         image.write_bytes(b"fake image data")
 
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"id": "photo-123", "post_id": "page_photo-123"}
-        mock_resp.raise_for_status = MagicMock()
+        upload_resp = MagicMock()
+        upload_resp.json.return_value = {"id": "photo-123"}
+        upload_resp.raise_for_status = MagicMock()
 
-        with patch("social.facebook_poster.requests.post", return_value=mock_resp) as mock_post:
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"id": "page_post-456"}
+        feed_resp.raise_for_status = MagicMock()
+
+        with patch("social.facebook_poster.requests.post", side_effect=[upload_resp, feed_resp]) as mock_post:
             result = poster.post_photo(image, "Test caption")
 
         assert result is True
-        mock_post.assert_called_once()
-        call_url = mock_post.call_args[0][0]
-        assert "/photos" in call_url
+        assert mock_post.call_count == 2
+        # First call: unpublished photo upload
+        upload_url = mock_post.call_args_list[0][0][0]
+        assert "/photos" in upload_url
+        assert mock_post.call_args_list[0][1]["data"]["published"] == "false"
+        # Second call: feed post with attached media
+        feed_url = mock_post.call_args_list[1][0][0]
+        assert "/feed" in feed_url
 
     def test_post_photo_no_credentials(self, monkeypatch, tmp_path):
         """post_photo() returns False when no credentials."""
