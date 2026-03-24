@@ -102,8 +102,13 @@ class TestGenerateCommentWithMock:
         monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key-123")
         monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
 
+        try:
+            from openai import OpenAIError
+        except ImportError:
+            OpenAIError = Exception
+
         mock_client = MagicMock()
-        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        mock_client.chat.completions.create.side_effect = OpenAIError("API Error")
 
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=1, rejected=0)
