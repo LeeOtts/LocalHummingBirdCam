@@ -23,8 +23,23 @@ class FacebookPoster:
         self.page_id = config.FACEBOOK_PAGE_ID
         self.access_token = config.FACEBOOK_PAGE_ACCESS_TOKEN
         self._posts_today = 0
-        self._today = date.today()
+        self._today = self._date_in_local_tz()
         self._retry_in_progress = False
+
+    @staticmethod
+    def _date_in_local_tz():
+        """Return today's date in the configured location timezone."""
+        from datetime import datetime
+        try:
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(config.LOCATION_TIMEZONE)
+            except Exception:
+                import pytz
+                tz = pytz.timezone(config.LOCATION_TIMEZONE)
+            return datetime.now(tz).date()
+        except Exception:
+            return date.today()
 
     def verify_token(self) -> dict:
         """Check token validity, scopes, and app mode via the Graph API.
@@ -138,17 +153,7 @@ class FacebookPoster:
 
     def _check_rate_limit(self) -> bool:
         """Enforce daily post limit (uses location timezone for midnight)."""
-        try:
-            from datetime import datetime, timezone
-            try:
-                from zoneinfo import ZoneInfo
-                tz = ZoneInfo(config.LOCATION_TIMEZONE)
-            except Exception:
-                import pytz
-                tz = pytz.timezone(config.LOCATION_TIMEZONE)
-            today = datetime.now(tz).date()
-        except Exception:
-            today = date.today()
+        today = self._date_in_local_tz()
 
         if today != self._today:
             self._today = today
@@ -302,7 +307,11 @@ class FacebookPoster:
             return False
 
     def _save_to_retry_queue(self, mp4_path: Path, caption: str):
-        """Save failed posts to a JSON retry queue for later."""
+        """Save failed posts to a JSON retry queue for later.
+
+        Entries whose clip file no longer exists are pruned on write.
+        The queue is capped at MAX_RETRY_QUEUE_SIZE; oldest entries are dropped first.
+        """
         queue = []
         if config.RETRY_QUEUE_FILE.exists():
             try:
@@ -310,13 +319,22 @@ class FacebookPoster:
             except (json.JSONDecodeError, OSError):
                 queue = []
 
+        # Prune entries that point to missing clips
+        queue = [e for e in queue if Path(e.get("mp4_path", "")).exists()]
+
         queue.append({
             "mp4_path": str(mp4_path),
             "caption": caption,
         })
 
+        # Cap to avoid unbounded growth — drop oldest entries first
+        if len(queue) > config.MAX_RETRY_QUEUE_SIZE:
+            dropped = len(queue) - config.MAX_RETRY_QUEUE_SIZE
+            logger.warning("Retry queue full — dropping %d oldest entries", dropped)
+            queue = queue[-config.MAX_RETRY_QUEUE_SIZE:]
+
         config.RETRY_QUEUE_FILE.write_text(json.dumps(queue, indent=2))
-        logger.info("Saved to retry queue: %s", mp4_path.name)
+        logger.info("Saved to retry queue (%d/%d): %s", len(queue), config.MAX_RETRY_QUEUE_SIZE, mp4_path.name)
 
     def retry_failed_posts(self):
         """Attempt to post any items in the retry queue."""
@@ -337,8 +355,8 @@ class FacebookPoster:
             for item in queue:
                 mp4_path = Path(item["mp4_path"])
                 if not mp4_path.exists():
-                    logger.warning("Retry clip missing, skipping: %s", mp4_path)
-                    continue
+                    logger.warning("Retry clip missing, removing from queue: %s", mp4_path)
+                    continue  # don't add to remaining — prune the dead entry
                 if not self._check_rate_limit():
                     remaining.append(item)
                     continue

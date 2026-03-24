@@ -249,31 +249,6 @@ class ClipRecorder:
             logger.exception("Failed to write MP4")
             return None
 
-    def _write_frames_to_mp4(self, frames: list, mp4_path: Path) -> Path | None:
-        """Write a list of BGR frames to an MP4 file using OpenCV."""
-        try:
-            h, w = frames[0].shape[:2]
-            fourcc = cv2.VideoWriter_fourcc(*"avc1")
-            writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
-
-            if not writer.isOpened():
-                writer.release()
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
-
-            for frame in frames:
-                writer.write(frame)
-
-            writer.release()
-
-            size_mb = mp4_path.stat().st_size / 1_048_576
-            logger.info("Wrote clip: %s (%.1f MB, %d frames)",
-                         mp4_path.name, size_mb, len(frames))
-            return mp4_path
-
-        except Exception:
-            logger.exception("Failed to write MP4")
-            return None
 
     def _remux_h264_to_mp4(self, h264_path: Path, mp4_path: Path) -> Path | None:
         """Remux raw H264 to MP4 container using ffmpeg (no re-encoding)."""
