@@ -150,3 +150,170 @@ class TestLiveFeed:
         m.running = False
         resp = c.get("/feed")
         assert resp.status_code == 503
+
+
+class TestDeleteAllClips:
+    """Test DELETE /api/clips endpoint."""
+
+    def test_deletes_all_clips(self, client):
+        c, m, tmp_path = client
+        (tmp_path / "clip1.mp4").write_bytes(b"data")
+        (tmp_path / "clip2.mp4").write_bytes(b"data")
+        (tmp_path / "clip1.txt").write_text("caption")
+
+        resp = c.delete("/api/clips")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["deleted"] >= 2
+
+    def test_returns_ok_when_no_clips_dir(self, client, monkeypatch):
+        import config
+        c, m, tmp_path = client
+        nonexistent = tmp_path / "nonexistent_clips"
+        monkeypatch.setattr(config, "CLIPS_DIR", nonexistent)
+        resp = c.delete("/api/clips")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+
+class TestApiLogs:
+    """Test GET /api/logs endpoint."""
+
+    def test_returns_logs_list(self, client, tmp_path):
+        c, m, _ = client
+        log_file = tmp_path / "hummingbird.log"
+        log_file.write_text("[INFO] Test log entry\n[ERROR] Something went wrong\n")
+
+        resp = c.get("/api/logs")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "logs" in data
+
+    def test_returns_empty_when_no_log_file(self, client):
+        c, m, _ = client
+        resp = c.get("/api/logs")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["logs"] == []
+
+
+class TestClearLogs:
+    """Test POST /api/logs/clear endpoint."""
+
+    def test_clears_log_file(self, client, tmp_path):
+        c, m, _ = client
+        log_file = tmp_path / "hummingbird.log"
+        log_file.write_text("some log content\n")
+
+        resp = c.post("/api/logs/clear")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert log_file.read_text() == ""
+
+
+class TestApiClipsList:
+    """Test GET /api/clips/list endpoint."""
+
+    def test_returns_clips_list(self, client, tmp_path):
+        c, m, _ = client
+        (tmp_path / "hummer_20260101_120000.mp4").write_bytes(b"video data" * 100)
+
+        resp = c.get("/api/clips/list")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "clips" in data
+
+    def test_returns_empty_list_when_no_clips(self, client):
+        c, m, _ = client
+        resp = c.get("/api/clips/list")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["clips"] == []
+
+
+class TestFacebookDebug:
+    """Test GET /api/facebook/debug endpoint."""
+
+    def test_returns_token_info(self, client):
+        c, m, _ = client
+        m.poster.verify_token.return_value = {
+            "configured": True,
+            "valid": True,
+            "scopes": [],
+            "warnings": [],
+        }
+
+        resp = c.get("/api/facebook/debug")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert "facebook" in data
+
+    def test_returns_503_when_no_monitor(self, client, monkeypatch):
+        import web.dashboard as dashboard
+        c, m, _ = client
+        dashboard.set_monitor(None)
+        resp = c.get("/api/facebook/debug")
+        assert resp.status_code == 503
+        dashboard.set_monitor(m)
+
+
+class TestRotateCamera:
+    """Test POST /api/camera/rotate endpoint."""
+
+    def test_valid_rotation(self, client):
+        c, m, _ = client
+        with patch("web.dashboard._update_env_value"):
+            resp = c.post("/api/camera/rotate", json={"rotation": 180})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["rotation"] == 180
+
+    def test_invalid_rotation_returns_400(self, client):
+        c, m, _ = client
+        resp = c.post("/api/camera/rotate", json={"rotation": 45})
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["ok"] is False
+
+    def test_returns_503_when_no_monitor(self, client):
+        import web.dashboard as dashboard
+        c, m, _ = client
+        dashboard.set_monitor(None)
+        resp = c.post("/api/camera/rotate", json={"rotation": 90})
+        assert resp.status_code == 503
+        dashboard.set_monitor(m)
+
+
+class TestTestFacebookPost:
+    """Test POST /api/facebook/test endpoint."""
+
+    def test_success(self, client):
+        c, m, _ = client
+        m.poster.post_text.return_value = True
+
+        resp = c.post("/api/facebook/test")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+    def test_failure(self, client):
+        c, m, _ = client
+        m.poster.post_text.return_value = False
+
+        resp = c.post("/api/facebook/test")
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["ok"] is False
+
+    def test_returns_503_when_no_monitor(self, client):
+        import web.dashboard as dashboard
+        c, m, _ = client
+        dashboard.set_monitor(None)
+        resp = c.post("/api/facebook/test")
+        assert resp.status_code == 503
+        dashboard.set_monitor(m)
