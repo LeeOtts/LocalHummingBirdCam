@@ -9,6 +9,7 @@ from pathlib import Path
 import requests
 
 import config
+from utils import safe_read_json, safe_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,11 @@ class FacebookPoster:
             try:
                 from zoneinfo import ZoneInfo
                 tz = ZoneInfo(config.LOCATION_TIMEZONE)
-            except Exception:
+            except ImportError:
                 import pytz
                 tz = pytz.timezone(config.LOCATION_TIMEZONE)
             return datetime.now(tz).date()
-        except Exception:
+        except (KeyError, ValueError):
             return date.today()
 
     def verify_token(self) -> dict:
@@ -235,6 +236,17 @@ class FacebookPoster:
         except requests.RequestException as e:
             if hasattr(e, 'response') and e.response is not None:
                 logger.error("Facebook response: %s", e.response.text)
+                # Check if the post was actually published despite the error
+                try:
+                    resp_data = e.response.json()
+                    if resp_data.get("id"):
+                        post_check = self.verify_post_exists(resp_data["id"])
+                        if post_check.get("found"):
+                            logger.info("Post %s was published despite error — skipping retry", resp_data["id"])
+                            self._posts_today += 1
+                            return True
+                except (ValueError, KeyError):
+                    pass
             logger.exception("Facebook upload failed for %s", mp4_path.name)
             if not self._retry_in_progress:
                 self._save_to_retry_queue(mp4_path, caption)
@@ -331,12 +343,7 @@ class FacebookPoster:
         Entries whose clip file no longer exists are pruned on write.
         The queue is capped at MAX_RETRY_QUEUE_SIZE; oldest entries are dropped first.
         """
-        queue = []
-        if config.RETRY_QUEUE_FILE.exists():
-            try:
-                queue = json.loads(config.RETRY_QUEUE_FILE.read_text())
-            except (json.JSONDecodeError, OSError):
-                queue = []
+        queue = safe_read_json(config.RETRY_QUEUE_FILE, default=[])
 
         # Prune entries that point to missing clips
         queue = [e for e in queue if Path(e.get("mp4_path", "")).exists()]
@@ -352,7 +359,7 @@ class FacebookPoster:
             logger.warning("Retry queue full — dropping %d oldest entries", dropped)
             queue = queue[-config.MAX_RETRY_QUEUE_SIZE:]
 
-        config.RETRY_QUEUE_FILE.write_text(json.dumps(queue, indent=2))
+        safe_write_json(config.RETRY_QUEUE_FILE, queue)
         logger.info("Saved to retry queue (%d/%d): %s", len(queue), config.MAX_RETRY_QUEUE_SIZE, mp4_path.name)
 
     def retry_failed_posts(self):
@@ -360,9 +367,8 @@ class FacebookPoster:
         if not config.RETRY_QUEUE_FILE.exists():
             return
 
-        try:
-            queue = json.loads(config.RETRY_QUEUE_FILE.read_text())
-        except (json.JSONDecodeError, OSError):
+        queue = safe_read_json(config.RETRY_QUEUE_FILE, default=[])
+        if not isinstance(queue, list):
             return
 
         if not queue:
@@ -385,4 +391,4 @@ class FacebookPoster:
         finally:
             self._retry_in_progress = False
 
-        config.RETRY_QUEUE_FILE.write_text(json.dumps(remaining, indent=2))
+        safe_write_json(config.RETRY_QUEUE_FILE, remaining)

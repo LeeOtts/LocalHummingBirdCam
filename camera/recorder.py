@@ -127,13 +127,12 @@ class ClipRecorder:
                          total_post_frames, config.CLIP_POST_SECONDS)
 
             for _ in range(total_post_frames):
-                if hasattr(self.camera, '_usb_lock'):
-                    with self.camera._usb_lock:
-                        if self.camera._usb_latest_frame is not None:
-                            _, jpeg = cv2.imencode(
-                                '.jpg', self.camera._usb_latest_frame,
-                                [cv2.IMWRITE_JPEG_QUALITY, 80])
-                            post_frames.append(jpeg)
+                full_frame = self.camera.get_full_res_frame()
+                if full_frame is not None:
+                    _, jpeg = cv2.imencode(
+                        '.jpg', full_frame,
+                        [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    post_frames.append(jpeg)
                 time.sleep(interval)
 
             # Wait for audio to finish

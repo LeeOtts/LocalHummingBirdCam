@@ -234,3 +234,40 @@ class TestCameraStreamStart:
         s._usb_running = False
         if hasattr(s, "_usb_thread"):
             s._usb_thread.join(timeout=1)
+
+
+class TestGetFullResFrame:
+    """Test CameraStream.get_full_res_frame() thread-safe frame access."""
+
+    def test_returns_frame_copy_for_usb(self):
+        s = _make_stream()
+        s.camera_type = "usb"
+        s._usb_lock = threading.Lock()
+        frame = np.ones((480, 640, 3), dtype=np.uint8) * 128
+        s._usb_latest_frame = frame
+
+        result = s.get_full_res_frame()
+        assert result is not None
+        assert result is not frame  # Should be a copy
+        np.testing.assert_array_equal(result, frame)
+
+    def test_returns_none_when_no_usb_frame(self):
+        s = _make_stream()
+        s.camera_type = "usb"
+        s._usb_lock = threading.Lock()
+        s._usb_latest_frame = None
+
+        assert s.get_full_res_frame() is None
+
+    def test_returns_none_for_unknown_camera_type(self):
+        s = _make_stream()
+        s.camera_type = None
+        assert s.get_full_res_frame() is None
+
+    def test_returns_none_for_picamera_when_backend_fails(self):
+        s = _make_stream()
+        s.camera_type = "picamera"
+        s._backend = MagicMock()
+        s._backend.capture_array.side_effect = RuntimeError("no camera")
+
+        assert s.get_full_res_frame() is None

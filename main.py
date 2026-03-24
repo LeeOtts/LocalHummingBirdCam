@@ -24,7 +24,10 @@ except ImportError:
     from pytz import timezone as _pytz_tz
     ZoneInfo = lambda key: _pytz_tz(key)
 
+import cv2
+
 import config
+from utils import safe_read_json, safe_write_json
 
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
@@ -135,39 +138,36 @@ class HummingbirdMonitor:
     def _load_post_state(self) -> tuple:
         """Load today's morning/night post flags from disk to prevent duplicates on restart."""
         try:
-            if self._state_file.exists():
-                data = json.loads(self._state_file.read_text())
-                # Always restore lifetime stats regardless of date
-                self._all_time_record = data.get("all_time_record", 0)
-                self._total_lifetime_detections = data.get("total_lifetime_detections", 0)
-                self._yesterday_detections = data.get("yesterday_detections", 0)
+            data = safe_read_json(self._state_file, default={})
+            if not data:
+                return False, False
 
-                if data.get("date") == str(date.today()):
-                    morning = data.get("morning_posted", False)
-                    night = data.get("night_posted", False)
-                    logger.info("Restored post state: morning=%s, night=%s", morning, night)
-                    return morning, night
-                # Stale date — reset
-                logger.info("Post state is from %s, resetting for today", data.get("date"))
-        except Exception:
+            # Always restore lifetime stats regardless of date
+            self._all_time_record = data.get("all_time_record", 0)
+            self._total_lifetime_detections = data.get("total_lifetime_detections", 0)
+            self._yesterday_detections = data.get("yesterday_detections", 0)
+
+            if data.get("date") == str(date.today()):
+                morning = data.get("morning_posted", False)
+                night = data.get("night_posted", False)
+                logger.info("Restored post state: morning=%s, night=%s", morning, night)
+                return morning, night
+            # Stale date — reset
+            logger.info("Post state is from %s, resetting for today", data.get("date"))
+        except (KeyError, TypeError):
             logger.exception("Failed to load post state")
         return False, False
 
     def _save_post_state(self):
         """Save morning/night post flags and engagement stats to disk (atomic write)."""
-        try:
-            tmp = self._state_file.with_suffix(".tmp")
-            tmp.write_text(json.dumps({
-                "date": str(date.today()),
-                "morning_posted": self._morning_posted,
-                "night_posted": self._night_posted,
-                "yesterday_detections": self._yesterday_detections,
-                "all_time_record": self._all_time_record,
-                "total_lifetime_detections": self._total_lifetime_detections,
-            }))
-            tmp.replace(self._state_file)
-        except Exception:
-            logger.exception("Failed to save post state")
+        safe_write_json(self._state_file, {
+            "date": str(date.today()),
+            "morning_posted": self._morning_posted,
+            "night_posted": self._night_posted,
+            "yesterday_detections": self._yesterday_detections,
+            "all_time_record": self._all_time_record,
+            "total_lifetime_detections": self._total_lifetime_detections,
+        })
 
     def start(self):
         """Start all components."""
@@ -275,7 +275,7 @@ class HummingbirdMonitor:
 
             try:
                 frame = self.camera.capture_lores_array()
-            except Exception:
+            except (RuntimeError, cv2.error):
                 logger.exception("Failed to capture frame")
                 time.sleep(1)
                 continue
@@ -294,11 +294,7 @@ class HummingbirdMonitor:
                 logger.info("Motion+color triggered — verifying with bird classifier...")
 
                 # Get a full-res frame for the classifier
-                verify_frame = frame
-                if hasattr(self.camera, '_usb_lock'):
-                    with self.camera._usb_lock:
-                        if self.camera._usb_latest_frame is not None:
-                            verify_frame = self.camera._usb_latest_frame.copy()
+                verify_frame = self.camera.get_full_res_frame() or frame
 
                 if not verify_hummingbird(verify_frame):
                     self.detection_state = "rejected"

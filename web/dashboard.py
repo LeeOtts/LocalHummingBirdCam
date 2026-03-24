@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import time as _time
 from datetime import datetime
 from pathlib import Path
 
@@ -30,17 +31,34 @@ _monitor = None
 # Routes that are always public (live camera feed for external displays)
 _PUBLIC_ROUTES = {"/feed", "/feed/audio"}
 
+# Simple in-memory rate limiter for failed auth attempts
+_AUTH_FAIL_WINDOW = 300  # 5 minutes
+_AUTH_FAIL_MAX = 5
+_auth_failures: dict[str, list[float]] = {}  # ip -> [timestamps]
+
 
 @app.before_request
 def _enforce_auth():
-    """Enforce HTTP Basic Auth when WEB_PASSWORD is configured."""
+    """Enforce HTTP Basic Auth when WEB_PASSWORD is configured, with rate limiting."""
     password = config.WEB_PASSWORD
     if not password:
         return  # auth disabled — open access (default)
     if request.path in _PUBLIC_ROUTES:
         return  # live feed remains public
+
+    # Check rate limit before processing auth
+    ip = request.remote_addr or "unknown"
+    now = _time.time()
+    if ip in _auth_failures:
+        # Prune old entries
+        _auth_failures[ip] = [t for t in _auth_failures[ip] if now - t < _AUTH_FAIL_WINDOW]
+        if len(_auth_failures[ip]) >= _AUTH_FAIL_MAX:
+            return Response("Too many failed login attempts. Try again later.", 429)
+
     auth = request.authorization
     if not auth or auth.password != password:
+        # Track failed attempt
+        _auth_failures.setdefault(ip, []).append(now)
         return Response(
             "Authentication required",
             401,
@@ -68,7 +86,7 @@ def _update_env_value(key: str, value) -> bool:
         with open(env_path, "w") as f:
             f.writelines(lines)
         return True
-    except Exception:
+    except OSError:
         logger.exception("Failed to save %s to .env", key)
         return False
 
@@ -585,11 +603,11 @@ def test_facebook_post():
         try:
             from zoneinfo import ZoneInfo
             tz = ZoneInfo(config.LOCATION_TIMEZONE)
-        except Exception:
+        except ImportError:
             import pytz
             tz = pytz.timezone(config.LOCATION_TIMEZONE)
         now = datetime.now(tz).strftime("%I:%M %p")
-    except Exception:
+    except (KeyError, ValueError):
         now = "now"
 
     message = f"🧪 Test post from Backyard Hummers dashboard at {now} — if you see this, Facebook posting is working!"
@@ -709,13 +727,8 @@ def mark_training():
         label_dir = config.TRAINING_DIR / label
         label_dir.mkdir(parents=True, exist_ok=True)
 
-        # Get current frame
-        frame = None
-        if hasattr(_monitor.camera, '_usb_lock'):
-            with _monitor.camera._usb_lock:
-                if _monitor.camera._usb_latest_frame is not None:
-                    frame = _monitor.camera._usb_latest_frame.copy()
-
+        # Get current frame (prefer full-res, fall back to lores)
+        frame = _monitor.camera.get_full_res_frame()
         if frame is None:
             frame = _monitor.camera.capture_lores_array()
 
