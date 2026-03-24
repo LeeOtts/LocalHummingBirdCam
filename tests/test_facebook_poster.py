@@ -249,3 +249,226 @@ class TestMissingCredentials:
         poster = FacebookPoster()
         result = poster.post_text("Hello world")
         assert result is False
+
+
+class TestPostVideoSuccess:
+    """Test post_video() with mocked HTTP responses."""
+
+    def _make_mock_response(self, json_data, status=200):
+        m = MagicMock()
+        m.json.return_value = json_data
+        m.raise_for_status = MagicMock()
+        m.status_code = status
+        return m
+
+    def test_post_video_success(self, poster, tmp_path, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "RETRY_QUEUE_FILE", tmp_path / "retry.json")
+
+        clip = tmp_path / "hummer.mp4"
+        clip.write_bytes(b"fake video" * 100)
+
+        init_resp = self._make_mock_response({"upload_session_id": "sess-123"})
+        transfer_resp = self._make_mock_response({"start_offset": "0"})
+        finish_resp = self._make_mock_response({"id": "post-456"})
+
+        with patch("social.facebook_poster.requests.post", side_effect=[init_resp, transfer_resp, finish_resp]):
+            result = poster.post_video(clip, "A hummingbird!")
+
+        assert result is True
+        assert poster._posts_today == 1
+
+    def test_post_video_rate_limited(self, poster, tmp_path, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "RETRY_QUEUE_FILE", tmp_path / "retry.json")
+        poster._posts_today = 5  # at limit
+
+        clip = tmp_path / "hummer.mp4"
+        clip.write_bytes(b"data")
+
+        result = poster.post_video(clip, "test")
+        assert result is False
+
+    def test_post_video_api_error_saves_to_queue(self, poster, tmp_path, monkeypatch):
+        import config, requests as req
+        monkeypatch.setattr(config, "RETRY_QUEUE_FILE", tmp_path / "retry.json")
+
+        clip = tmp_path / "hummer.mp4"
+        clip.write_bytes(b"fake video" * 100)
+
+        with patch("social.facebook_poster.requests.post", side_effect=req.RequestException("fail")):
+            result = poster.post_video(clip, "test")
+
+        assert result is False
+        assert (tmp_path / "retry.json").exists()
+
+
+class TestPostTextSuccess:
+    """Test post_text() with mocked HTTP."""
+
+    def test_post_text_success(self, poster):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"id": "page_post-789"}
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("social.facebook_poster.requests.post", return_value=mock_resp), \
+             patch.object(poster, "verify_post_exists", return_value={"found": True}):
+            result = poster.post_text("Hello from the hummingbird cam!")
+
+        assert result is True
+
+    def test_post_text_api_error(self, poster):
+        import requests as req
+        with patch("social.facebook_poster.requests.post", side_effect=req.RequestException("fail")):
+            result = poster.post_text("test")
+        assert result is False
+
+
+class TestVerifyToken:
+    """Test verify_token() with mocked HTTP."""
+
+    def test_returns_valid_token_info(self, poster):
+        debug_resp = MagicMock()
+        debug_resp.json.return_value = {
+            "data": {
+                "is_valid": True,
+                "scopes": ["pages_manage_posts", "pages_read_engagement"],
+                "app_id": "app-123",
+                "expires_at": 9999999999,
+            }
+        }
+        debug_resp.raise_for_status = MagicMock()
+
+        app_resp = MagicMock()
+        app_resp.status_code = 200
+        app_resp.json.return_value = {"name": "TestApp"}
+
+        with patch("social.facebook_poster.requests.get", side_effect=[debug_resp, app_resp]):
+            result = poster.verify_token()
+
+        assert result["valid"] is True
+        assert result["configured"] is True
+        assert "pages_manage_posts" in result["scopes"]
+
+    def test_returns_warnings_for_missing_scopes(self, poster):
+        debug_resp = MagicMock()
+        debug_resp.json.return_value = {
+            "data": {
+                "is_valid": True,
+                "scopes": [],  # missing required scopes
+                "app_id": None,
+                "expires_at": 0,
+            }
+        }
+        debug_resp.raise_for_status = MagicMock()
+
+        with patch("social.facebook_poster.requests.get", return_value=debug_resp):
+            result = poster.verify_token()
+
+        assert len(result["warnings"]) > 0
+
+    def test_returns_not_configured_when_missing_credentials(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "")
+        monkeypatch.setattr(config, "FACEBOOK_PAGE_ACCESS_TOKEN", "")
+        p = FacebookPoster()
+        result = p.verify_token()
+        assert result["configured"] is False
+
+    def test_handles_request_exception(self, poster):
+        import requests as req
+        with patch("social.facebook_poster.requests.get", side_effect=req.RequestException("network error")):
+            result = poster.verify_token()
+        assert result["valid"] is False
+        assert len(result["warnings"]) > 0
+
+
+class TestVerifyPostExists:
+    """Test verify_post_exists() with mocked HTTP."""
+
+    def test_returns_found_true_on_200(self, poster):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "id": "post-123",
+            "is_published": True,
+            "created_time": "2026-03-24T04:00:00Z",
+        }
+
+        with patch("social.facebook_poster.requests.get", return_value=mock_resp):
+            result = poster.verify_post_exists("post-123")
+
+        assert result["found"] is True
+        assert result["is_published"] is True
+
+    def test_returns_found_false_on_non_200(self, poster):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Not Found"
+
+        with patch("social.facebook_poster.requests.get", return_value=mock_resp):
+            result = poster.verify_post_exists("bad-id")
+
+        assert result["found"] is False
+
+    def test_handles_request_exception(self, poster):
+        import requests as req
+        with patch("social.facebook_poster.requests.get", side_effect=req.RequestException("fail")):
+            result = poster.verify_post_exists("post-123")
+        assert result["found"] is False
+
+
+class TestRetryQueueCap:
+    """Test _save_to_retry_queue() size cap."""
+
+    def test_caps_queue_at_max_size(self, poster, tmp_path, monkeypatch):
+        import config
+        retry_file = tmp_path / "retry.json"
+        monkeypatch.setattr(config, "RETRY_QUEUE_FILE", retry_file)
+        monkeypatch.setattr(config, "MAX_RETRY_QUEUE_SIZE", 3)
+
+        # Pre-populate queue with 3 existing (real) files
+        existing = []
+        for i in range(3):
+            f = tmp_path / f"old{i}.mp4"
+            f.write_bytes(b"data")
+            existing.append({"mp4_path": str(f), "caption": f"old {i}"})
+        retry_file.write_text(json.dumps(existing))
+
+        # Add one more — should drop oldest to keep at 3
+        new_clip = tmp_path / "new.mp4"
+        poster._save_to_retry_queue(new_clip, "new caption")
+
+        data = json.loads(retry_file.read_text())
+        assert len(data) == 3
+        # The newest entry should be last
+        assert data[-1]["caption"] == "new caption"
+
+
+class TestRetryFailedPostsEdgeCases:
+    """Additional edge cases for retry_failed_posts."""
+
+    def test_skips_rate_limited_items(self, poster, tmp_path, monkeypatch):
+        import config
+        retry_file = tmp_path / "retry.json"
+        monkeypatch.setattr(config, "RETRY_QUEUE_FILE", retry_file)
+
+        clip = tmp_path / "clip.mp4"
+        clip.write_bytes(b"data")
+        retry_file.write_text(json.dumps([{"mp4_path": str(clip), "caption": "test"}]))
+
+        poster._posts_today = 5  # at limit — rate limiter will block
+
+        poster.retry_failed_posts()
+
+        data = json.loads(retry_file.read_text())
+        assert len(data) == 1  # not consumed, stays in queue
+
+    def test_corrupted_queue_is_noop(self, poster, tmp_path, monkeypatch):
+        import config
+        retry_file = tmp_path / "retry.json"
+        monkeypatch.setattr(config, "RETRY_QUEUE_FILE", retry_file)
+        retry_file.write_text("bad json{{")
+
+        # Should not raise
+        poster.retry_failed_posts()
