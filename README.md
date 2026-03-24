@@ -1,42 +1,46 @@
 # Backyard Hummers
 
-*Bartlett's finest backyard hummers.*
+*AI-powered hummingbird surveillance based in Bartlett. Focused exclusively on Ruby-throated hummingbirds—the only ones fast (and chaotic) enough to matter.*
 
-A Raspberry Pi-powered hummingbird feeder camera that turns your backyard into a tiny AI-powered media empire.
+*Monitoring nectar activity and tracking unauthorized flight in real time.*
 
-When a Ruby-throated Hummingbird swings by for a drink, the system:
-- records a 25-second clip (with sound)
-- lets GPT-4o write something cheeky about it
-- and posts it straight to the **Backyard Hummers** Facebook page
+A Raspberry Pi with a USB camera, a bird classifier that knows 964 species, and a GPT-4o that writes captions with zero supervision. What could go wrong.
 
-Follow the chaos here: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
+When a Ruby-throated Hummingbird hits the feeder, the system:
+- detects it through a multi-stage AI pipeline (motion, color, species classification)
+- records a 25-second clip with audio — because the wing buzz is evidence
+- lets GPT-4o write something unhinged about it
+- and posts it straight to the **Backyard Hummers** Facebook page before the bird even leaves
+
+Follow the operation here: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
 
 My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi collecting dust on my desk and said:
 
-> "Hold my nectar — I can do that."
+> "Hold my nectar — I can build that."
 
-...and now I accidentally run Bartlett's premier hummer surveillance operation.
+...and now I accidentally run a full-blown hummingbird surveillance state out of my backyard in Bartlett, TN.
 
 ## What It Does
 
-- **Catches hummingbirds, not leaves** — 4-stage detection pipeline: motion, color, local AI classifier, and optional GPT-4o vision verify (after an embarrassing number of false alarms involving wind, shadows, and betrayal)
-- **Records with sound** — 25-second clips (5s before + 20s after detection) because the wing buzz is half the drama
-- **GPT-4o writes the captions** — chaotic, slightly unhinged, occasionally better than mine
-- **Posts to Facebook automatically** — your hummers, their moment of fame
-- **Live dashboard** — watch the feed, hear audio, and feel like you run a wildlife surveillance agency
-- **Night mode** — auto sleep/wake based on sunrise and sunset (the birds rest... eventually so do I)
-- **Good morning / goodnight posts** — daily check-ins with hummer stats
-- **Trains itself** — teach it "bird vs leaf vs absolute nonsense"
-- **One-button updates** — because I refuse to pretend I enjoy manual deployments
-- **Graceful failures** — camera unplugged? It complains politely and fixes itself later
+- **Multi-stage detection pipeline** — motion, HSV color filtering, MobileNetV2 bird classifier, and optional GPT-4o vision verify. It went through an embarrassing phase of reporting leaves, shadows, and personal betrayal before we got here.
+- **Records with sound** — 25-second clips (5s pre-roll + 20s post-detection) because you need the wing buzz for the full experience
+- **GPT-4o writes the captions** — unhinged, slightly suggestive, occasionally better than anything a human would write. Never explains its own jokes.
+- **Auto-posts to Facebook** — clips go live before the bird even knows it's famous
+- **Morning briefings** — sunrise check-in with yesterday's tally. Posted with a live camera snapshot. The feeders are full. The operation is active.
+- **Goodnight recaps** — daily stats, peak activity hour, and whether we broke the all-time record. Celebrates milestones at 100, 250, 500, and 1000+ lifetime detections.
+- **Live dashboard** — real-time camera feed, audio, detection states, system vitals. Full mission control energy.
+- **Trains itself** — label frames as "bird" or "not bird" from the dashboard. Teach it to stop falling for leaves.
+- **Self-healing** — camera unplugged? It retries every 10 seconds. Failed Facebook post? Queued for retry. App restart? Picks up where it left off.
+- **Night mode** — auto sleep at sunset, auto wake before sunrise. Even surveillance operations need rest.
+- **One-button updates** — git pull, reinstall deps, restart service. From the dashboard. Because manual deployments are beneath us.
 
 ## Hardware
 
-- Raspberry Pi 3B+ (or newer)
-- USB webcam with built-in mic
-- 32GB+ SD card
-- Power supply (5V/2.5A minimum)
-- Hummingbird feeder (the actual MVP)
+- Raspberry Pi 3B+ (or newer) — the field agent
+- USB webcam with built-in mic — eyes and ears
+- 32GB+ SD card — evidence storage
+- Power supply (5V/2.5A minimum) — keeps the operation running
+- Hummingbird feeder — the honeypot (technically nectarpot)
 
 ## Fresh Install
 
@@ -114,38 +118,39 @@ sudo systemctl start hummingbird
 http://hummingbirdcam.local:8080
 ```
 
-Starts in **Test Mode** so you don't accidentally spam your page.
+Starts in **Test Mode** so you don't accidentally spam your page on day one. Disable it when you're ready to go live.
 
 ## How It Catches Them
 
-The detection pipeline is basically a bouncer for birds:
+The detection pipeline — four layers of increasingly paranoid verification:
 
-1. **Motion + Color** *(~1ms)* — Fast, cheap, slightly paranoid. Doesn't freak out over every leaf anymore.
+1. **Motion + Color** *(~1ms)* — Scans every frame for movement in the right size range, then checks for iridescent green, ruby-red, and rufous-orange hummingbird colors. Fast, cheap, and only slightly paranoid. Requires 5 consecutive frames to trigger — no more single-leaf meltdowns.
 
-2. **Bird Species Classifier** *(~1-2 sec on Pi)* — The "are you actually a hummingbird?" check. MobileNetV2 trained on 964 bird species. Fully local, no cloud needed.
+2. **Bird Species Classifier** *(~1-2 sec on Pi)* — MobileNetV2 trained on 964 bird species. Runs fully local on the Pi, no cloud needed. The "prove you're actually a hummingbird" checkpoint.
 
-3. **GPT-4o Vision Verify** — Optional second opinion from the cloud. Because sometimes even the AI needs a second AI to double-check.
+3. **GPT-4o Vision Verify** *(optional)* — Cloud-based second opinion. Because sometimes even the AI needs another AI to tell it to calm down.
 
-4. **Record + Post** — 25 seconds of fame. GPT-4o adds commentary. Internet gets another hummer clip.
+4. **Record + Post** — 25 seconds of evidence. GPT-4o writes the caption. Facebook gets another hummer clip. The bird has no idea it's internet famous.
 
 ## The Dashboard
 
-Hit `http://hummingbirdcam.local:8080` and welcome to mission control:
+Hit `http://hummingbirdcam.local:8080` — welcome to mission control:
 
-- **Live feed** with overlays and audio (yes, you can hear them judging you)
-- **Detection states:**
-  - Green = hummingbird confirmed
-  - Yellow = motion detected
-  - Blue = verifying
-  - Red = rejected
-  - Purple = sleeping
-  - Red glow = camera error
+- **Live camera feed** with detection overlays and real-time audio surveillance
+- **Detection status indicators:**
+  - Green = hummingbird confirmed, recording in progress
+  - Yellow = motion detected, investigating
+  - Blue = running verification
+  - Red = rejected (nice try, leaf)
+  - Purple = night mode, system sleeping
+  - Red glow = camera error, retrying
 - **Camera controls** — rotation, test recording, mic test
-- **Training buttons** — help the AI get smarter
-- **Recent clips** — review, delete, admire your regulars
-- **App status** — uptime, detections, posts, cooldowns, version, schedule
-- **Hardware stats** — CPU temp, RAM, disk space
-- **Logs** — because something always breaks eventually
+- **Training interface** — label frames to make the classifier smarter
+- **Clip browser** — review, play, delete, or admire your regulars
+- **System stats** — uptime, detections today, posts today, cooldowns, schedule, git version
+- **Hardware vitals** — CPU temp, RAM usage, disk space
+- **Live logs** — because something always breaks eventually
+- **One-click update** — pull latest code and restart without SSH
 
 ## Configuration
 
@@ -165,26 +170,26 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `AUDIO_ENABLED` | `true` | Record sound with clips |
 | `AUDIO_DEVICE` | `default` | ALSA mic device (`arecord -l` to list) |
 | `VISION_VERIFY_ENABLED` | `true` | Use bird classifier to confirm |
-| `TEST_MODE` | `true` | Skip Facebook posting |
+| `TEST_MODE` | `true` | Record but don't post (disable when ready) |
 | `MOTION_THRESHOLD` | `15.0` | Motion sensitivity |
 | `COLOR_MIN_AREA` | `300` | Min hummingbird-colored pixels |
 | `COLOR_MAX_AREA` | `5000` | Max (rejects big objects) |
 | `DETECTION_COOLDOWN_SECONDS` | `60` | Seconds between detections |
 | `MAX_POSTS_PER_DAY` | `10` | Daily Facebook post limit |
-| `CLIP_PRE_SECONDS` | `5` | Buffer before detection |
-| `CLIP_POST_SECONDS` | `20` | Record after detection |
+| `CLIP_PRE_SECONDS` | `5` | Pre-detection buffer |
+| `CLIP_POST_SECONDS` | `20` | Post-detection recording |
 | `VIDEO_WIDTH` | `1920` | Video resolution width |
 | `VIDEO_HEIGHT` | `1080` | Video resolution height |
 | `VIDEO_FPS` | `15` | Frames per second |
 | `VIDEO_BITRATE` | `5000000` | Video bitrate (bps) |
-| `MAX_CLIPS_DISK_MB` | `2000` | Auto-delete oldest clips above this limit |
+| `MAX_CLIPS_DISK_MB` | `2000` | Auto-delete oldest clips above this |
 | `NIGHT_MODE_ENABLED` | `true` | Auto sleep at sunset, wake at sunrise |
 | `LOCATION_LAT` | `35.1495` | Your latitude |
 | `LOCATION_LNG` | `-89.8733` | Your longitude |
 | `LOCATION_TIMEZONE` | `America/Chicago` | Your timezone |
-| `LOCATION_NAME` | `Bartlett, TN` | Shown on dashboard |
-| `WAKE_BEFORE_SUNRISE_MIN` | `30` | Wake up early |
-| `SLEEP_AFTER_SUNSET_MIN` | `30` | Stay up late |
+| `LOCATION_NAME` | `Bartlett, TN` | Shown on dashboard and posts |
+| `WAKE_BEFORE_SUNRISE_MIN` | `30` | Minutes before sunrise to wake up |
+| `SLEEP_AFTER_SUNSET_MIN` | `30` | Minutes after sunset to sleep |
 | `WEB_PORT` | `8080` | Dashboard port |
 
 ## Cheat Sheet
@@ -205,42 +210,42 @@ Everything lives in `.env`. See `.env.example` for full details.
 
 ```
 LocalHummingBirdCam/
-├── main.py                  # The brains
-├── config.py                # All the knobs
-├── schedule.py              # Sunrise/sunset night mode
+├── main.py                  # The brains of the operation
+├── config.py                # Every knob and dial
+├── schedule.py              # Sunrise/sunset automation
 ├── camera/
 │   ├── stream.py            # USB + Pi Camera with rotation
-│   └── recorder.py          # Video + audio recording via ffmpeg
+│   └── recorder.py          # Video + audio capture via ffmpeg
 ├── detection/
 │   ├── detector.py          # Base detector interface
-│   ├── motion_color.py      # Fast motion + color filter
+│   ├── motion_color.py      # Motion + HSV color filtering
 │   └── vision_verify.py     # MobileNetV2 bird classifier (TFLite)
 ├── social/
 │   ├── comment_generator.py # GPT-4o caption generation
-│   └── facebook_poster.py   # Facebook Graph API video upload
+│   └── facebook_poster.py   # Facebook Graph API posting
 ├── web/
-│   ├── dashboard.py         # Flask dashboard with live feed
-│   └── static/              # Banner image and static assets
+│   ├── dashboard.py         # Flask dashboard + live feed
+│   └── static/              # Banner and static assets
 ├── scripts/
-│   ├── setup_facebook_token.py    # Facebook token helper
+│   ├── setup_facebook_token.py    # Facebook token setup
 │   ├── auto_update.sh             # Git pull + restart
 │   ├── hummingbird.service        # systemd service
 │   ├── hummingbird-updater.service # Auto-update service
 │   ├── hummingbird-updater.timer   # Update timer
 │   ├── hummingbird-sudoers         # Passwordless restart perms
 │   └── install_dependencies.sh     # Full system setup
-├── tests/                   # Unit tests for all the things
-├── models/                  # Bird classifier (downloaded on first run)
-├── clips/                   # Your hummingbird videos
-├── training/                # Labeled frames for future training
-└── logs/                    # App logs with rotation
+├── tests/                   # Unit tests
+├── models/                  # Bird classifier (auto-downloaded)
+├── clips/                   # Hummingbird evidence
+├── training/                # Labeled frames for retraining
+└── logs/                    # Rotating log files
 ```
 
 ## Final Notes
 
-Took an embarrassing number of false alarms before it stopped getting emotionally invested in leaves.
+This started as "I can do that" and turned into a multi-stage AI surveillance pipeline with automated social media posting, a live dashboard, and a GPT that writes better captions than I do.
 
-Yes, this is completely over-engineered. No, I do not regret it.
+It is absolutely over-engineered. It will never not be over-engineered. That is the point.
 
 Watch the birds in action: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
 
