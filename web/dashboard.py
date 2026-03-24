@@ -1516,6 +1516,20 @@ def toggle_test_mode():
     return {"ok": True, "test_mode": _monitor.test_mode}
 
 
+@app.route("/api/facebook/debug", methods=["GET"])
+def facebook_debug():
+    """Return Facebook token diagnostics — scopes, validity, app info."""
+    if _monitor is None:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    try:
+        info = _monitor.poster.verify_token()
+        return {"ok": True, "facebook": info}
+    except Exception as e:
+        logger.exception("Facebook debug check failed")
+        return {"ok": False, "error": str(e)}, 500
+
+
 @app.route("/api/facebook/test", methods=["POST"])
 def test_facebook_post():
     """Send a quick test text post to Facebook to verify credentials."""

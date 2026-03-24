@@ -192,6 +192,18 @@ class HummingbirdMonitor:
         post_thread = threading.Thread(target=self._post_worker, daemon=True)
         post_thread.start()
 
+        # Verify Facebook token & permissions at startup
+        fb_status = self.poster.verify_token()
+        if fb_status["warnings"]:
+            for w in fb_status["warnings"]:
+                logger.warning("⚠️  Facebook: %s", w)
+            logger.warning(
+                "⚠️  If your app is in Development mode, posts will only be "
+                "visible to app admins. Toggle to Live at developers.facebook.com"
+            )
+        else:
+            logger.info("✅ Facebook token verified — scopes: %s", fb_status["scopes"])
+
         # Retry any previously failed posts on startup
         self.poster.retry_failed_posts()
 

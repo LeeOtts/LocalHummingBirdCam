@@ -26,6 +26,116 @@ class FacebookPoster:
         self._today = date.today()
         self._retry_in_progress = False
 
+    def verify_token(self) -> dict:
+        """Check token validity, scopes, and app mode via the Graph API.
+
+        Returns a dict with token diagnostics (also logs warnings).
+        """
+        result = {
+            "configured": bool(self.page_id and self.access_token),
+            "valid": False,
+            "scopes": [],
+            "app_id": None,
+            "app_name": None,
+            "expires_at": None,
+            "warnings": [],
+        }
+
+        if not result["configured"]:
+            result["warnings"].append("Facebook credentials not configured in .env")
+            logger.warning("Facebook credentials not configured")
+            return result
+
+        try:
+            # Use debug_token endpoint — requires an app token or the token itself
+            resp = requests.get(
+                f"{GRAPH_API_BASE}/debug_token",
+                params={
+                    "input_token": self.access_token,
+                    "access_token": self.access_token,
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", {})
+
+            result["valid"] = data.get("is_valid", False)
+            result["scopes"] = data.get("scopes", [])
+            result["app_id"] = data.get("app_id")
+            result["expires_at"] = data.get("expires_at", 0)
+
+            # Check for required scopes
+            required = {"pages_manage_posts", "pages_read_engagement"}
+            granted = set(result["scopes"])
+            missing = required - granted
+            if missing:
+                msg = f"Missing Facebook scopes: {', '.join(missing)}"
+                result["warnings"].append(msg)
+                logger.warning(msg)
+
+            if not result["valid"]:
+                result["warnings"].append("Facebook token is INVALID or expired")
+                logger.error("Facebook token is INVALID or expired!")
+
+            # Try to get app name
+            if result["app_id"]:
+                try:
+                    app_resp = requests.get(
+                        f"{GRAPH_API_BASE}/{result['app_id']}",
+                        params={"access_token": self.access_token,
+                                "fields": "name,mode"},
+                        timeout=10,
+                    )
+                    if app_resp.status_code == 200:
+                        app_data = app_resp.json()
+                        result["app_name"] = app_data.get("name")
+                        # 'mode' field is only available in some API versions
+                except Exception:
+                    pass
+
+            logger.info(
+                "Facebook token check: valid=%s, scopes=%s, app=%s",
+                result["valid"],
+                result["scopes"],
+                result.get("app_name", result["app_id"]),
+            )
+
+        except requests.RequestException as e:
+            msg = f"Failed to verify Facebook token: {e}"
+            result["warnings"].append(msg)
+            logger.error(msg)
+
+        return result
+
+    def verify_post_exists(self, post_id: str) -> dict:
+        """Read back a post to check if Facebook considers it published."""
+        try:
+            resp = requests.get(
+                f"{GRAPH_API_BASE}/{post_id}",
+                params={
+                    "fields": "id,message,created_time,is_published",
+                    "access_token": self.access_token,
+                },
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                is_published = data.get("is_published", "unknown")
+                logger.info(
+                    "Post %s readback: is_published=%s, created=%s",
+                    post_id, is_published, data.get("created_time"),
+                )
+                return {"found": True, "is_published": is_published, "data": data}
+            else:
+                logger.warning(
+                    "Post %s readback failed (HTTP %d): %s",
+                    post_id, resp.status_code, resp.text,
+                )
+                return {"found": False, "error": resp.text}
+        except requests.RequestException as e:
+            logger.warning("Post readback failed for %s: %s", post_id, e)
+            return {"found": False, "error": str(e)}
+
     def _check_rate_limit(self) -> bool:
         """Enforce daily post limit (uses location timezone for midnight)."""
         try:
@@ -141,8 +251,14 @@ class FacebookPoster:
                 timeout=30,
             )
             resp.raise_for_status()
-            post_id = resp.json().get("id", "unknown")
-            logger.info("Text post published! Post ID: %s", post_id)
+            resp_data = resp.json()
+            post_id = resp_data.get("id", "unknown")
+            logger.info("Text post published! Post ID: %s | Full response: %s", post_id, resp_data)
+
+            # Verify the post is actually visible
+            if post_id != "unknown":
+                self.verify_post_exists(post_id)
+
             return True
 
         except requests.RequestException as e:
