@@ -156,11 +156,24 @@ class CameraStream:
     def _usb_capture_loop(self):
         """Background thread: continuously grab frames from USB camera."""
         interval = 1.0 / config.VIDEO_FPS
+        _fail_count = 0
+        _backoff_delays = [0.1, 1.0, 5.0, 10.0, 30.0]  # seconds between retries
+
         while self._usb_running:
             ret, frame = self._backend.read()
             if not ret:
-                time.sleep(0.1)
+                _fail_count += 1
+                if _fail_count == 5:
+                    logger.warning("USB camera: repeated read failures — camera may be disconnected")
+                    self.error = "USB camera disconnected"
+                delay = _backoff_delays[min(_fail_count - 1, len(_backoff_delays) - 1)]
+                time.sleep(delay)
                 continue
+
+            if _fail_count > 0:
+                logger.info("USB camera: read recovered after %d failures", _fail_count)
+                self.error = None
+                _fail_count = 0
 
             frame = self._apply_rotation(frame)
 

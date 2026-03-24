@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backyard Hummers Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #141a11;
+            color: #e8e0d4;
+            min-height: 100vh;
+        }
+        header {
+            background: #141a11;
+            text-align: center;
+            border-bottom: 3px solid #c4392a;
+            padding: 0;
+            overflow: hidden;
+        }
+        .banner-img {
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #3d4a2a;
+        }
+        .status-card .label { color: #b0a58e; font-size: 0.85em; text-transform: uppercase; }
+        .status-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
+        .status-card .value.green { color: #4caf50; }
+        .status-card .value.red { color: #e05535; }
+        .status-card .value.yellow { color: #f0c040; }
+        .status-card .value.purple { color: #b08ad4; }
+
+        .live-feed {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #3d4a2a;
+        }
+        .live-feed h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .feed-container {
+            position: relative;
+            max-width: {{ video_width }}px;
+            margin: 0 auto;
+        }
+        .feed-container img {
+            width: 100%;
+            border-radius: 8px;
+            display: block;
+        }
+        .feed-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 8px;
+            border: 4px solid transparent;
+            pointer-events: none;
+            transition: border-color 0.3s;
+        }
+        .feed-overlay.state-idle { border-color: transparent; }
+        .feed-overlay.state-sleeping { border-color: #b08ad4; box-shadow: 0 0 15px #b08ad4; }
+        .feed-overlay.state-motion { border-color: #f0c040; }
+        .feed-overlay.state-verifying { border-color: #4caf50; }
+        .feed-overlay.state-confirmed { border-color: #4caf50; box-shadow: 0 0 20px #4caf50; }
+        .feed-overlay.state-rejected { border-color: #d44a2a; }
+        .feed-overlay.state-camera_error { border-color: #e05535; box-shadow: 0 0 20px #e05535; }
+        .feed-overlay .state-label {
+            position: absolute;
+            top: 10px; left: 10px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+        .audio-toggle {
+            position: absolute;
+            top: 12px; right: 12px;
+            z-index: 10;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #555;
+            border-radius: 50%;
+            width: 40px; height: 40px;
+            font-size: 1.2em;
+            cursor: pointer;
+            color: #e8e0d4;
+            padding: 0;
+            line-height: 40px;
+            text-align: center;
+        }
+        .audio-toggle.active {
+            background: rgba(212, 160, 23, 0.7);
+            border-color: #d4a017;
+        }
+        .feed-controls {
+            text-align: center;
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-mark-yes {
+            background: #d4a017;
+            color: #141a11;
+            font-weight: bold;
+        }
+        .btn-mark-yes:hover { background: #b8880f; }
+        .btn-mark-no {
+            background: #d44a2a;
+            color: white;
+        }
+        .btn-mark-no:hover { background: #b33a1a; }
+        .training-stats {
+            color: #b0a58e;
+            font-size: 0.85em;
+        }
+        .detection-legend {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.8em;
+            color: #b0a58e;
+        }
+        .legend-dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin: 0 4px 0 12px;
+            vertical-align: middle;
+        }
+
+        .section {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #3d4a2a;
+        }
+        .section h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .section .section-actions {
+            float: right;
+        }
+
+        .clip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .clip-card {
+            background: #141a11;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #3d4a2a;
+        }
+        .clip-card video {
+            width: 100%;
+            display: block;
+        }
+        .clip-card .clip-info {
+            padding: 10px;
+            font-size: 0.85em;
+            color: #b0a58e;
+        }
+        .clip-card .clip-caption {
+            padding: 8px 10px;
+            font-size: 0.9em;
+            color: #e8e0d4;
+            background: #1e2e18;
+            border-top: 1px solid #3d4a2a;
+            font-style: italic;
+            line-height: 1.4;
+        }
+        .clip-card .clip-actions {
+            padding: 8px 10px;
+            display: flex;
+            gap: 8px;
+            border-top: 1px solid #3d4a2a;
+        }
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-delete {
+            background: #d44a2a;
+            color: white;
+        }
+        .btn-delete:hover { background: #b33a1a; }
+        .btn-delete-all {
+            background: #d44a2a;
+            color: white;
+            font-size: 0.85em;
+            padding: 6px 16px;
+        }
+        .btn-delete-all:hover { background: #b33a1a; }
+        .btn-update {
+            background: #d4a017;
+            color: #141a11;
+        }
+        .btn-update:hover { background: #b8880f; }
+        .btn-update:disabled { background: #555; color: #999; cursor: wait; }
+
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .confirm-overlay.active { display: flex; }
+        .confirm-box {
+            background: #1c2a1a;
+            border: 2px solid #d44a2a;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
+        .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
+        .btn-cancel {
+            background: #3d4a2a;
+            color: #e8e0d4;
+        }
+
+        .log-box {
+            background: #0f140b;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            max-height: 500px;
+            overflow-y: auto;
+            overflow-x: auto;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .log-box .log-info { color: #66bb6a; }
+        .log-box .log-warn { color: #f0c040; }
+        .log-box .log-error { color: #e05535; }
+
+        /* Mobile: make logs readable */
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .banner-img {
+                max-width: 100%;
+                padding: 0 10px;
+            }
+            .log-box {
+                font-size: 0.78em;
+                padding: 10px;
+                max-height: 450px;
+                line-height: 1.5;
+            }
+            .log-header-controls {
+                float: none !important;
+                display: flex;
+                gap: 8px;
+                margin-top: 8px;
+            }
+            .log-header-controls select,
+            .log-header-controls button {
+                font-size: 0.85em !important;
+                padding: 6px 12px !important;
+                flex: 1;
+            }
+            .status-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+                gap: 10px !important;
+            }
+        }
+
+        .refresh-bar {
+            text-align: center;
+            padding: 10px;
+            color: #b0a58e;
+            font-size: 0.85em;
+        }
+        .refresh-bar a { color: #d4a017; text-decoration: none; }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #d4a017;
+            color: #141a11;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 200;
+            display: none;
+        }
+        .toast.active { display: block; }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="/static/backyardhummers.png" alt="Backyard Hummers - AI-Powered Hummingbird Surveillance" class="banner-img">
+    </header>
+
+    <div class="container">
+        <div class="refresh-bar">
+            Status updates live | <a href="/">Full refresh</a>
+        </div>
+
+        <div class="live-feed">
+            <h2>Live Camera Feed</h2>
+            <div class="feed-container">
+                {% if status.camera_error %}
+                <div style="width:100%; height:360px; background:#0f140b; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                    <div style="font-size:3em; margin-bottom:15px;">&#128247;</div>
+                    <div style="color:#d44a2a; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
+                    <div style="color:#b0a58e; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
+                    <div style="color:#b0a58e; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
+                </div>
+                {% else %}
+                <img src="/feed" alt="Live camera feed" id="liveFeed">
+                {% endif %}
+                <div class="feed-overlay" id="feedOverlay"></div>
+                <audio id="liveAudio" preload="none" muted></audio>
+                <button class="btn audio-toggle" id="audioToggle" onclick="toggleAudio()" title="Toggle live audio">
+                    <span id="audioIcon">&#128263;</span>
+                </button>
+            </div>
+            <div class="feed-controls">
+                <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
+                <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
+                <button class="btn" onclick="testMic()" id="testMicBtn" style="background:#3d4a2a;">Test Mic</button>
+                <button class="btn" onclick="testRecord()" id="testRecordBtn" style="background:#3d4a2a;">Test Record</button>
+                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#3d4a2a; color:#e8e0d4; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
+                    <option value="0" {% if status.camera_rotation == 0 %}selected{% endif %}>0° (Normal)</option>
+                    <option value="90" {% if status.camera_rotation == 90 %}selected{% endif %}>90° CW</option>
+                    <option value="180" {% if status.camera_rotation == 180 %}selected{% endif %}>180° (Upside Down)</option>
+                    <option value="270" {% if status.camera_rotation == 270 %}selected{% endif %}>270° CW</option>
+                </select>
+                <span class="training-stats">
+                    Training samples: {{ status.training_count }}
+                </span>
+            </div>
+            <div class="detection-legend">
+                <span class="legend-dot" style="background:#4caf50;"></span> Confirmed
+                <span class="legend-dot" style="background:#f0c040;"></span> Motion detected
+                <span class="legend-dot" style="background:#d44a2a;"></span> Rejected
+                <span class="legend-dot" style="background:#58a6ff;"></span> Verifying...
+                <span class="legend-dot" style="background:#b08ad4;"></span> Sleeping
+                <span class="legend-dot" style="background:#e05535;"></span> Camera Error
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 style="display:inline-block;">Recent Clips</h2>
+            {% if clips %}
+            <span class="section-actions">
+                <button class="btn btn-delete-all" onclick="showDeleteAll()">Delete All Clips</button>
+            </span>
+            <div style="clear:both; margin-bottom: 15px;"></div>
+            <div class="clip-grid">
+                {% for clip in clips %}
+                <div class="clip-card" id="clip-{{ loop.index }}">
+                    <video controls preload="metadata">
+                        <source src="/clips/{{ clip.name }}" type="video/mp4">
+                    </video>
+                    {% if clip.caption %}
+                    <div class="clip-caption">"{{ clip.caption }}"</div>
+                    {% endif %}
+                    <div class="clip-info">
+                        {{ clip.name }} &mdash; {{ clip.size }} &mdash; {{ clip.time }}
+                    </div>
+                    <div class="clip-actions">
+                        <button class="btn btn-delete" onclick="deleteClip('{{ clip.name }}', 'clip-{{ loop.index }}')">Delete Clip</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #b0a58e; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <h2>App Status</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="label">System Status</div>
+                    <div class="value {{ 'green' if status.running else 'red' }}" id="stat-running">
+                        {{ 'RUNNING' if status.running else 'STOPPED' }}
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Detections Today</div>
+                    <div class="value green" id="stat-detections">{{ status.detections_today }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Posts Today</div>
+                    <div class="value yellow" id="stat-posts">{{ status.posts_today }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Clips Saved</div>
+                    <div class="value" id="stat-clips">{{ status.total_clips }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Uptime</div>
+                    <div class="value" id="stat-uptime">{{ status.uptime }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Rejected Today</div>
+                    <div class="value red" id="stat-rejected">{{ status.rejected_today }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Cooldown</div>
+                    <div class="value {{ 'red' if status.in_cooldown else 'green' }}" id="stat-cooldown">
+                        {{ 'ACTIVE' if status.in_cooldown else 'READY' }}
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Facebook Posting</div>
+                    <div class="value {{ 'yellow' if status.test_mode else 'green' }}" id="stat-testmode">
+                        {{ 'TEST MODE' if status.test_mode else 'LIVE' }}
+                    </div>
+                    <button class="btn {{ 'btn-cancel' if status.test_mode else 'btn-delete' }}"
+                            style="margin-top: 10px; font-size: 0.7em;"
+                            id="testModeBtn"
+                            onclick="toggleTestMode()">
+                        {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
+                    </button>
+                    <button class="btn"
+                            style="margin-top: 6px; font-size: 0.7em; background:#3d4a2a;"
+                            id="testFbBtn"
+                            onclick="testFacebookPost()">
+                        Test FB Post
+                    </button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Version</div>
+                    <div class="value" style="font-size: 0.9em;" id="stat-version">{{ status.git_commit }}</div>
+                    <button class="btn btn-update"
+                            style="margin-top: 10px; font-size: 0.7em;"
+                            id="updateBtn"
+                            onclick="checkForUpdate()">
+                        Check for Update
+                    </button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Schedule</div>
+                    <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
+                        {{ status.schedule.status }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 8px;" id="stat-schedule-detail">
+                        {{ status.schedule.location }}<br>
+                        Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
+                        Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Hardware</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="label">CPU Temp</div>
+                    <div class="value {{ 'red' if status.cpu_temp and status.cpu_temp > 75 else 'yellow' if status.cpu_temp and status.cpu_temp > 60 else 'green' }}" id="stat-temp">
+                        {{ status.cpu_temp_str }}
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="label">RAM</div>
+                    <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
+                        {{ status.ram_str }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">SD Card</div>
+                    <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
+                        {{ status.disk_str }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Camera</div>
+                    <div class="value {{ 'red' if status.camera_error else '' }}" id="stat-camera">{{ status.camera_type }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Recent Logs
+                <div class="log-header-controls" style="float:right; display:flex; gap:8px;">
+                    <select id="logFilter" onchange="filterLogs()" style="background:#12150e; color:#e8e0d4; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
+                        <option value="all">All</option>
+                        <option value="log-error">Errors</option>
+                        <option value="log-warn">Warnings</option>
+                        <option value="log-info">Info</option>
+                    </select>
+                    <button class="btn btn-delete" onclick="clearLogs()" style="font-size:0.7em; padding:6px 14px;">Clear Logs</button>
+                </div>
+            </h2>
+            <div class="log-box" id="logBox">
+                {% for line in logs %}
+                <div class="log-line {{ line.css_class }}">{{ line.text }}</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete All confirmation -->
+    <div class="confirm-overlay" id="deleteAllOverlay">
+        <div class="confirm-box">
+            <p>Delete ALL clips and their captions?</p>
+            <button class="btn btn-cancel" onclick="hideDeleteAll()">Cancel</button>
+            <button class="btn btn-delete" onclick="deleteAll()">Delete All</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Escape HTML to prevent XSS in dynamic content
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Live-update status cards via AJAX (no page reload, no stream flicker)
+        function pollStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(d => {
+                    const el = id => document.getElementById(id);
+
+                    el('stat-running').textContent = d.running ? 'RUNNING' : 'STOPPED';
+                    el('stat-running').className = 'value ' + (d.running ? 'green' : 'red');
+
+                    el('stat-detections').textContent = d.detections_today;
+                    el('stat-posts').textContent = d.posts_today;
+                    el('stat-clips').textContent = d.total_clips;
+                    el('stat-uptime').textContent = d.uptime;
+                    el('stat-camera').textContent = d.camera_type;
+                    el('stat-camera').className = 'value ' + (d.camera_error ? 'red' : '');
+
+                    // If camera was in error and just recovered, reload to show live feed
+                    if (window._cameraWasError && !d.camera_error) {
+                        location.reload();
+                        return;
+                    }
+                    window._cameraWasError = !!d.camera_error;
+
+                    el('stat-rejected').textContent = d.rejected_today;
+
+                    el('stat-cooldown').textContent = d.in_cooldown ? 'ACTIVE' : 'READY';
+                    el('stat-cooldown').className = 'value ' + (d.in_cooldown ? 'red' : 'green');
+
+                    el('stat-testmode').textContent = d.test_mode ? 'TEST MODE' : 'LIVE';
+                    el('stat-testmode').className = 'value ' + (d.test_mode ? 'yellow' : 'green');
+
+                    const tmBtn = el('testModeBtn');
+                    tmBtn.textContent = d.test_mode ? 'Go Live' : 'Switch to Test';
+                    tmBtn.className = 'btn ' + (d.test_mode ? 'btn-cancel' : 'btn-delete');
+
+                    el('stat-version').textContent = d.git_commit;
+
+                    // Pi health
+                    if (d.cpu_temp_str) {
+                        el('stat-temp').textContent = d.cpu_temp_str;
+                        el('stat-temp').className = 'value ' + (d.cpu_temp > 75 ? 'red' : d.cpu_temp > 60 ? 'yellow' : 'green');
+                    }
+                    if (d.ram_str) {
+                        el('stat-ram').textContent = d.ram_str;
+                        el('stat-ram').className = 'value ' + (d.ram_percent > 85 ? 'red' : d.ram_percent > 70 ? 'yellow' : 'green');
+                        el('stat-ram-pct').textContent = Math.round(d.ram_percent) + '% used';
+                    }
+                    if (d.disk_str) {
+                        el('stat-disk').textContent = d.disk_str;
+                        el('stat-disk').className = 'value ' + (d.disk_percent > 90 ? 'red' : d.disk_percent > 75 ? 'yellow' : 'green');
+                        el('stat-disk-pct').textContent = Math.round(d.disk_percent) + '% used (' + d.disk_free_gb.toFixed(1) + ' GB free)';
+                    }
+
+                    if (d.schedule) {
+                        el('stat-schedule').textContent = d.schedule.status;
+                        el('stat-schedule').className = 'value ' + (d.schedule.is_daytime ? 'green' : 'purple');
+                        el('stat-schedule-detail').innerHTML =
+                            d.schedule.location + '<br>' +
+                            'Rise ' + d.schedule.sunrise + ' / Set ' + d.schedule.sunset + '<br>' +
+                            'Active ' + d.schedule.wake_time + ' - ' + d.schedule.sleep_time;
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollStatus, 5000);
+
+        // Poll clips list and update if changed (names OR captions)
+        let knownClipsFingerprint = '';
+
+        function clipsFingerprint(clips) {
+            return clips.map(c => c.name + '|' + (c.caption || '')).join(';');
+        }
+
+        function pollClips() {
+            fetch('/api/clips/list')
+                .then(r => r.json())
+                .then(data => {
+                    const fp = clipsFingerprint(data.clips);
+                    if (fp !== knownClipsFingerprint) {
+                        // Rebuild clips section
+                        const grid = document.querySelector('.clip-grid');
+                        if (!grid && data.clips.length > 0) {
+                            location.reload();
+                            return;
+                        }
+                        if (grid) {
+                            grid.innerHTML = data.clips.map((c, i) => `
+                                <div class="clip-card" id="clip-dyn-${i}">
+                                    <video controls preload="metadata">
+                                        <source src="/clips/${c.name}" type="video/mp4">
+                                    </video>
+                                    ${c.caption ? `<div class="clip-caption">"${escapeHtml(c.caption)}"</div>` : ''}
+                                    <div class="clip-info">${c.name} &mdash; ${c.size} &mdash; ${c.time}</div>
+                                    <div class="clip-actions">
+                                        <button class="btn btn-delete" onclick="deleteClip('${c.name}', 'clip-dyn-${i}')">Delete Clip</button>
+                                    </div>
+                                </div>
+                            `).join('');
+                        }
+                        knownClipsFingerprint = fp;
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollClips, 10000);
+
+        // Poll logs and update
+        function pollLogs() {
+            const filter = document.getElementById('logFilter').value;
+            fetch('/api/logs')
+                .then(r => r.json())
+                .then(data => {
+                    const box = document.getElementById('logBox');
+                    box.innerHTML = data.logs.map(l => {
+                        const display = (filter === 'all' || l.css_class === filter) ? '' : 'display:none;';
+                        return `<div class="log-line ${escapeHtml(l.css_class)}" style="${display}">${escapeHtml(l.text)}</div>`;
+                    }).join('');
+                })
+                .catch(() => {});
+        }
+        setInterval(pollLogs, 5000);
+
+        // Poll detection state for live overlay
+        function pollDetectionState() {
+            fetch('/api/detection-state')
+                .then(r => r.json())
+                .then(data => {
+                    const overlay = document.getElementById('feedOverlay');
+                    overlay.className = 'feed-overlay state-' + data.state;
+
+                    // Update or create state label
+                    let label = overlay.querySelector('.state-label');
+                    if (data.state !== 'idle') {
+                        if (!label) {
+                            label = document.createElement('div');
+                            label.className = 'state-label';
+                            overlay.appendChild(label);
+                        }
+                        const labels = {
+                            'motion': 'MOTION',
+                            'verifying': 'VERIFYING...',
+                            'confirmed': 'HUMMINGBIRD!',
+                            'rejected': 'NOT A BIRD',
+                            'sleeping': 'SLEEPING',
+                            'camera_error': 'CAMERA ERROR',
+                        };
+                        const colors = {
+                            'motion': '#f0c040',
+                            'verifying': '#58a6ff',
+                            'confirmed': '#4caf50',
+                            'rejected': '#d44a2a',
+                            'sleeping': '#b08ad4',
+                            'camera_error': '#e05535',
+                        };
+                        label.textContent = labels[data.state] || data.state;
+                        label.style.background = colors[data.state] || '#555';
+                        label.style.color = data.state === 'motion' ? '#141a11' : 'white';
+                    } else if (label) {
+                        label.remove();
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollDetectionState, 500);
+
+        // Live audio toggle
+        let audioActive = false;
+        function toggleAudio() {
+            const audio = document.getElementById('liveAudio');
+            const btn = document.getElementById('audioToggle');
+            const icon = document.getElementById('audioIcon');
+
+            if (!audioActive) {
+                audio.src = '/feed/audio';
+                audio.muted = false;
+                audio.play().catch(() => showToast('Browser blocked autoplay — click again'));
+                btn.classList.add('active');
+                icon.innerHTML = '&#128264;';
+                audioActive = true;
+            } else {
+                audio.pause();
+                audio.src = '';
+                btn.classList.remove('active');
+                icon.innerHTML = '&#128263;';
+                audioActive = false;
+            }
+        }
+
+        // Test mic — record 3 seconds and play back
+        function testMic() {
+            const btn = document.getElementById('testMicBtn');
+            btn.textContent = 'Recording...';
+            btn.disabled = true;
+
+            fetch('/api/audio/test')
+                .then(r => {
+                    if (!r.ok) throw new Error('Mic test failed');
+                    return r.blob();
+                })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const testAudio = new Audio(url);
+                    testAudio.play();
+                    testAudio.onended = () => URL.revokeObjectURL(url);
+                    btn.textContent = 'Test Mic';
+                    btn.disabled = false;
+                    showToast('Playing mic test...');
+                })
+                .catch(() => {
+                    btn.textContent = 'Test Mic';
+                    btn.disabled = false;
+                    showToast('Mic test failed — check logs');
+                });
+        }
+
+        // Rotate camera
+        function rotateCamera(angle) {
+            fetch('/api/camera/rotate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rotation: parseInt(angle)})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Camera rotated to ' + angle + '°');
+                else showToast('Rotation failed');
+            })
+            .catch(() => showToast('Rotation failed'));
+        }
+
+        // Test Record — trigger full pipeline
+        function testRecord() {
+            const btn = document.getElementById('testRecordBtn');
+            btn.textContent = 'Recording...';
+            btn.disabled = true;
+
+            fetch('/api/test-record', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Recording started! Clip will appear in ~25 seconds.');
+                    } else {
+                        showToast('Error: ' + (data.error || 'unknown'));
+                    }
+                    btn.textContent = 'Test Record';
+                    btn.disabled = false;
+                })
+                .catch(() => {
+                    btn.textContent = 'Test Record';
+                    btn.disabled = false;
+                    showToast('Test record failed — check logs');
+                });
+        }
+
+        // Test Facebook Post — send a test text post to the page
+        function testFacebookPost() {
+            const btn = document.getElementById('testFbBtn');
+            btn.textContent = 'Posting...';
+            btn.disabled = true;
+
+            fetch('/api/facebook/test', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Test post sent to Facebook!');
+                    } else {
+                        showToast('FB post failed: ' + (data.error || 'unknown'));
+                    }
+                    btn.textContent = 'Test FB Post';
+                    btn.disabled = false;
+                })
+                .catch(() => {
+                    btn.textContent = 'Test FB Post';
+                    btn.disabled = false;
+                    showToast('FB test failed — check logs');
+                });
+        }
+
+        function markHummingbird() {
+            fetch('/api/training/mark', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({label: 'hummingbird'})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Saved as hummingbird (' + data.filename + ')');
+                else showToast('Error: ' + data.error);
+            })
+            .catch(() => showToast('Mark failed'));
+        }
+
+        function markNotHummingbird() {
+            fetch('/api/training/mark', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({label: 'not_hummingbird'})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Saved as NOT hummingbird (' + data.filename + ')');
+                else showToast('Error: ' + data.error);
+            })
+            .catch(() => showToast('Mark failed'));
+        }
+
+        function clearLogs() {
+            if (!confirm('Clear all log entries?')) return;
+            fetch('/api/logs/clear', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        document.getElementById('logBox').innerHTML = '';
+                        showToast('Logs cleared');
+                    }
+                })
+                .catch(() => showToast('Failed to clear logs'));
+        }
+
+        function filterLogs() {
+            const filter = document.getElementById('logFilter').value;
+            document.querySelectorAll('#logBox .log-line').forEach(el => {
+                if (filter === 'all' || el.classList.contains(filter)) {
+                    el.style.display = '';
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('active');
+            setTimeout(() => t.classList.remove('active'), 3000);
+        }
+
+        function deleteClip(filename, cardId) {
+            if (!confirm('Delete ' + filename + ' and its caption?')) return;
+
+            fetch('/api/clips/' + filename, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        document.getElementById(cardId).remove();
+                        showToast('Deleted ' + filename);
+                    } else {
+                        showToast('Error: ' + data.error);
+                    }
+                })
+                .catch(() => showToast('Delete failed'));
+        }
+
+        function showDeleteAll() {
+            document.getElementById('deleteAllOverlay').classList.add('active');
+        }
+
+        function hideDeleteAll() {
+            document.getElementById('deleteAllOverlay').classList.remove('active');
+        }
+
+        function toggleTestMode() {
+            fetch('/api/test-mode', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast(data.test_mode ? 'Switched to TEST MODE' : 'Facebook posting is LIVE');
+                        pollStatus();
+                    }
+                })
+                .catch(() => showToast('Toggle failed'));
+        }
+
+        function checkForUpdate() {
+            const btn = document.getElementById('updateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Checking...';
+
+            fetch('/api/update', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.updated) {
+                        showToast('Updated to ' + data.new_commit + ' — restarting...');
+                        setTimeout(() => location.reload(), 5000);
+                    } else if (data.ok) {
+                        showToast('Already up to date');
+                        btn.disabled = false;
+                        btn.textContent = 'Check for Update';
+                    } else {
+                        showToast('Update failed: ' + (data.error || 'unknown'));
+                        btn.disabled = false;
+                        btn.textContent = 'Check for Update';
+                    }
+                })
+                .catch(() => {
+                    showToast('Update request failed');
+                    btn.disabled = false;
+                    btn.textContent = 'Check for Update';
+                });
+        }
+
+        function deleteAll() {
+            fetch('/api/clips', { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Deleted ' + data.deleted + ' clips');
+                        hideDeleteAll();
+                        // Remove all clip cards from the DOM
+                        document.querySelectorAll('.clip-card').forEach(c => c.remove());
+                        pollStatus();
+                    } else {
+                        showToast('Error: ' + data.error);
+                        hideDeleteAll();
+                    }
+                })
+                .catch(() => {
+                    showToast('Delete failed');
+                    hideDeleteAll();
+                });
+        }
+    </script>
+</body>
+</html>

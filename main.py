@@ -242,11 +242,15 @@ class HummingbirdMonitor:
                         schedule_info["sunset"],
                     )
 
-                    # End-of-day post with tally
+                    # End-of-day post with tally (background thread — don't block detection)
                     if not self._night_posted:
                         self._night_posted = True
                         self._save_post_state()
-                        self._post_goodnight(schedule_info)
+                        threading.Thread(
+                            target=self._post_goodnight,
+                            args=(schedule_info,),
+                            daemon=True,
+                        ).start()
 
                 time.sleep(30)  # Check every 30 seconds if it's daytime yet
                 continue
@@ -257,17 +261,17 @@ class HummingbirdMonitor:
                 self.detection_state = "idle"
                 logger.info("Good morning! Waking up and starting detection.")
 
-                # Morning post
+                # Morning post (background thread — don't block detection)
                 if not self._morning_posted:
                     self._morning_posted = True
                     self._save_post_state()
-                    self._post_goodmorning()
+                    threading.Thread(target=self._post_goodmorning, daemon=True).start()
 
             # First-ever wake up (not coming from sleep)
             elif not self._morning_posted and config.NIGHT_MODE_ENABLED:
                 self._morning_posted = True
                 self._save_post_state()
-                self._post_goodmorning()
+                threading.Thread(target=self._post_goodmorning, daemon=True).start()
 
             try:
                 frame = self.camera.capture_lores_array()
