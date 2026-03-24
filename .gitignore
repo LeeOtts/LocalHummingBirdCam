@@ -22,3 +22,7 @@ training/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test artifacts
+.coverage
+htmlcov/
