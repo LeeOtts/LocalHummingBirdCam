@@ -52,15 +52,18 @@ class TestDailyCounterReset:
 
     def test_counter_resets_on_new_day(self, poster):
         """When the date changes, posts_today should reset to 0."""
-        from datetime import date, timedelta
+        from datetime import timedelta
+
+        # Use the same timezone-aware 'today' the rate limiter uses
+        today_tz = poster._date_in_local_tz()
 
         poster._posts_today = 5
-        poster._today = date.today() - timedelta(days=1)  # yesterday
+        poster._today = today_tz - timedelta(days=1)  # one day before tz-aware today
 
         result = poster._check_rate_limit()
         assert result is True
         assert poster._posts_today == 0
-        assert poster._today == date.today()
+        assert poster._today == today_tz
 
 
 class TestSaveToRetryQueue:
@@ -87,7 +90,9 @@ class TestSaveToRetryQueue:
         retry_file = tmp_path / "retry_queue.json"
         monkeypatch.setattr(config, "RETRY_QUEUE_FILE", retry_file)
 
-        old_path = str(tmp_path / "old.mp4")
+        old_clip = tmp_path / "old.mp4"
+        old_clip.write_bytes(b"fake")  # must exist on disk — pruning removes missing entries
+        old_path = str(old_clip)
         retry_file.write_text(json.dumps([{"mp4_path": old_path, "caption": "Old"}]))
 
         new_clip = tmp_path / "new.mp4"

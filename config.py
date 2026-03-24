@@ -65,6 +65,7 @@ MAX_CLIPS_DISK_MB = int(os.getenv("MAX_CLIPS_DISK_MB", "2000"))  # 2GB default
 CLIPS_DIR = BASE_DIR / os.getenv("CLIPS_DIR", "clips")
 LOGS_DIR = BASE_DIR / os.getenv("LOGS_DIR", "logs")
 RETRY_QUEUE_FILE = BASE_DIR / "retry_queue.json"
+MAX_RETRY_QUEUE_SIZE = int(os.getenv("MAX_RETRY_QUEUE_SIZE", "50"))
 TRAINING_DIR = BASE_DIR / "training"
 
 # Test mode — records clips and generates captions but skips Facebook posting
@@ -88,6 +89,9 @@ NIGHT_MODE_ENABLED = os.getenv("NIGHT_MODE_ENABLED", "true").lower() in ("true",
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+# Optional password for the web dashboard (HTTP Basic Auth).
+# Leave blank to disable authentication (default — local network only).
+WEB_PASSWORD = os.getenv("WEB_PASSWORD", "")
 
 # --- Validation (clamp to sane defaults) ---
 import logging as _log
@@ -104,3 +108,27 @@ if COLOR_MAX_AREA < COLOR_MIN_AREA:
 if CAMERA_ROTATION not in (0, 90, 180, 270):
     _log.warning("CAMERA_ROTATION=%d invalid, defaulting to 0", CAMERA_ROTATION)
     CAMERA_ROTATION = 0
+if VIDEO_WIDTH < 1:
+    _log.warning("VIDEO_WIDTH=%d invalid, clamping to 1", VIDEO_WIDTH)
+    VIDEO_WIDTH = 1
+if VIDEO_HEIGHT < 1:
+    _log.warning("VIDEO_HEIGHT=%d invalid, clamping to 1", VIDEO_HEIGHT)
+    VIDEO_HEIGHT = 1
+if MOTION_THRESHOLD < 0:
+    _log.warning("MOTION_THRESHOLD=%.1f invalid (must be >= 0), clamping to 0", MOTION_THRESHOLD)
+    MOTION_THRESHOLD = 0.0
+if MAX_POSTS_PER_DAY < 1:
+    _log.warning("MAX_POSTS_PER_DAY=%d invalid, clamping to 1", MAX_POSTS_PER_DAY)
+    MAX_POSTS_PER_DAY = 1
+if not (-90.0 <= LOCATION_LAT <= 90.0):
+    _log.warning("LOCATION_LAT=%.4f out of range [-90, 90], defaulting to 35.1495", LOCATION_LAT)
+    LOCATION_LAT = 35.1495
+if not (-180.0 <= LOCATION_LNG <= 180.0):
+    _log.warning("LOCATION_LNG=%.4f out of range [-180, 180], defaulting to -89.8733", LOCATION_LNG)
+    LOCATION_LNG = -89.8733
+try:
+    import zoneinfo as _zi
+    _zi.ZoneInfo(LOCATION_TIMEZONE)
+except Exception:
+    _log.warning("LOCATION_TIMEZONE=%r invalid, defaulting to America/Chicago", LOCATION_TIMEZONE)
+    LOCATION_TIMEZONE = "America/Chicago"
