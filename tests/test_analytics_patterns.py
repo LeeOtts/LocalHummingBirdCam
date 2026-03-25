@@ -3,6 +3,21 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import config
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from pytz import timezone as _pytz_tz
+    ZoneInfo = lambda key: _pytz_tz(key)
+
+_local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
+
+
+def _local_hour():
+    """Return the current hour in the project's configured timezone."""
+    return datetime.now(tz=_local_tz).hour
+
 import pytest
 
 
@@ -127,27 +142,23 @@ class TestPredictNextVisit:
 
     def test_returns_none_when_current_hour_missing(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
-        other_hour = (now.hour + 6) % 24
+        other_hour = (_local_hour() + 6) % 24
         db = _mock_db(hourly={other_hour: 10}, avg_gap=15.0)
         assert predict_next_visit(db) is None
 
     def test_returns_none_when_fewer_than_3_visits(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
-        db = _mock_db(hourly={now.hour: 2}, avg_gap=15.0)
+        db = _mock_db(hourly={_local_hour(): 2}, avg_gap=15.0)
         assert predict_next_visit(db) is None
 
     def test_returns_none_when_no_avg_gap(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
-        db = _mock_db(hourly={now.hour: 10}, avg_gap=None)
+        db = _mock_db(hourly={_local_hour(): 10}, avg_gap=None)
         assert predict_next_visit(db) is None
 
     def test_returns_prediction_with_enough_data(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
-        db = _mock_db(hourly={now.hour: 15}, avg_gap=20.0)
+        db = _mock_db(hourly={_local_hour(): 15}, avg_gap=20.0)
         result = predict_next_visit(db)
         assert result is not None
         assert "estimate_minutes" in result
@@ -157,34 +168,30 @@ class TestPredictNextVisit:
 
     def test_medium_confidence(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
-        db = _mock_db(hourly={now.hour: 7}, avg_gap=20.0)
+        db = _mock_db(hourly={_local_hour(): 7}, avg_gap=20.0)
         result = predict_next_visit(db)
         assert result is not None
         assert result["confidence"] == "medium"
 
     def test_low_confidence(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
-        db = _mock_db(hourly={now.hour: 4}, avg_gap=20.0)
+        db = _mock_db(hourly={_local_hour(): 4}, avg_gap=20.0)
         result = predict_next_visit(db)
         assert result is not None
         assert result["confidence"] == "low"
 
     def test_estimate_clamped_minimum(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
         # Very high activity → very small gap → clamped to 5
-        db = _mock_db(hourly={now.hour: 500}, avg_gap=0.5)
+        db = _mock_db(hourly={_local_hour(): 500}, avg_gap=0.5)
         result = predict_next_visit(db)
         assert result is not None
         assert result["estimate_minutes"] >= 5
 
     def test_estimate_clamped_maximum(self):
         from analytics.patterns import predict_next_visit
-        now = datetime.now()
         # Very low activity → large gap → clamped to 120
-        db = _mock_db(hourly={now.hour: 3}, avg_gap=500.0)
+        db = _mock_db(hourly={_local_hour(): 3}, avg_gap=500.0)
         result = predict_next_visit(db)
         assert result is not None
         assert result["estimate_minutes"] <= 120
