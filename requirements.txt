@@ -8,6 +8,7 @@ ai-edge-litert>=1.0
 astral>=3.0,<4.0
 pytz>=2023.1
 atproto>=0.0.50
+tweepy>=4.14,<5.0
 pytest>=7.0,<10.0
 pytest-mock>=3.10
 pytest-cov>=4.0
