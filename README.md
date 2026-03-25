@@ -22,7 +22,7 @@ My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi col
 
 ## What It Does
 
-- **Multi-stage detection pipeline** — motion, HSV color filtering, MobileNetV2 bird classifier, and optional GPT-4o vision verify. It went through an embarrassing phase of reporting leaves, shadows, and personal betrayal before we got here.
+- **Multi-stage detection pipeline** — motion, HSV color filtering, and a MobileNetV2 bird classifier running locally on the Pi. It went through an embarrassing phase of reporting leaves, shadows, and personal betrayal before we got here.
 - **Records with sound** — 25-second clips (5s pre-roll + 20s post-detection) because you need the wing buzz for the full experience
 - **GPT-4o writes the captions** — unhinged, slightly suggestive, occasionally better than anything a human would write. Never explains its own jokes.
 - **Auto-posts to Facebook** — clips go live before the bird even knows it's famous
@@ -128,9 +128,7 @@ The detection pipeline — four layers of increasingly paranoid verification:
 
 2. **Bird Species Classifier** *(~1-2 sec on Pi)* — MobileNetV2 trained on 964 bird species. Runs fully local on the Pi, no cloud needed. The "prove you're actually a hummingbird" checkpoint.
 
-3. **GPT-4o Vision Verify** *(optional)* — Cloud-based second opinion. Because sometimes even the AI needs another AI to tell it to calm down.
-
-4. **Record + Post** — 25 seconds of evidence. GPT-4o writes the caption. Facebook gets another hummer clip. The bird has no idea it's internet famous.
+3. **Record + Post** — 25 seconds of evidence. GPT-4o writes the caption. Facebook gets another hummer clip. The bird has no idea it's internet famous.
 
 ## The Dashboard
 

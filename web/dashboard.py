@@ -1,11 +1,13 @@
 """Local web dashboard for monitoring the Backyard Hummers system."""
 
+import hashlib
 import json
 import logging
 import os
 import time as _time
 from datetime import datetime
 from pathlib import Path
+from queue import Queue, Empty
 
 try:
     from zoneinfo import ZoneInfo
@@ -13,7 +15,7 @@ except ImportError:
     from pytz import timezone as _pytz_tz
     ZoneInfo = lambda key: _pytz_tz(key)
 
-from flask import Flask, Response, render_template, send_from_directory, request, redirect, url_for, session
+from flask import Flask, Response, render_template, send_from_directory, request, redirect, url_for, session, jsonify
 
 import config
 
@@ -28,8 +30,8 @@ app.secret_key = os.urandom(24)  # ephemeral — sessions last until restart
 # Reference to the monitor instance (set by main.py)
 _monitor = None
 
-# Routes that are always public (live camera feed for external displays)
-_PUBLIC_ROUTES = {"/feed", "/feed/audio"}
+# Routes that are always public (live camera feed, gallery, SSE events)
+_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events", "/api/guestbook"}
 
 # Simple in-memory rate limiter for failed auth attempts
 _AUTH_FAIL_WINDOW = 300  # 5 minutes
@@ -43,8 +45,8 @@ def _enforce_auth():
     password = config.WEB_PASSWORD
     if not password:
         return  # auth disabled — open access (default)
-    if request.path in _PUBLIC_ROUTES:
-        return  # live feed remains public
+    if request.path in _PUBLIC_ROUTES or request.path.startswith("/gallery"):
+        return  # public routes remain accessible
 
     # Check rate limit before processing auth
     ip = request.remote_addr or "unknown"
@@ -760,6 +762,163 @@ def api_clips_list():
         {"name": c["name"], "size": c["size"], "time": c["time"], "caption": c.get("caption", "")}
         for c in clips
     ]}
+
+
+@app.route("/gallery")
+def gallery():
+    """Public clip gallery with shareable links."""
+    page = request.args.get("page", 1, type=int)
+    per_page = 12
+    clips = _get_recent_clips(limit=per_page * page)
+    start = (page - 1) * per_page
+    page_clips = clips[start:start + per_page]
+
+    # Track page view
+    if _monitor and _monitor.sightings_db:
+        ip_hash = hashlib.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
+        _monitor.sightings_db.record_page_view(ip_hash, "/gallery")
+
+    return render_template(
+        "gallery.html",
+        clips=page_clips,
+        page=page,
+        has_more=len(clips) > start + per_page,
+        total_visitors=_monitor.sightings_db.get_total_page_views() if _monitor and _monitor.sightings_db else 0,
+    )
+
+
+@app.route("/gallery/<clip_name>")
+def gallery_clip(clip_name):
+    """Individual clip page with Open Graph meta tags for sharing."""
+    if "/" in clip_name or "\\" in clip_name or ".." in clip_name:
+        return {"error": "Invalid"}, 400
+
+    clip_path = config.CLIPS_DIR / clip_name
+    if not clip_path.exists():
+        return "Clip not found", 404
+
+    caption = ""
+    caption_path = clip_path.with_suffix(".txt")
+    if caption_path.exists():
+        try:
+            caption = caption_path.read_text().strip()
+        except OSError:
+            pass
+
+    mtime = datetime.fromtimestamp(clip_path.stat().st_mtime, tz=_local_tz).strftime("%Y-%m-%d %H:%M:%S")
+    size_mb = clip_path.stat().st_size / 1_048_576
+
+    return render_template(
+        "clip_detail.html",
+        clip={"name": clip_name, "caption": caption, "time": mtime, "size": f"{size_mb:.1f} MB"},
+        host=request.host_url.rstrip("/"),
+    )
+
+
+@app.route("/analytics")
+def analytics_page():
+    """Analytics dashboard with feeding patterns and predictions."""
+    if not _monitor or not _monitor.sightings_db:
+        return render_template("analytics.html", analytics=None)
+
+    from analytics.patterns import get_analytics_summary
+    summary = get_analytics_summary(_monitor.sightings_db)
+    return render_template("analytics.html", analytics=summary)
+
+
+@app.route("/api/analytics")
+def api_analytics():
+    """JSON analytics endpoint."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "No data available"}, 503
+
+    from analytics.patterns import get_analytics_summary
+    return get_analytics_summary(_monitor.sightings_db)
+
+
+@app.route("/guestbook")
+def guestbook_page():
+    """Community guestbook."""
+    entries = []
+    total_visitors = 0
+    if _monitor and _monitor.sightings_db:
+        entries = _monitor.sightings_db.get_guestbook_entries(limit=50)
+        total_visitors = _monitor.sightings_db.get_total_page_views()
+
+        ip_hash = hashlib.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
+        _monitor.sightings_db.record_page_view(ip_hash, "/guestbook")
+
+    return render_template("guestbook.html", entries=entries, total_visitors=total_visitors)
+
+
+@app.route("/api/guestbook", methods=["GET", "POST"])
+def api_guestbook():
+    """Guestbook API — GET entries or POST a new one."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "Not available"}, 503
+
+    if request.method == "GET":
+        entries = _monitor.sightings_db.get_guestbook_entries(limit=50)
+        return {"entries": entries}
+
+    data = request.get_json() or {}
+    name = (data.get("name", "") or "").strip()
+    message = (data.get("message", "") or "").strip()
+
+    if not name or not message:
+        return {"error": "Name and message are required"}, 400
+    if len(name) > 50:
+        return {"error": "Name too long (max 50 chars)"}, 400
+    if len(message) > 500:
+        return {"error": "Message too long (max 500 chars)"}, 400
+
+    ip_hash = hashlib.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
+    entry_id = _monitor.sightings_db.add_guestbook_entry(name, message, ip_hash)
+
+    if entry_id is None:
+        return {"error": "Rate limited — try again later"}, 429
+
+    return {"ok": True, "id": entry_id}
+
+
+@app.route("/api/events")
+def sse_events():
+    """Server-Sent Events endpoint for live detection notifications."""
+    if not _monitor:
+        return Response("Monitor not running", status=503)
+
+    q: Queue = Queue(maxsize=50)
+    _monitor._sse_subscribers.append(q)
+
+    def stream():
+        try:
+            while True:
+                try:
+                    data = q.get(timeout=30)
+                    yield f"data: {data}\n\n"
+                except Empty:
+                    yield ": keepalive\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            try:
+                _monitor._sse_subscribers.remove(q)
+            except (ValueError, AttributeError):
+                pass
+
+    return Response(
+        stream(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/platforms")
+def api_platforms():
+    """Return list of active social media platforms."""
+    if not _monitor:
+        return {"platforms": []}
+    return {"platforms": _monitor.poster_manager.platform_names}
 
 
 @app.route("/api/status")

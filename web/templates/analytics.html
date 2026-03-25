@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backyard Hummers - Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #141a11;
+            color: #e8e0d4;
+            min-height: 100vh;
+        }
+        header {
+            background: #141a11;
+            text-align: center;
+            border-bottom: 3px solid #c4392a;
+            padding: 20px;
+        }
+        header h1 { color: #f5e6c8; font-size: 1.8em; }
+        header p { color: #b0a58e; margin-top: 5px; }
+        .nav { text-align: center; padding: 15px; background: #1c2a1a; border-bottom: 1px solid #3d4a2a; }
+        .nav a { color: #d4a017; text-decoration: none; margin: 0 15px; font-weight: 600; }
+        .nav a:hover { text-decoration: underline; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #3d4a2a;
+        }
+        .stat-card .label { color: #b0a58e; font-size: 0.85em; text-transform: uppercase; }
+        .stat-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; color: #4caf50; }
+        .stat-card .sub { color: #b0a58e; font-size: 0.8em; margin-top: 4px; }
+
+        .prediction-card {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 2px solid #d4a017;
+            text-align: center;
+        }
+        .prediction-card h3 { color: #d4a017; margin-bottom: 10px; }
+        .prediction-card .estimate { font-size: 2em; font-weight: bold; color: #f5e6c8; }
+        .prediction-card .confidence { color: #b0a58e; font-size: 0.85em; margin-top: 5px; }
+
+        .chart-section {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #3d4a2a;
+        }
+        .chart-section h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .chart-container { position: relative; height: 300px; }
+
+        .empty { text-align: center; color: #b0a58e; padding: 60px 20px; }
+
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .chart-container { height: 250px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Backyard Hummers Analytics</h1>
+        <p>Feeding patterns, trends, and predictions</p>
+    </header>
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/gallery">Gallery</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/guestbook">Guestbook</a>
+    </div>
+    <div class="container">
+        {% if analytics %}
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">All-Time Sightings</div>
+                <div class="value">{{ analytics.total_all_time }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Today</div>
+                <div class="value">{{ analytics.today_count }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Peak Hour</div>
+                <div class="value" style="font-size:1.3em;">{{ analytics.peak_hour or 'N/A' }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg. Gap</div>
+                <div class="value" style="font-size:1.3em;">{{ analytics.avg_gap_minutes or 'N/A' }}</div>
+                <div class="sub">minutes between visits</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Busiest Day</div>
+                <div class="value" style="font-size:1.3em;">{{ analytics.busiest_day_of_week or 'N/A' }}</div>
+            </div>
+        </div>
+
+        {% if analytics.prediction %}
+        <div class="prediction-card">
+            <h3>Next Bird Prediction</h3>
+            <div class="estimate">~{{ analytics.prediction.estimate_minutes }} min</div>
+            <div class="confidence">
+                {{ analytics.prediction.confidence }} confidence
+                (based on {{ analytics.prediction.based_on_days }} days of data,
+                {{ analytics.prediction.visits_this_hour_slot }} visits in this time slot)
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="chart-section">
+            <h2>Activity by Hour (Last 14 Days)</h2>
+            <div class="chart-container">
+                <canvas id="hourlyChart"></canvas>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>Daily Trend (Last 30 Days)</h2>
+            <div class="chart-container">
+                <canvas id="dailyChart"></canvas>
+            </div>
+        </div>
+
+        <script>
+            const hourlyData = {{ analytics.hourly_distribution | tojson }};
+            const dailyData = {{ analytics.daily_totals | tojson }};
+
+            // Hourly chart
+            const hourLabels = [];
+            const hourValues = [];
+            for (let h = 5; h <= 21; h++) {
+                const ampm = h < 12 ? 'AM' : 'PM';
+                const hr = h % 12 || 12;
+                hourLabels.push(hr + ' ' + ampm);
+                hourValues.push(hourlyData[h] || 0);
+            }
+
+            new Chart(document.getElementById('hourlyChart'), {
+                type: 'bar',
+                data: {
+                    labels: hourLabels,
+                    datasets: [{
+                        label: 'Sightings',
+                        data: hourValues,
+                        backgroundColor: '#4caf50',
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#b0a58e' }, grid: { color: '#3d4a2a' } },
+                        x: { ticks: { color: '#b0a58e' }, grid: { display: false } }
+                    }
+                }
+            });
+
+            // Daily chart
+            if (dailyData.length > 0) {
+                new Chart(document.getElementById('dailyChart'), {
+                    type: 'line',
+                    data: {
+                        labels: dailyData.map(d => d.date),
+                        datasets: [{
+                            label: 'Detections',
+                            data: dailyData.map(d => d.total_detections),
+                            borderColor: '#d4a017',
+                            backgroundColor: 'rgba(212, 160, 23, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#d4a017',
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { color: '#b0a58e' }, grid: { color: '#3d4a2a' } },
+                            x: { ticks: { color: '#b0a58e', maxRotation: 45 }, grid: { display: false } }
+                        }
+                    }
+                });
+            }
+        </script>
+
+        {% else %}
+        <div class="empty">
+            <p style="font-size: 2em; margin-bottom: 15px;">No data yet</p>
+            <p>Analytics will appear once the system starts recording hummingbird sightings.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

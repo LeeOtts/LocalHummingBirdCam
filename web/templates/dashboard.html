@@ -324,9 +324,21 @@
         <img src="/static/backyardhummers.png" alt="Backyard Hummers - AI-Powered Hummingbird Surveillance" class="banner-img">
     </header>
 
+    <div style="text-align:center; padding:12px; background:#1c2a1a; border-bottom:1px solid #3d4a2a;">
+        <a href="/" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Dashboard</a>
+        <a href="/gallery" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Gallery</a>
+        <a href="/analytics" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Analytics</a>
+        <a href="/guestbook" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Guestbook</a>
+    </div>
+
     <div class="container">
         <div class="refresh-bar">
             Status updates live | <a href="/">Full refresh</a>
+        </div>
+
+        <!-- Live detection notification banner (hidden by default, shown via SSE) -->
+        <div id="sseNotification" style="display:none; background:#2a4a1a; border:2px solid #4caf50; border-radius:10px; padding:15px; margin-bottom:20px; text-align:center; animation: pulse 1s ease-in-out;">
+            <span style="font-size:1.2em; font-weight:bold; color:#4caf50;" id="sseText">Hummingbird detected!</span>
         </div>
 
         <div class="live-feed">
@@ -950,6 +962,31 @@
                     btn.textContent = 'Check for Update';
                 });
         }
+
+        // SSE — live detection notifications
+        (function connectSSE() {
+            try {
+                const es = new EventSource('/api/events');
+                es.onmessage = function(e) {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.event === 'detection') {
+                            const note = document.getElementById('sseNotification');
+                            const text = document.getElementById('sseText');
+                            text.textContent = 'Hummingbird #' + data.detections_today + ' detected at ' + data.time + '!';
+                            note.style.display = 'block';
+                            setTimeout(() => { note.style.display = 'none'; }, 10000);
+                            pollStatus();
+                            pollClips();
+                        }
+                    } catch(err) {}
+                };
+                es.onerror = function() {
+                    es.close();
+                    setTimeout(connectSSE, 5000);
+                };
+            } catch(err) {}
+        })();
 
         function deleteAll() {
             fetch('/api/clips', { method: 'DELETE' })

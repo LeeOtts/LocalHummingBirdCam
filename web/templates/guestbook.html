@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backyard Hummers - Guestbook</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #141a11;
+            color: #e8e0d4;
+            min-height: 100vh;
+        }
+        header {
+            background: #141a11;
+            text-align: center;
+            border-bottom: 3px solid #c4392a;
+            padding: 20px;
+        }
+        header h1 { color: #f5e6c8; font-size: 1.8em; }
+        header p { color: #b0a58e; margin-top: 5px; }
+        .nav { text-align: center; padding: 15px; background: #1c2a1a; border-bottom: 1px solid #3d4a2a; }
+        .nav a { color: #d4a017; text-decoration: none; margin: 0 15px; font-weight: 600; }
+        .nav a:hover { text-decoration: underline; }
+        .container { max-width: 700px; margin: 0 auto; padding: 20px; }
+        .visitor-count { text-align: center; color: #b0a58e; margin-bottom: 25px; font-size: 0.9em; }
+
+        .form-card {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            border: 1px solid #3d4a2a;
+        }
+        .form-card h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .form-card input, .form-card textarea {
+            width: 100%;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            background: #0f140b;
+            border: 1px solid #3d4a2a;
+            border-radius: 6px;
+            color: #e8e0d4;
+            font-family: inherit;
+            font-size: 0.95em;
+        }
+        .form-card textarea { height: 80px; resize: vertical; }
+        .form-card input:focus, .form-card textarea:focus {
+            outline: none;
+            border-color: #d4a017;
+        }
+        .btn-submit {
+            background: #d4a017;
+            color: #141a11;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.95em;
+            cursor: pointer;
+        }
+        .btn-submit:hover { background: #b8880f; }
+        .btn-submit:disabled { background: #555; color: #999; cursor: wait; }
+        .form-msg { margin-top: 10px; font-size: 0.9em; }
+        .form-msg.ok { color: #4caf50; }
+        .form-msg.err { color: #e05535; }
+
+        .entry {
+            background: #1c2a1a;
+            border-radius: 8px;
+            padding: 15px 18px;
+            margin-bottom: 12px;
+            border: 1px solid #3d4a2a;
+        }
+        .entry .entry-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .entry .entry-name { font-weight: bold; color: #f5e6c8; }
+        .entry .entry-time { font-size: 0.8em; color: #b0a58e; }
+        .entry .entry-msg { line-height: 1.5; }
+
+        .empty { text-align: center; color: #b0a58e; padding: 40px; }
+        @media (max-width: 768px) { .container { padding: 10px; } }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Backyard Hummers Guestbook</h1>
+        <p>Leave a note for the hummingbirds (or the humans watching them)</p>
+    </header>
+    <div class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/gallery">Gallery</a>
+        <a href="/analytics">Analytics</a>
+        <a href="/guestbook">Guestbook</a>
+    </div>
+    <div class="container">
+        <div class="visitor-count">{{ total_visitors }} birdwatcher{{ 's' if total_visitors != 1 else '' }} have visited</div>
+
+        <div class="form-card">
+            <h2>Sign the Guestbook</h2>
+            <input type="text" id="gbName" placeholder="Your name" maxlength="50">
+            <textarea id="gbMessage" placeholder="Leave a message..." maxlength="500"></textarea>
+            <button class="btn-submit" id="gbSubmit" onclick="submitEntry()">Post</button>
+            <div class="form-msg" id="gbMsg"></div>
+        </div>
+
+        <div id="entries">
+            {% for e in entries %}
+            <div class="entry">
+                <div class="entry-header">
+                    <span class="entry-name">{{ e.name }}</span>
+                    <span class="entry-time">{{ e.timestamp[:16] }}</span>
+                </div>
+                <div class="entry-msg">{{ e.message }}</div>
+            </div>
+            {% endfor %}
+            {% if not entries %}
+            <div class="empty">No entries yet. Be the first to sign!</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function submitEntry() {
+            const name = document.getElementById('gbName').value.trim();
+            const message = document.getElementById('gbMessage').value.trim();
+            const msg = document.getElementById('gbMsg');
+            const btn = document.getElementById('gbSubmit');
+
+            if (!name || !message) {
+                msg.textContent = 'Name and message are required.';
+                msg.className = 'form-msg err';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Posting...';
+
+            fetch('/api/guestbook', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, message})
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = 'Post';
+                if (data.ok) {
+                    msg.textContent = 'Posted! Thanks for stopping by.';
+                    msg.className = 'form-msg ok';
+                    document.getElementById('gbMessage').value = '';
+
+                    // Add entry to the top
+                    const entries = document.getElementById('entries');
+                    const empty = entries.querySelector('.empty');
+                    if (empty) empty.remove();
+
+                    const now = new Date().toISOString().slice(0, 16);
+                    const div = document.createElement('div');
+                    div.className = 'entry';
+                    div.innerHTML = `
+                        <div class="entry-header">
+                            <span class="entry-name">${escapeHtml(name)}</span>
+                            <span class="entry-time">${now}</span>
+                        </div>
+                        <div class="entry-msg">${escapeHtml(message)}</div>
+                    `;
+                    entries.insertBefore(div, entries.firstChild);
+                } else {
+                    msg.textContent = data.error || 'Something went wrong.';
+                    msg.className = 'form-msg err';
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.textContent = 'Post';
+                msg.textContent = 'Network error. Try again.';
+                msg.className = 'form-msg err';
+            });
+        }
+    </script>
+</body>
+</html>

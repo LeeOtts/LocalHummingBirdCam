@@ -1,9 +1,11 @@
 """Generate funny Facebook post captions using OpenAI / Azure OpenAI."""
 
+import base64
 import collections
 import logging
 import random
 import threading
+from pathlib import Path
 
 import config
 
@@ -118,6 +120,9 @@ Seasonal Notes:
 
 Content Guidelines:
 - The post accompanies a video of a hummingbird visit
+- If an image is provided, describe what you actually SEE the bird doing — this is \
+  the most important detail. Be specific: hovering, perching, tongue out, two birds, \
+  chasing, feeding position, wing blur, etc.
 - Use the context naturally — don't force every detail into every caption
 - Prefer specificity over generic phrasing
 - Reference behavior: hovering, quick visits, repeat visits, territorial chasing, \
@@ -167,8 +172,32 @@ def _format_since_last(seconds) -> str:
     return f"About {seconds // 3600} hour(s) since last visit"
 
 
+def _encode_frame(frame_path: Path, max_width: int = 512) -> str | None:
+    """Resize a frame and return it as a base64-encoded JPEG data URI."""
+    try:
+        import cv2
+        img = cv2.imread(str(frame_path))
+        if img is None:
+            return None
+        h, w = img.shape[:2]
+        if w > max_width:
+            scale = max_width / w
+            img = cv2.resize(img, (max_width, int(h * scale)))
+        _, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        b64 = base64.b64encode(buf.tobytes()).decode("ascii")
+        return f"data:image/jpeg;base64,{b64}"
+    except Exception:
+        logger.warning("Failed to encode frame for vision caption")
+        return None
+
+
 def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
-    """Generate a funny innuendo-laden caption for a hummingbird video post."""
+    """Generate a funny innuendo-laden caption for a hummingbird video post.
+
+    If ``frame_path`` is provided and VISION_CAPTION_ENABLED is true, the frame
+    is sent to GPT-4o as a multimodal image so it can describe what the bird
+    is actually doing.
+    """
     if not config.OPENAI_API_KEY:
         logger.warning("No OpenAI API key configured, using fallback caption")
         return random.choice(FALLBACK_CAPTIONS)
@@ -204,8 +233,23 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
                 f"repeat similar phrasing or structure:\n{avoid_text}"})
             messages.append({"role": "assistant", "content":
                 "Got it, I'll write something fresh."})
-        messages.append({"role": "user", "content":
-            "Write a post for a new hummingbird sighting video."})
+
+        # Build the user message — with or without a vision frame
+        frame_path = kwargs.get("frame_path")
+        image_url = None
+        if frame_path and config.VISION_CAPTION_ENABLED:
+            image_url = _encode_frame(Path(frame_path))
+
+        if image_url:
+            user_content: list | str = [
+                {"type": "text", "text": "Write a post for this hummingbird sighting. Here's a frame from the video:"},
+                {"type": "image_url", "image_url": {"url": image_url, "detail": config.VISION_CAPTION_DETAIL}},
+            ]
+            logger.info("Sending frame to GPT-4o Vision for caption (detail=%s)", config.VISION_CAPTION_DETAIL)
+        else:
+            user_content = "Write a post for a new hummingbird sighting video."
+
+        messages.append({"role": "user", "content": user_content})
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=messages,
