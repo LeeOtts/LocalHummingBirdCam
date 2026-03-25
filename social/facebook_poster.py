@@ -1,6 +1,5 @@
 """Post video clips to the 'Backyard Hummers' Facebook page via Graph API."""
 
-import json
 import logging
 import os
 from datetime import date
@@ -292,10 +291,10 @@ class FacebookPoster(SocialPoster):
             return False
 
     def post_photo(self, image_path: Path, caption: str) -> bool:
-        """Upload a photo and create a feed post on the Facebook Page.
+        """Upload a photo as a feed post on the Facebook Page.
 
-        Uses a two-step process so the post appears as a proper feed/timeline
-        post (visible on mobile) rather than a standalone photo upload.
+        Posts directly to /photos with published=true and message so it
+        appears as a proper feed/timeline post (not a standalone photo).
         """
         if not self.page_id or not self.access_token:
             logger.error("Facebook credentials not configured")
@@ -305,35 +304,21 @@ class FacebookPoster(SocialPoster):
             return False
 
         try:
-            # Step 1: Upload photo as unpublished
             with open(image_path, "rb") as f:
-                upload_resp = requests.post(
+                resp = requests.post(
                     f"{GRAPH_API_BASE}/{self.page_id}/photos",
                     data={
-                        "published": "false",
+                        "message": caption,
+                        "published": "true",
                         "access_token": self.access_token,
                     },
                     files={"source": f},
                     timeout=60,
                 )
-            upload_resp.raise_for_status()
-            photo_id = upload_resp.json()["id"]
-            logger.info("Photo uploaded (unpublished) ID: %s", photo_id)
-
-            # Step 2: Create feed post with the photo attached
-            resp = requests.post(
-                f"{GRAPH_API_BASE}/{self.page_id}/feed",
-                data={
-                    "message": caption,
-                    "attached_media[0]": json.dumps({"media_fbid": photo_id}),
-                    "access_token": self.access_token,
-                },
-                timeout=30,
-            )
             resp.raise_for_status()
             resp_data = resp.json()
-            post_id = resp_data.get("id", "unknown")
-            logger.info("Photo feed post published! Post ID: %s", post_id)
+            post_id = resp_data.get("post_id", resp_data.get("id", "unknown"))
+            logger.info("Photo post published! Post ID: %s", post_id)
 
             self._posts_today += 1
             return True
