@@ -7,6 +7,7 @@ records 30-second clips, generates funny comments via ChatGPT, and posts
 to the "Backyard Hummers" Facebook page.
 """
 
+import gc
 import json
 import logging
 import signal
@@ -353,6 +354,9 @@ class HummingbirdMonitor:
                 # Clean up old clips if disk is getting full
                 self._cleanup_old_clips()
 
+                # Force GC to return recording memory to OS
+                gc.collect()
+
             elif self.detector._consecutive_detections > 0 and self.detection_state == "idle":
                 self.detection_state = "motion"
 
@@ -590,6 +594,7 @@ class HummingbirdMonitor:
 
     def _extract_frame(self, clip_path: Path) -> Path | None:
         """Extract a representative frame from a clip for vision captions."""
+        cap = None
         try:
             frame_path = clip_path.with_suffix(".thumb.jpg")
             cap = cv2.VideoCapture(str(clip_path))
@@ -598,12 +603,14 @@ class HummingbirdMonitor:
             target_frame = int((config.CLIP_PRE_SECONDS + 3) * fps)
             cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
             ret, frame = cap.read()
-            cap.release()
             if ret and frame is not None:
                 cv2.imwrite(str(frame_path), frame)
                 return frame_path
         except Exception:
             logger.warning("Failed to extract frame from %s", clip_path.name)
+        finally:
+            if cap is not None:
+                cap.release()
         return None
 
     def _post_worker(self):
@@ -614,6 +621,7 @@ class HummingbirdMonitor:
             except Empty:
                 continue
 
+            frame_path = None
             try:
                 logger.info("Generating caption for %s...", clip_path.name)
                 now = datetime.now(tz=_local_tz)
@@ -695,6 +703,13 @@ class HummingbirdMonitor:
 
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)
+            finally:
+                # Clean up thumbnail to avoid disk accumulation
+                if frame_path:
+                    try:
+                        Path(frame_path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
 
     def stop(self):
         """Shut down gracefully."""
