@@ -39,6 +39,29 @@ _AUTH_FAIL_WINDOW = 300  # 5 minutes
 _AUTH_FAIL_MAX = 5
 _auth_failures: dict[str, list[float]] = {}  # ip -> [timestamps]
 
+# Cached weather (avoid hitting OpenWeatherMap API on every 5s status poll)
+_weather_cache: dict = {"data": None, "fetched_at": 0}
+_WEATHER_CACHE_TTL = 600  # 10 minutes
+
+
+def _get_cached_weather():
+    """Return cached weather data, refreshing at most once every 10 minutes."""
+    import time
+    if not config.OPENWEATHERMAP_API_KEY:
+        return None
+    now = time.time()
+    if _weather_cache["data"] is not None and (now - _weather_cache["fetched_at"]) < _WEATHER_CACHE_TTL:
+        return _weather_cache["data"]
+    try:
+        from analytics.patterns import get_weather
+        data = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
+        if data:
+            _weather_cache["data"] = data
+            _weather_cache["fetched_at"] = now
+        return data
+    except Exception:
+        return _weather_cache["data"]  # return stale data on error
+
 
 @app.before_request
 def _enforce_auth():
@@ -167,14 +190,8 @@ def _get_status():
     except Exception:
         s.git_commit = "unknown"
 
-    # Weather
-    s.weather = None
-    if config.OPENWEATHERMAP_API_KEY:
-        try:
-            from analytics.patterns import get_weather
-            s.weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
-        except Exception:
-            pass
+    # Weather (cached — fetched at most once every 10 minutes)
+    s.weather = _get_cached_weather()
 
     # Pi CPU temperature
     try:
