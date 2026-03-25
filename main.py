@@ -37,7 +37,9 @@ from data.sightings import SightingsDB
 from detection.motion_color import MotionColorDetector
 from detection.vision_verify import verify_hummingbird
 from schedule import is_daytime, get_schedule_info
-from social.comment_generator import generate_comment, generate_good_morning, generate_good_night
+from social.comment_generator import (
+    generate_comment, generate_good_morning, generate_good_night, generate_milestone_post,
+)
 from social.facebook_poster import FacebookPoster
 from social.poster_manager import PosterManager
 from web.dashboard import start_web_server
@@ -140,14 +142,14 @@ class HummingbirdMonitor:
         # SSE event queue for live dashboard notifications
         self._sse_subscribers: list[Queue] = []
 
-        self._morning_posted, self._night_posted = self._load_post_state()
+        self._morning_posted, self._night_posted, self._digest_posted = self._load_post_state()
 
     def _load_post_state(self) -> tuple:
-        """Load today's morning/night post flags from disk to prevent duplicates on restart."""
+        """Load today's morning/night/digest post flags from disk to prevent duplicates on restart."""
         try:
             data = safe_read_json(self._state_file, default={})
             if not data:
-                return False, False
+                return False, False, False
 
             # Always restore lifetime stats regardless of date
             self._all_time_record = data.get("all_time_record", 0)
@@ -157,20 +159,22 @@ class HummingbirdMonitor:
             if data.get("date") == str(date.today()):
                 morning = data.get("morning_posted", False)
                 night = data.get("night_posted", False)
-                logger.info("Restored post state: morning=%s, night=%s", morning, night)
-                return morning, night
+                digest = data.get("digest_posted", False)
+                logger.info("Restored post state: morning=%s, night=%s, digest=%s", morning, night, digest)
+                return morning, night, digest
             # Stale date — reset
             logger.info("Post state is from %s, resetting for today", data.get("date"))
         except (KeyError, TypeError):
             logger.exception("Failed to load post state")
-        return False, False
+        return False, False, False
 
     def _save_post_state(self):
-        """Save morning/night post flags and engagement stats to disk (atomic write)."""
+        """Save morning/night/digest post flags and engagement stats to disk (atomic write)."""
         safe_write_json(self._state_file, {
             "date": str(date.today()),
             "morning_posted": self._morning_posted,
             "night_posted": self._night_posted,
+            "digest_posted": self._digest_posted,
             "yesterday_detections": self._yesterday_detections,
             "all_time_record": self._all_time_record,
             "total_lifetime_detections": self._total_lifetime_detections,
@@ -411,12 +415,20 @@ class HummingbirdMonitor:
         try:
             now = datetime.now(tz=_local_tz)
             schedule_info = get_schedule_info()
+
+            # Fetch weather for morning post context
+            weather = None
+            if config.OPENWEATHERMAP_API_KEY:
+                from analytics.patterns import get_weather
+                weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
+
             caption = generate_good_morning(
                 location=config.LOCATION_NAME,
                 sunrise=schedule_info["sunrise"],
                 day_of_week=now.strftime("%A"),
                 month=now.strftime("%B"),
                 yesterday_detections=self._yesterday_detections or None,
+                weather=weather,
             )
             logger.info("Morning post: %s", caption)
 
@@ -518,6 +530,14 @@ class HummingbirdMonitor:
             if det > self._all_time_record:
                 self._all_time_record = det
 
+            # Weekly digest — post after goodnight on the configured day
+            if (config.WEEKLY_DIGEST_ENABLED
+                    and not self._digest_posted
+                    and now.strftime("%A").lower() == config.WEEKLY_DIGEST_DAY):
+                threading.Thread(
+                    target=self._post_weekly_digest, daemon=True
+                ).start()
+
             # Reset daily counters
             with self._counter_lock:
                 self._detections_today = 0
@@ -527,6 +547,46 @@ class HummingbirdMonitor:
             self._save_post_state()
         except Exception:
             logger.exception("Failed to post goodnight recap")
+
+    def _post_weekly_digest(self):
+        """Post a weekly recap to all platforms with an optional thumbnail collage."""
+        try:
+            from social.digest import generate_weekly_digest, create_thumbnail_collage
+
+            caption = generate_weekly_digest(self.sightings_db)
+            if not caption:
+                logger.info("Weekly digest: no data to report, skipping")
+                return
+
+            logger.info("Weekly digest: %s", caption)
+
+            if self.test_mode:
+                logger.info("TEST MODE — skipping weekly digest post")
+                self._digest_posted = True
+                self._save_post_state()
+                return
+
+            # Try to create a thumbnail collage for a photo post
+            collage_path = config.CLIPS_DIR / f"digest_{date.today()}.jpg"
+            if create_thumbnail_collage(self.sightings_db, collage_path):
+                results = self.poster_manager.post_photo(collage_path, caption)
+                try:
+                    collage_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            else:
+                results = self.poster_manager.post_text(caption)
+
+            if any(results.values()):
+                logger.info("Weekly digest posted to: %s",
+                            [p for p, ok in results.items() if ok])
+            else:
+                logger.warning("Weekly digest: all platforms failed")
+
+            self._digest_posted = True
+            self._save_post_state()
+        except Exception:
+            logger.exception("Failed to post weekly digest")
 
     def _extract_frame(self, clip_path: Path) -> Path | None:
         """Extract a representative frame from a clip for vision captions."""
@@ -570,6 +630,12 @@ class HummingbirdMonitor:
                 if lifetime in _MILESTONES:
                     milestone = f"Lifetime visitor #{lifetime}!"
 
+                # Fetch current weather for caption context
+                weather = None
+                if config.OPENWEATHERMAP_API_KEY:
+                    from analytics.patterns import get_weather
+                    weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
+
                 # Extract a frame for vision captions
                 frame_path = self._extract_frame(clip_path)
 
@@ -586,6 +652,7 @@ class HummingbirdMonitor:
                     sunset=schedule_info.get("sunset", ""),
                     milestone=milestone,
                     frame_path=frame_path,
+                    weather=weather,
                 )
 
                 # Save caption alongside the clip
@@ -614,6 +681,17 @@ class HummingbirdMonitor:
                                     [p for p, ok in results.items() if ok])
                     else:
                         logger.warning("All posts failed for %s", clip_path.name)
+
+                    # Post a separate milestone celebration if we hit one
+                    if milestone:
+                        days_running = (date.today() - date(2025, 3, 1)).days  # approx start
+                        milestone_caption = generate_milestone_post(
+                            lifetime_count=lifetime,
+                            today_count=det,
+                            days_running=days_running,
+                        )
+                        logger.info("Milestone post: %s", milestone_caption)
+                        self.poster_manager.post_text(milestone_caption)
 
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)

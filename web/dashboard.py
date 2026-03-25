@@ -821,8 +821,9 @@ def analytics_page():
     if not _monitor or not _monitor.sightings_db:
         return render_template("analytics.html", analytics=None)
 
-    from analytics.patterns import get_analytics_summary
+    from analytics.patterns import get_analytics_summary, generate_ai_insight
     summary = get_analytics_summary(_monitor.sightings_db)
+    summary["ai_insight"] = generate_ai_insight(summary)
     return render_template("analytics.html", analytics=summary)
 
 
@@ -832,8 +833,10 @@ def api_analytics():
     if not _monitor or not _monitor.sightings_db:
         return {"error": "No data available"}, 503
 
-    from analytics.patterns import get_analytics_summary
-    return get_analytics_summary(_monitor.sightings_db)
+    from analytics.patterns import get_analytics_summary, generate_ai_insight
+    summary = get_analytics_summary(_monitor.sightings_db)
+    summary["ai_insight"] = generate_ai_insight(summary)
+    return summary
 
 
 @app.route("/guestbook")

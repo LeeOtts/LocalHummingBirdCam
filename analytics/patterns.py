@@ -102,6 +102,61 @@ def predict_next_visit(db) -> dict | None:
     }
 
 
+_insight_cache: dict = {"text": None, "expires": 0.0}
+
+
+def generate_ai_insight(summary: dict) -> str | None:
+    """Generate a short AI narrative from analytics data. Cached for 1 hour."""
+    import time as _time
+
+    if _insight_cache["text"] and _time.time() < _insight_cache["expires"]:
+        return _insight_cache["text"]
+
+    if not config.OPENAI_API_KEY:
+        return None
+
+    if not summary.get("total_all_time"):
+        return None
+
+    try:
+        from social.comment_generator import _get_client
+
+        client = _get_client()
+        if not client:
+            return None
+
+        stats_text = (
+            f"All-time sightings: {summary['total_all_time']}\n"
+            f"Today: {summary['today_count']}\n"
+            f"Peak hour: {summary.get('peak_hour', 'N/A')}\n"
+            f"Average gap between visits: {summary.get('avg_gap_minutes', 'N/A')} minutes\n"
+            f"Busiest day of week: {summary.get('busiest_day_of_week', 'N/A')}\n"
+        )
+
+        response = client.chat.completions.create(
+            model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+            messages=[
+                {"role": "system", "content":
+                    "You analyze hummingbird feeding patterns for the 'Backyard Hummers' camera. "
+                    "Write 1-2 sentences of interesting, specific observations based on the stats. "
+                    "Be insightful and conversational — like a naturalist sharing a fun finding. "
+                    "Do NOT mention AI or automation. No hashtags. No emojis."},
+                {"role": "user", "content": f"Here are the current feeding stats:\n{stats_text}"},
+            ],
+            max_tokens=100,
+            temperature=0.8,
+        )
+        insight = (response.choices[0].message.content or "").strip()
+        _insight_cache["text"] = insight
+        _insight_cache["expires"] = _time.time() + 3600  # 1 hour
+        logger.info("AI insight: %s", insight)
+        return insight
+
+    except Exception:
+        logger.debug("Failed to generate AI insight")
+        return None
+
+
 def get_weather(lat: float, lng: float) -> dict | None:
     """Fetch current weather from OpenWeatherMap (free tier)."""
     if not config.OPENWEATHERMAP_API_KEY:

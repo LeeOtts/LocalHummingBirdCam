@@ -111,6 +111,13 @@
             </div>
         </div>
 
+        {% if analytics.ai_insight %}
+        <div class="prediction-card" style="border-color: #4caf50;">
+            <h3 style="color: #4caf50;">AI Insight</h3>
+            <div style="font-size: 1.1em; line-height: 1.5; color: #e8e0d4;">{{ analytics.ai_insight }}</div>
+        </div>
+        {% endif %}
+
         {% if analytics.prediction %}
         <div class="prediction-card">
             <h3>Next Bird Prediction</h3>

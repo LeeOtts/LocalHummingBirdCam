@@ -25,6 +25,7 @@ def _make_monitor(state_file: Path):
     monitor._state_file = state_file
     monitor._morning_posted = False
     monitor._night_posted = False
+    monitor._digest_posted = False
     monitor._yesterday_detections = 0
     monitor._all_time_record = 0
     monitor._total_lifetime_detections = 0
@@ -40,7 +41,7 @@ class TestLoadPostState:
         monitor = _make_monitor(state_file)
 
         result = monitor._load_post_state()
-        assert result == (False, False)
+        assert result == (False, False, False)
 
     def test_returns_saved_values_when_date_matches(self, tmp_path):
         """When state file date matches today, returns saved values."""
@@ -53,7 +54,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (True, False)
+        assert result == (True, False, False)
 
     def test_returns_saved_both_true(self, tmp_path):
         """When both flags are True and date matches, returns (True, True)."""
@@ -66,7 +67,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (True, True)
+        assert result == (True, True, False)
 
     def test_returns_false_false_when_stale_date(self, tmp_path):
         """When state file date is yesterday, returns (False, False)."""
@@ -80,7 +81,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (False, False)
+        assert result == (False, False, False)
 
     def test_returns_false_false_when_old_date(self, tmp_path):
         """When state file date is several days old, returns (False, False)."""
@@ -94,7 +95,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (False, False)
+        assert result == (False, False, False)
 
     def test_handles_corrupted_json(self, tmp_path):
         """When state file contains invalid JSON, returns (False, False)."""
@@ -103,7 +104,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (False, False)
+        assert result == (False, False, False)
 
     def test_handles_empty_file(self, tmp_path):
         """When state file is empty, returns (False, False)."""
@@ -112,7 +113,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (False, False)
+        assert result == (False, False, False)
 
     def test_handles_missing_keys(self, tmp_path):
         """When state file has date but missing morning/night keys, defaults to False."""
@@ -123,7 +124,7 @@ class TestLoadPostState:
 
         monitor = _make_monitor(state_file)
         result = monitor._load_post_state()
-        assert result == (False, False)
+        assert result == (False, False, False)
 
 
 class TestSavePostState:

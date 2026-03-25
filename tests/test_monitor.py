@@ -17,6 +17,7 @@ def _make_monitor(tmp_path):
     m._state_file = tmp_path / ".post_state.json"
     m._morning_posted = False
     m._night_posted = False
+    m._digest_posted = False
     m._yesterday_detections = 0
     m._all_time_record = 0
     m._total_lifetime_detections = 0
