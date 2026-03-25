@@ -9,8 +9,9 @@ A Raspberry Pi with a USB camera, a bird classifier that knows 964 species, and 
 When a Ruby-throated Hummingbird hits the feeder, the system:
 - detects it through a multi-stage AI pipeline (motion, color, species classification)
 - records a 25-second clip with audio — because the wing buzz is evidence
-- lets GPT-4o write something unhinged about it
-- and posts it straight to the **Backyard Hummers** Facebook page before the bird even leaves
+- GPT-4o analyzes the actual video frames and writes a caption about what the bird is doing
+- checks the weather so it can work that into the commentary
+- and posts it to **Facebook**, **Twitter/X**, and **Bluesky** simultaneously before the bird even leaves
 
 Follow the operation here: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
 
@@ -25,10 +26,16 @@ My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi col
 - **Multi-stage detection pipeline** — motion, HSV color filtering, and a MobileNetV2 bird classifier running locally on the Pi. It went through an embarrassing phase of reporting leaves, shadows, and personal betrayal before we got here.
 - **Records with sound** — 25-second clips (5s pre-roll + 20s post-detection) because you need the wing buzz for the full experience
 - **GPT-4o writes the captions** — unhinged, slightly suggestive, occasionally better than anything a human would write. Never explains its own jokes.
-- **Auto-posts to Facebook** — clips go live before the bird even knows it's famous
+- **Vision-based captions** — GPT-4o actually looks at the video frames and describes what the bird is doing. Hovering, feeding, fighting, flexing — it sees it all.
+- **Weather-aware commentary** — pulls real-time weather from OpenWeatherMap so captions can reference the 97-degree heat or the surprise rain. Context matters.
+- **Multi-platform posting** — auto-posts to Facebook, Twitter/X, and Bluesky simultaneously. Configure whichever platforms you want — the system auto-discovers what's enabled and posts everywhere at once.
+- **AI comment replies** — GPT-4o monitors Facebook comments and fires back witty replies autonomously. Rate-limited so it doesn't go feral.
 - **Morning briefings** — sunrise check-in with yesterday's tally. Posted with a live camera snapshot. The feeders are full. The operation is active.
 - **Goodnight recaps** — daily stats, peak activity hour, and whether we broke the all-time record. Celebrates milestones at 100, 250, 500, and 1000+ lifetime detections.
-- **Live dashboard** — real-time camera feed, audio, detection states, system vitals. Full mission control energy.
+- **Weekly digest** — auto-generated recap with a 6-image thumbnail collage, total visits, trends, and busiest day. Posted to all platforms on your configured day.
+- **Feeding pattern predictions** — tracks historical visit patterns by hour and estimates when the next hummingbird will show up. Confidence levels and everything.
+- **AI-powered insights** — GPT-4o analyzes your analytics data and generates narrative summaries about feeding trends, peak hours, and activity patterns.
+- **Live dashboard** — real-time camera feed, audio, detection states, analytics, system vitals. Full mission control energy.
 - **Trains itself** — label frames as "bird" or "not bird" from the dashboard. Teach it to stop falling for leaves.
 - **Self-healing** — camera unplugged? It retries every 10 seconds. Failed Facebook post? Queued for retry. App restart? Picks up where it left off.
 - **Night mode** — auto sleep at sunset, auto wake before sunrise. Even surveillance operations need rest.
@@ -97,14 +104,20 @@ For **direct OpenAI**:
 OPENAI_API_KEY=sk-your-key-here
 ```
 
-### 6. Set Up Facebook
+### 6. Set Up Social Media
 
+**Facebook** (required for full experience):
 ```bash
 source venv/bin/activate
 python scripts/setup_facebook_token.py
 ```
-
 Grab your **App ID**, **App Secret**, and **short-lived token**. The script converts it to a permanent token.
+
+**Twitter/X** (optional): Create a Twitter Developer app, get your API keys and access tokens, add them to `.env`.
+
+**Bluesky** (optional): Generate an app password at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords), add your handle and password to `.env`.
+
+The system auto-discovers which platforms are configured and posts to all of them.
 
 ### 7. Fire It Up
 
@@ -128,7 +141,7 @@ The detection pipeline — four layers of increasingly paranoid verification:
 
 2. **Bird Species Classifier** *(~1-2 sec on Pi)* — MobileNetV2 trained on 964 bird species. Runs fully local on the Pi, no cloud needed. The "prove you're actually a hummingbird" checkpoint.
 
-3. **Record + Post** — 25 seconds of evidence. GPT-4o writes the caption. Facebook gets another hummer clip. The bird has no idea it's internet famous.
+3. **Record + Post** — 25 seconds of evidence. GPT-4o analyzes the frames, checks the weather, writes the caption, and blasts it to Facebook, Twitter/X, and Bluesky. The bird has no idea it's internet famous on three platforms.
 
 ## The Dashboard
 
@@ -145,6 +158,7 @@ Hit `http://hummingbirdcam.local:8080` — welcome to mission control:
 - **Camera controls** — rotation, test recording, mic test
 - **Training interface** — label frames to make the classifier smarter
 - **Clip browser** — review, play, delete, or admire your regulars
+- **Analytics panel** — feeding patterns, hourly distribution, next-visit predictions, AI-generated insights
 - **System stats** — uptime, detections today, posts today, cooldowns, schedule, git version
 - **Hardware vitals** — CPU temp, RAM usage, disk space
 - **Live logs** — because something always breaks eventually
@@ -162,6 +176,18 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `AZURE_OPENAI_API_VERSION` | `2024-12-01-preview` | Azure API version |
 | `FACEBOOK_PAGE_ID` | | Your Facebook page ID |
 | `FACEBOOK_PAGE_ACCESS_TOKEN` | | Permanent page token |
+| `TWITTER_API_KEY` | | Twitter/X API key |
+| `TWITTER_API_SECRET` | | Twitter/X API secret |
+| `TWITTER_ACCESS_TOKEN` | | Twitter/X access token |
+| `TWITTER_ACCESS_SECRET` | | Twitter/X access secret |
+| `BLUESKY_HANDLE` | | Bluesky handle (e.g. `you.bsky.social`) |
+| `BLUESKY_APP_PASSWORD` | | Bluesky app password |
+| `OPENWEATHERMAP_API_KEY` | | OpenWeatherMap API key (free tier) |
+| `AUTO_REPLY_ENABLED` | `false` | GPT-4o auto-replies to Facebook comments |
+| `AUTO_REPLY_MAX_PER_HOUR` | `10` | Rate limit for AI comment replies |
+| `WEEKLY_DIGEST_ENABLED` | `false` | Post weekly recap with thumbnail collage |
+| `WEEKLY_DIGEST_DAY` | `sunday` | Day of week to post the digest |
+| `VISION_CAPTION_ENABLED` | `true` | GPT-4o analyzes frames for captions |
 | `CAMERA_TYPE` | `usb` | `usb`, `picamera`, or `auto` |
 | `USB_CAMERA_INDEX` | `0` | Which `/dev/video` to use |
 | `CAMERA_ROTATION` | `0` | 0, 90, 180, 270 degrees |
@@ -218,9 +244,18 @@ LocalHummingBirdCam/
 │   ├── detector.py          # Base detector interface
 │   ├── motion_color.py      # Motion + HSV color filtering
 │   └── vision_verify.py     # MobileNetV2 bird classifier (TFLite)
+├── analytics/
+│   └── patterns.py          # Feeding patterns, predictions, AI insights
+├── data/
+│   └── sightings.py         # SQLite sightings database
 ├── social/
+│   ├── poster_manager.py    # Multi-platform auto-discovery & routing
 │   ├── comment_generator.py # GPT-4o caption generation
-│   └── facebook_poster.py   # Facebook Graph API posting
+│   ├── comment_responder.py # AI auto-replies to Facebook comments
+│   ├── facebook_poster.py   # Facebook Graph API posting
+│   ├── twitter_poster.py    # Twitter/X via tweepy
+│   ├── bluesky_poster.py    # Bluesky via AT Protocol
+│   └── digest.py            # Weekly recap with thumbnail collage
 ├── web/
 │   ├── dashboard.py         # Flask dashboard + live feed
 │   └── static/              # Banner and static assets
@@ -241,7 +276,7 @@ LocalHummingBirdCam/
 
 ## Final Notes
 
-This started as "I can do that" and turned into a multi-stage AI surveillance pipeline with automated social media posting, a live dashboard, and a GPT that writes better captions than I do.
+This started as "I can do that" and turned into a multi-stage AI surveillance pipeline with multi-platform social media posting, weather-aware vision captions, autonomous comment replies, feeding pattern predictions, weekly digests, and a GPT that writes better captions than I do.
 
 It is absolutely over-engineered. It will never not be over-engineered. That is the point.
 
