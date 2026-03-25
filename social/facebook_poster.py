@@ -9,6 +9,7 @@ from pathlib import Path
 import requests
 
 import config
+from social.base_poster import SocialPoster
 from utils import safe_read_json, safe_write_json
 
 logger = logging.getLogger(__name__)
@@ -17,8 +18,10 @@ GRAPH_API_VERSION = os.getenv("FACEBOOK_API_VERSION", "v22.0")
 GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
 
-class FacebookPoster:
+class FacebookPoster(SocialPoster):
     """Handles video uploads to a Facebook Page using the Resumable Upload API."""
+
+    platform_name = "Facebook"
 
     def __init__(self):
         self.page_id = config.FACEBOOK_PAGE_ID
@@ -26,6 +29,9 @@ class FacebookPoster:
         self._posts_today = 0
         self._today = self._date_in_local_tz()
         self._retry_in_progress = False
+
+    def is_configured(self) -> bool:
+        return bool(self.page_id and self.access_token)
 
     @staticmethod
     def _date_in_local_tz():
@@ -81,7 +87,8 @@ class FacebookPoster:
             result["expires_at"] = data.get("expires_at", 0)
 
             # Check for required scopes
-            required = {"pages_manage_posts", "pages_read_engagement"}
+            # pages_manage_engagement is needed for AI comment replies (AUTO_REPLY_ENABLED)
+            required = {"pages_manage_posts", "pages_read_engagement", "pages_manage_engagement"}
             granted = set(result["scopes"])
             missing = required - granted
             if missing:

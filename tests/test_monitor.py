@@ -27,7 +27,10 @@ def _make_monitor(tmp_path):
     m._counter_lock = threading.Lock()
     m.test_mode = False
     m.poster = MagicMock()
+    m.poster_manager = MagicMock()
+    m.sightings_db = MagicMock()
     m.camera = MagicMock()
+    m._sse_subscribers = []
     return m
 
 
@@ -350,27 +353,27 @@ class TestPostGoodnight:
         with patch("main.generate_good_night"), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
-        m.poster.post_video.assert_not_called()
+        m.poster_manager.post_video.assert_not_called()
 
     def test_posts_video_when_clip_available(self, tmp_path):
         m = self._make(tmp_path)
         fake_clip = Path("/tmp/clip.mp4")
         m._get_todays_clip = MagicMock(return_value=fake_clip)
-        m.poster.post_video.return_value = True
+        m.poster_manager.post_video.return_value = {"Facebook": True}
         with patch("main.generate_good_night", return_value="caption"), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
-        m.poster.post_video.assert_called_once_with(fake_clip, "caption")
+        m.poster_manager.post_video.assert_called_once_with(fake_clip, "caption")
 
     def test_falls_back_to_snapshot_when_no_clip(self, tmp_path):
         m = self._make(tmp_path)
         m._get_todays_clip = MagicMock(return_value=None)
         m.camera.capture_snapshot.return_value = True
-        m.poster.post_photo.return_value = True
+        m.poster_manager.post_photo.return_value = {"Facebook": True}
         with patch("main.generate_good_night", return_value="caption"), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
-        m.poster.post_photo.assert_called_once()
+        m.poster_manager.post_photo.assert_called_once()
 
     def test_falls_back_to_text_when_no_media(self, tmp_path):
         m = self._make(tmp_path)
@@ -379,7 +382,7 @@ class TestPostGoodnight:
         with patch("main.generate_good_night", return_value="caption"), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
-        m.poster.post_text.assert_called_once_with("caption")
+        m.poster_manager.post_text.assert_called_once_with("caption")
 
 
 class TestPostWorker:

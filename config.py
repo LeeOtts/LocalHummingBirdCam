@@ -49,6 +49,27 @@ USB_CAMERA_INDEX = int(os.getenv("USB_CAMERA_INDEX", "0"))
 # Vision verification — use local MobileNetV2 bird classifier to confirm hummingbird
 VISION_VERIFY_ENABLED = os.getenv("VISION_VERIFY_ENABLED", "true").lower() in ("true", "1", "yes")
 
+# Vision captions — send a frame to GPT-4o so it can describe what the bird is doing
+VISION_CAPTION_ENABLED = os.getenv("VISION_CAPTION_ENABLED", "true").lower() in ("true", "1", "yes")
+VISION_CAPTION_DETAIL = os.getenv("VISION_CAPTION_DETAIL", "low")  # "low" or "high"
+
+# Bluesky (AT Protocol) — leave blank to disable
+BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE", "")
+BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD", "")
+
+# Twitter/X — leave blank to disable
+TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "")
+TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET", "")
+TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN", "")
+TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET", "")
+
+# Weather (OpenWeatherMap free tier) — leave blank to disable
+OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
+
+# AI comment replies on Facebook
+AUTO_REPLY_ENABLED = os.getenv("AUTO_REPLY_ENABLED", "false").lower() in ("true", "1", "yes")
+AUTO_REPLY_MAX_PER_HOUR = int(os.getenv("AUTO_REPLY_MAX_PER_HOUR", "5"))
+
 # Audio — set AUDIO_DEVICE to the ALSA device (e.g. "hw:1,0" or "default")
 # Use "arecord -l" on the Pi to list available audio devices
 AUDIO_ENABLED = os.getenv("AUDIO_ENABLED", "true").lower() in ("true", "1", "yes")

@@ -33,11 +33,13 @@ _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
 from camera.recorder import ClipRecorder
 from camera.stream import CameraStream
+from data.sightings import SightingsDB
 from detection.motion_color import MotionColorDetector
 from detection.vision_verify import verify_hummingbird
 from schedule import is_daytime, get_schedule_info
 from social.comment_generator import generate_comment, generate_good_morning, generate_good_night
 from social.facebook_poster import FacebookPoster
+from social.poster_manager import PosterManager
 from web.dashboard import start_web_server
 
 
@@ -111,7 +113,9 @@ class HummingbirdMonitor:
         self.running = False
         self.camera = CameraStream()
         self.detector = MotionColorDetector()
-        self.poster = FacebookPoster()
+        self.poster = FacebookPoster()  # Keep for backward compat (token verify, retry)
+        self.poster_manager = PosterManager()  # Multi-platform posting
+        self.sightings_db = SightingsDB()
         self.clip_queue: Queue[Path] = Queue()
         self._last_detection_time = 0.0
         self._detections_today = 0
@@ -132,6 +136,9 @@ class HummingbirdMonitor:
         self._yesterday_detections = 0
         self._all_time_record = 0
         self._total_lifetime_detections = 0
+
+        # SSE event queue for live dashboard notifications
+        self._sse_subscribers: list[Queue] = []
 
         self._morning_posted, self._night_posted = self._load_post_state()
 
@@ -206,6 +213,15 @@ class HummingbirdMonitor:
 
         # Retry any previously failed posts on startup
         self.poster.retry_failed_posts()
+
+        # Start AI comment responder if enabled
+        if config.AUTO_REPLY_ENABLED:
+            from social.comment_responder import CommentResponder
+            self._comment_responder = CommentResponder(self.poster, self.sightings_db)
+            responder_thread = threading.Thread(
+                target=self._comment_responder.run, daemon=True)
+            responder_thread.start()
+            logger.info("AI comment responder enabled (max %d/hour)", config.AUTO_REPLY_MAX_PER_HOUR)
 
         logger.info("Monitoring feeder for hummingbirds...")
 
@@ -314,6 +330,13 @@ class HummingbirdMonitor:
                     self._detection_hours.append(datetime.now(tz=_local_tz).hour)
                 logger.info("Hummingbird confirmed! Starting recording...")
 
+                # Notify SSE subscribers
+                self._broadcast_sse({
+                    "event": "detection",
+                    "detections_today": self._detections_today,
+                    "time": datetime.now(tz=_local_tz).strftime("%I:%M %p").lstrip("0"),
+                })
+
                 # Reset detector state during recording
                 self.detector.reset()
 
@@ -355,6 +378,21 @@ class HummingbirdMonitor:
         except Exception:
             logger.exception("Clip cleanup failed")
 
+    def _broadcast_sse(self, data: dict):
+        """Send an event to all SSE subscribers."""
+        import json as _json
+        dead = []
+        for q in self._sse_subscribers:
+            try:
+                q.put_nowait(_json.dumps(data))
+            except Exception:
+                dead.append(q)
+        for q in dead:
+            try:
+                self._sse_subscribers.remove(q)
+            except ValueError:
+                pass
+
     def _get_todays_clip(self):
         """Return the most recent clip from today, or None."""
         try:
@@ -369,7 +407,7 @@ class HummingbirdMonitor:
             return None
 
     def _post_goodmorning(self):
-        """Post a good morning greeting to Facebook with a live camera snapshot."""
+        """Post a good morning greeting to all platforms with a live camera snapshot."""
         try:
             now = datetime.now(tz=_local_tz)
             schedule_info = get_schedule_info()
@@ -383,24 +421,24 @@ class HummingbirdMonitor:
             logger.info("Morning post: %s", caption)
 
             if self.test_mode:
-                logger.info("TEST MODE — skipping morning Facebook post")
+                logger.info("TEST MODE — skipping morning post")
                 return
 
             # Try to attach a live camera snapshot
             snapshot_path = config.CLIPS_DIR / f"morning_{now.strftime('%Y%m%d')}.jpg"
             if self.camera.capture_snapshot(snapshot_path):
                 logger.info("Morning post: attaching camera snapshot")
-                success = self.poster.post_photo(snapshot_path, caption)
+                results = self.poster_manager.post_photo(snapshot_path, caption)
                 try:
                     snapshot_path.unlink(missing_ok=True)
                 except Exception:
                     pass
-                if success:
+                if any(results.values()):
                     return
 
             # Fallback to text-only
             logger.info("Morning post: no snapshot available, posting text-only")
-            self.poster.post_text(caption)
+            self.poster_manager.post_text(caption)
         except Exception:
             logger.exception("Failed to post morning greeting")
 
@@ -436,7 +474,7 @@ class HummingbirdMonitor:
             logger.info("Goodnight post: %s", caption)
 
             if self.test_mode:
-                logger.info("TEST MODE — skipping goodnight Facebook post")
+                logger.info("TEST MODE — skipping goodnight post")
             else:
                 posted = False
 
@@ -444,7 +482,8 @@ class HummingbirdMonitor:
                 clip = self._get_todays_clip()
                 if clip:
                     logger.info("Goodnight post: attaching today's clip %s", clip.name)
-                    posted = self.poster.post_video(clip, caption)
+                    results = self.poster_manager.post_video(clip, caption)
+                    posted = any(results.values())
 
                 # Fallback: try a live camera snapshot
                 if not posted:
@@ -452,7 +491,8 @@ class HummingbirdMonitor:
                     snapshot_path = config.CLIPS_DIR / f"goodnight_{now_ts.strftime('%Y%m%d')}.jpg"
                     if self.camera.capture_snapshot(snapshot_path):
                         logger.info("Goodnight post: no clips today, attaching snapshot")
-                        posted = self.poster.post_photo(snapshot_path, caption)
+                        results = self.poster_manager.post_photo(snapshot_path, caption)
+                        posted = any(results.values())
                         try:
                             snapshot_path.unlink(missing_ok=True)
                         except Exception:
@@ -461,7 +501,17 @@ class HummingbirdMonitor:
                 # Final fallback: text-only
                 if not posted:
                     logger.info("Goodnight post: no media available, posting text-only")
-                    self.poster.post_text(caption)
+                    self.poster_manager.post_text(caption)
+
+            # Save daily stats to database
+            if self.sightings_db:
+                self.sightings_db.save_daily_stats(
+                    dt=date.today(),
+                    detections=det,
+                    rejected=rej,
+                    peak_hour=peak_hour,
+                    is_record=is_record,
+                )
 
             # Rotate daily stats before resetting
             self._yesterday_detections = det
@@ -478,8 +528,26 @@ class HummingbirdMonitor:
         except Exception:
             logger.exception("Failed to post goodnight recap")
 
+    def _extract_frame(self, clip_path: Path) -> Path | None:
+        """Extract a representative frame from a clip for vision captions."""
+        try:
+            frame_path = clip_path.with_suffix(".thumb.jpg")
+            cap = cv2.VideoCapture(str(clip_path))
+            fps = cap.get(cv2.CAP_PROP_FPS) or 15
+            # Jump to ~3 seconds into the post-detection segment
+            target_frame = int((config.CLIP_PRE_SECONDS + 3) * fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            ret, frame = cap.read()
+            cap.release()
+            if ret and frame is not None:
+                cv2.imwrite(str(frame_path), frame)
+                return frame_path
+        except Exception:
+            logger.warning("Failed to extract frame from %s", clip_path.name)
+        return None
+
     def _post_worker(self):
-        """Background thread: generate comment + post each clip to Facebook."""
+        """Background thread: generate comment + post each clip."""
         while self.running:
             try:
                 clip_path = self.clip_queue.get(timeout=5)
@@ -502,6 +570,9 @@ class HummingbirdMonitor:
                 if lifetime in _MILESTONES:
                     milestone = f"Lifetime visitor #{lifetime}!"
 
+                # Extract a frame for vision captions
+                frame_path = self._extract_frame(clip_path)
+
                 caption = generate_comment(
                     detections=det,
                     rejected=rej,
@@ -514,6 +585,7 @@ class HummingbirdMonitor:
                     sunrise=schedule_info.get("sunrise", ""),
                     sunset=schedule_info.get("sunset", ""),
                     milestone=milestone,
+                    frame_path=frame_path,
                 )
 
                 # Save caption alongside the clip
@@ -521,16 +593,27 @@ class HummingbirdMonitor:
                 caption_path.write_text(caption)
                 logger.info("Caption saved: %s", caption_path.name)
 
-                if self.test_mode:
-                    logger.info("TEST MODE — skipping Facebook post for %s", clip_path.name)
-                else:
-                    logger.info("Posting to Facebook: %s", clip_path.name)
-                    success = self.poster.post_video(clip_path, caption)
+                # Record sighting in database
+                if self.sightings_db:
+                    self.sightings_db.record_sighting(
+                        clip_filename=clip_path.name,
+                        caption=caption,
+                        frame_path=str(frame_path) if frame_path else None,
+                        confidence=None,
+                    )
 
-                    if success:
-                        logger.info("Successfully posted %s", clip_path.name)
+                if self.test_mode:
+                    logger.info("TEST MODE — skipping posting for %s", clip_path.name)
+                else:
+                    logger.info("Posting to platforms: %s", clip_path.name)
+                    results = self.poster_manager.post_video(clip_path, caption)
+                    any_success = any(results.values())
+
+                    if any_success:
+                        logger.info("Posted %s to: %s", clip_path.name,
+                                    [p for p, ok in results.items() if ok])
                     else:
-                        logger.warning("Post failed (saved to retry queue): %s", clip_path.name)
+                        logger.warning("All posts failed for %s", clip_path.name)
 
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)
