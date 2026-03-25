@@ -336,9 +336,13 @@ def serve_clip(filename):
 def serve_static(filename):
     if "/" in filename or "\\" in filename or ".." in filename:
         return {"ok": False, "error": "Invalid filename"}, 400
+    # Check web/static/ first, then fall back to repo root (e.g. banner image)
     static_dir = os.path.join(os.path.dirname(__file__), "static")
-    resp = send_from_directory(static_dir, filename)
-    resp.cache_control.max_age = 86400 * 7  # cache 7 days
+    if os.path.isfile(os.path.join(str(config.BASE_DIR), filename)):
+        resp = send_from_directory(str(config.BASE_DIR), filename)
+    else:
+        resp = send_from_directory(static_dir, filename)
+    resp.cache_control.max_age = 3600  # cache 1 hour (pick up banner changes sooner)
     resp.cache_control.public = True
     return resp
 
