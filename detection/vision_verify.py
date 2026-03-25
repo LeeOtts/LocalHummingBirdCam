@@ -234,6 +234,20 @@ def verify_hummingbird(frame: np.ndarray) -> bool:
                 score = float(scores[idx])
 
                 if _is_hummingbird_label(label) and score >= MIN_CONFIDENCE:
+                    # Check custom classifier (false-positive suppressor)
+                    try:
+                        from detection.custom_classifier import predict as custom_predict
+                        is_hb, custom_conf = custom_predict(scores)
+                        if not is_hb:
+                            logger.info(
+                                "Custom classifier overrode: %s (%.1f%%) -> "
+                                "NOT hummingbird (custom conf %.1f%%, %.2fs)",
+                                label, score * 100, custom_conf * 100, elapsed,
+                            )
+                            return False
+                    except Exception:
+                        pass  # No custom classifier or error — allow detection
+
                     logger.info(
                         "Bird classifier confirmed: %s (%.1f%% confidence, %.2fs)",
                         label, score * 100, elapsed,
