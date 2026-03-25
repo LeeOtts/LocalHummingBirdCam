@@ -24,8 +24,11 @@ class BlueskyPoster(SocialPoster):
         if self._client is not None:
             return self._client
         try:
-            from atproto import Client
-            self._client = Client()
+            from atproto import Client, Request
+            from httpx import Timeout
+            # 120s timeout — default 5s is too short for video uploads on Pi
+            request = Request(timeout=Timeout(timeout=120.0))
+            self._client = Client(request=request)
             self._client.login(config.BLUESKY_HANDLE, config.BLUESKY_APP_PASSWORD)
             logger.info("Logged into Bluesky as %s", config.BLUESKY_HANDLE)
             return self._client
