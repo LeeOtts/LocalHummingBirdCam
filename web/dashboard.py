@@ -621,6 +621,61 @@ def test_facebook_post():
         return {"ok": False, "error": "Post failed — check logs for Facebook response"}, 500
 
 
+def _local_time_str() -> str:
+    """Return current local time as a human-readable string."""
+    try:
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(config.LOCATION_TIMEZONE)
+        except ImportError:
+            import pytz
+            tz = pytz.timezone(config.LOCATION_TIMEZONE)
+        return datetime.now(tz).strftime("%I:%M %p")
+    except (KeyError, ValueError):
+        return "now"
+
+
+@app.route("/api/bluesky/test", methods=["POST"])
+def test_bluesky_post():
+    """Send a quick test text post to Bluesky to verify credentials."""
+    if _monitor is None:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    poster = _monitor.poster_manager.get_poster("Bluesky")
+    if poster is None:
+        return {"ok": False, "error": "Bluesky not configured"}, 404
+
+    now = _local_time_str()
+    message = f"🧪 Test post from Backyard Hummers dashboard at {now} — if you see this, Bluesky posting is working!"
+    success = poster.post_text(message)
+    if success:
+        logger.info("Test Bluesky post sent successfully")
+        return {"ok": True}
+    else:
+        return {"ok": False, "error": "Post failed — check logs for Bluesky response"}, 500
+
+
+@app.route("/api/twitter/test", methods=["POST"])
+def test_twitter_post():
+    """Send a quick test text post to Twitter/X to verify credentials."""
+    if _monitor is None:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    poster = _monitor.poster_manager.get_poster("Twitter")
+    if poster is None:
+        return {"ok": False, "error": "Twitter not configured"}, 404
+
+    now = _local_time_str()
+    message = f"🧪 Test post from Backyard Hummers dashboard at {now} — if you see this, Twitter posting is working!"
+    success = poster.post_text(message)
+    if success:
+        logger.info("Test Twitter post sent successfully")
+        return {"ok": True}
+    else:
+        return {"ok": False, "error": "Post failed — check logs for Twitter response"}, 500
+
+
 @app.route("/api/update", methods=["POST"])
 def trigger_update():
     """Pull latest from GitHub and restart if there are changes."""

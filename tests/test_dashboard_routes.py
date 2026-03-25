@@ -282,6 +282,90 @@ class TestTestFacebookPost:
             dashboard._monitor = old
 
 
+class TestTestBlueskyPost:
+    """Test POST /api/bluesky/test endpoint."""
+
+    def test_returns_ok_on_success(self, client):
+        c, m, _ = client
+        mock_poster = MagicMock()
+        mock_poster.post_text.return_value = True
+        m.poster_manager.get_poster.return_value = mock_poster
+
+        resp = c.post("/api/bluesky/test")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+    def test_returns_500_on_failure(self, client):
+        c, m, _ = client
+        mock_poster = MagicMock()
+        mock_poster.post_text.return_value = False
+        m.poster_manager.get_poster.return_value = mock_poster
+
+        resp = c.post("/api/bluesky/test")
+        assert resp.status_code == 500
+
+    def test_returns_503_when_no_monitor(self, client):
+        import web.dashboard as dashboard
+        c, m, _ = client
+        old = dashboard._monitor
+        dashboard._monitor = None
+        try:
+            resp = c.post("/api/bluesky/test")
+            assert resp.status_code == 503
+        finally:
+            dashboard._monitor = old
+
+    def test_returns_404_when_not_configured(self, client):
+        c, m, _ = client
+        m.poster_manager.get_poster.return_value = None
+
+        resp = c.post("/api/bluesky/test")
+        assert resp.status_code == 404
+
+
+class TestTestTwitterPost:
+    """Test POST /api/twitter/test endpoint."""
+
+    def test_returns_ok_on_success(self, client):
+        c, m, _ = client
+        mock_poster = MagicMock()
+        mock_poster.post_text.return_value = True
+        m.poster_manager.get_poster.return_value = mock_poster
+
+        resp = c.post("/api/twitter/test")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+
+    def test_returns_500_on_failure(self, client):
+        c, m, _ = client
+        mock_poster = MagicMock()
+        mock_poster.post_text.return_value = False
+        m.poster_manager.get_poster.return_value = mock_poster
+
+        resp = c.post("/api/twitter/test")
+        assert resp.status_code == 500
+
+    def test_returns_503_when_no_monitor(self, client):
+        import web.dashboard as dashboard
+        c, m, _ = client
+        old = dashboard._monitor
+        dashboard._monitor = None
+        try:
+            resp = c.post("/api/twitter/test")
+            assert resp.status_code == 503
+        finally:
+            dashboard._monitor = old
+
+    def test_returns_404_when_not_configured(self, client):
+        c, m, _ = client
+        m.poster_manager.get_poster.return_value = None
+
+        resp = c.post("/api/twitter/test")
+        assert resp.status_code == 404
+
+
 class TestRotateCamera:
     """Test POST /api/camera/rotate endpoint."""
 
