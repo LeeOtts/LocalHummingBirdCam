@@ -31,7 +31,7 @@ app.secret_key = os.urandom(24)  # ephemeral — sessions last until restart
 _monitor = None
 
 # Routes that are always public (live camera feed, gallery, SSE events)
-_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events", "/api/guestbook"}
+_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events"}
 
 # Simple in-memory rate limiter for failed auth attempts
 _AUTH_FAIL_WINDOW = 300  # 5 minutes
@@ -894,49 +894,7 @@ def api_analytics():
     return summary
 
 
-@app.route("/guestbook")
-def guestbook_page():
-    """Community guestbook."""
-    entries = []
-    total_visitors = 0
-    if _monitor and _monitor.sightings_db:
-        entries = _monitor.sightings_db.get_guestbook_entries(limit=50)
-        total_visitors = _monitor.sightings_db.get_total_page_views()
-
-        ip_hash = hashlib.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
-        _monitor.sightings_db.record_page_view(ip_hash, "/guestbook")
-
-    return render_template("guestbook.html", entries=entries, total_visitors=total_visitors)
-
-
-@app.route("/api/guestbook", methods=["GET", "POST"])
-def api_guestbook():
-    """Guestbook API — GET entries or POST a new one."""
-    if not _monitor or not _monitor.sightings_db:
-        return {"error": "Not available"}, 503
-
-    if request.method == "GET":
-        entries = _monitor.sightings_db.get_guestbook_entries(limit=50)
-        return {"entries": entries}
-
-    data = request.get_json() or {}
-    name = (data.get("name", "") or "").strip()
-    message = (data.get("message", "") or "").strip()
-
-    if not name or not message:
-        return {"error": "Name and message are required"}, 400
-    if len(name) > 50:
-        return {"error": "Name too long (max 50 chars)"}, 400
-    if len(message) > 500:
-        return {"error": "Message too long (max 500 chars)"}, 400
-
-    ip_hash = hashlib.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
-    entry_id = _monitor.sightings_db.add_guestbook_entry(name, message, ip_hash)
-
-    if entry_id is None:
-        return {"error": "Rate limited — try again later"}, 429
-
-    return {"ok": True, "id": entry_id}
+# Guestbook routes removed — just the two of us watching 🐦
 
 
 @app.route("/api/events")
