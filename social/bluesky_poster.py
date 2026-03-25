@@ -57,7 +57,7 @@ class BlueskyPoster(SocialPoster):
                 return self.post_text(caption)
 
             # Upload video blob
-            upload = client.upload_blob(video_data, timeout=120)
+            upload = client.upload_blob(video_data)
             blob = upload.blob
 
             # Create post with video embed
