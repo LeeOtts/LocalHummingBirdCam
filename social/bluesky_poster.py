@@ -26,8 +26,9 @@ class BlueskyPoster(SocialPoster):
         try:
             from atproto import Client, Request
             from httpx import Timeout
-            # 120s timeout — default 5s is too short for video uploads on Pi
-            request = Request(timeout=Timeout(timeout=120.0))
+            # 300s timeout — default 5s is too short for video uploads on Pi
+            # A 30s 1080p clip can be ~25 MB; at 2 Mbps upload that's ~100s
+            request = Request(timeout=Timeout(timeout=300.0))
             self._client = Client(request=request)
             self._client.login(config.BLUESKY_HANDLE, config.BLUESKY_APP_PASSWORD)
             logger.info("Logged into Bluesky as %s", config.BLUESKY_HANDLE)
