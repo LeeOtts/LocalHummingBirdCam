@@ -16,7 +16,7 @@ clips/*.mp4
 clips/*.h264
 clips/*.txt
 logs/*.log
-models/*.tflite
+# models/*.tflite  — tracked: only 3.5MB, required for bird detection
 training/
 
 # OS
