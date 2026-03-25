@@ -507,7 +507,7 @@ _recording_in_progress = False
 
 @app.route("/api/test-record", methods=["POST"])
 def test_record():
-    """Trigger a test recording — full pipeline without Facebook posting."""
+    """Trigger a test recording — full pipeline with posting to all platforms."""
     global _recording_in_progress
 
     if _monitor is None or not _monitor.running:
@@ -536,6 +536,19 @@ def test_record():
                 caption_file = clip_path.with_suffix(".txt")
                 caption_file.write_text(caption)
                 logger.info("Test record complete: %s — caption: %s", clip_path.name, caption)
+
+                # Post to all configured platforms — full pipeline test
+                if _monitor.poster_manager.platform_names:
+                    logger.info("Posting test clip to all platforms...")
+                    results = _monitor.poster_manager.post_video(clip_path, caption)
+                    posted = [p for p, ok in results.items() if ok]
+                    failed = [p for p, ok in results.items() if not ok]
+                    if posted:
+                        logger.info("Test clip posted to: %s", ", ".join(posted))
+                    if failed:
+                        logger.warning("Test clip failed on: %s", ", ".join(failed))
+                else:
+                    logger.warning("No social platforms configured — skipping posting")
             else:
                 logger.warning("Test record failed — no clip produced")
         except Exception:

@@ -824,7 +824,7 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.ok) {
-                        showToast('Recording started! Clip will appear in ~25 seconds.');
+                        showToast('Recording started! Clip will post to all platforms in ~25 seconds.');
                     } else {
                         showToast('Error: ' + (data.error || 'unknown'));
                     }
