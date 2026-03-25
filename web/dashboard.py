@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time as _time
 from datetime import datetime
 from pathlib import Path
@@ -820,6 +821,73 @@ def mark_training():
     except Exception as e:
         logger.exception("Failed to save training sample")
         return {"ok": False, "error": str(e)}, 500
+
+
+_retrain_in_progress = False
+_retrain_lock = threading.Lock()
+
+
+@app.route("/api/training/retrain", methods=["POST"])
+def api_retrain():
+    """Kick off custom classifier retraining in a background thread."""
+    global _retrain_in_progress
+
+    if _retrain_in_progress:
+        return {"ok": False, "error": "Retrain already in progress"}, 409
+
+    def _do_retrain():
+        global _retrain_in_progress
+        try:
+            from detection.custom_classifier import retrain
+            result = retrain()
+            if result.get("ok"):
+                logger.info("Retrain complete: %s", result)
+            else:
+                logger.warning("Retrain failed: %s", result.get("error"))
+        except Exception:
+            logger.exception("Retrain crashed")
+        finally:
+            _retrain_in_progress = False
+
+    with _retrain_lock:
+        _retrain_in_progress = True
+        t = threading.Thread(target=_do_retrain, daemon=True)
+        t.start()
+
+    return {"ok": True, "message": "Retraining started..."}
+
+
+@app.route("/api/training/retrain/status")
+def api_retrain_status():
+    """Return custom classifier status and training data counts."""
+    from detection.custom_classifier import get_classifier_meta, get_training_counts
+
+    counts = get_training_counts()
+    meta = get_classifier_meta()
+
+    return {
+        "retrain_in_progress": _retrain_in_progress,
+        "classifier_active": meta is not None,
+        "meta": meta,
+        "counts": counts,
+        "min_samples": config.CUSTOM_CLF_MIN_SAMPLES,
+        "min_per_class": config.CUSTOM_CLF_MIN_PER_CLASS,
+        "can_retrain": (
+            counts["hummingbird"] >= config.CUSTOM_CLF_MIN_PER_CLASS
+            and counts["not_hummingbird"] >= config.CUSTOM_CLF_MIN_PER_CLASS
+            and (counts["hummingbird"] + counts["not_hummingbird"])
+            >= config.CUSTOM_CLF_MIN_SAMPLES
+        ),
+    }
+
+
+@app.route("/api/training/retrain/revert", methods=["POST"])
+def api_retrain_revert():
+    """Revert to the previous custom classifier."""
+    from detection.custom_classifier import revert_classifier
+    if revert_classifier():
+        return {"ok": True, "message": "Reverted to previous classifier"}
+    return {"ok": False, "error": "No previous classifier to revert to"}, 404
 
 
 @app.route("/api/clips/list")

@@ -92,6 +92,12 @@ LOGS_DIR = BASE_DIR / os.getenv("LOGS_DIR", "logs")
 RETRY_QUEUE_FILE = BASE_DIR / "retry_queue.json"
 MAX_RETRY_QUEUE_SIZE = int(os.getenv("MAX_RETRY_QUEUE_SIZE", "50"))
 TRAINING_DIR = BASE_DIR / "training"
+MODEL_DIR = BASE_DIR / "models"
+
+# Custom classifier — lightweight retraining on labeled training data
+CUSTOM_CLF_MIN_SAMPLES = int(os.getenv("CUSTOM_CLF_MIN_SAMPLES", "10"))
+CUSTOM_CLF_MIN_PER_CLASS = int(os.getenv("CUSTOM_CLF_MIN_PER_CLASS", "3"))
+CUSTOM_CLF_OVERRIDE_THRESHOLD = float(os.getenv("CUSTOM_CLF_OVERRIDE_THRESHOLD", "0.70"))
 
 # Test mode — records clips and generates captions but skips Facebook posting
 TEST_MODE = os.getenv("TEST_MODE", "true").lower() in ("true", "1", "yes")
