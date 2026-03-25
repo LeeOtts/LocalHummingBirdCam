@@ -167,6 +167,15 @@ def _get_status():
     except Exception:
         s.git_commit = "unknown"
 
+    # Weather
+    s.weather = None
+    if config.OPENWEATHERMAP_API_KEY:
+        try:
+            from analytics.patterns import get_weather
+            s.weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
+        except Exception:
+            pass
+
     # Pi CPU temperature
     try:
         import subprocess
@@ -1160,6 +1169,7 @@ def api_status():
         "disk_percent": s.disk_percent,
         "disk_free_gb": s.disk_free_gb,
         "schedule": s.schedule,
+        "weather": s.weather,
     }
 
 

@@ -558,6 +558,14 @@
                     <div class="label">Camera</div>
                     <div class="value {{ 'red' if status.camera_error else '' }}" id="stat-camera">{{ status.camera_type }}</div>
                 </div>
+                {% if status.weather %}
+                <div class="status-card">
+                    <div class="label">Weather</div>
+                    <div class="value" style="font-size: 1.2em;" id="stat-weather-temp">{{ "%.0f"|format(status.weather.temp_f) }}°F</div>
+                    <div style="font-size: 0.85em; color: #b0a58e; margin-top: 4px; text-transform: capitalize;" id="stat-weather-desc">{{ status.weather.description }}</div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 2px;" id="stat-weather-humidity">Humidity: {{ status.weather.humidity }}%</div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -689,6 +697,21 @@
                         el('stat-disk').textContent = d.disk_str;
                         el('stat-disk').className = 'value ' + (d.disk_percent > 90 ? 'red' : d.disk_percent > 75 ? 'yellow' : 'green');
                         el('stat-disk-pct').textContent = Math.round(d.disk_percent) + '% used (' + d.disk_free_gb.toFixed(1) + ' GB free)';
+                    }
+
+                    // Weather
+                    if (d.weather) {
+                        const wTemp = el('stat-weather-temp');
+                        const wDesc = el('stat-weather-desc');
+                        const wHum = el('stat-weather-humidity');
+                        if (wTemp) {
+                            wTemp.textContent = Math.round(d.weather.temp_f) + '°F';
+                            // Color by temperature
+                            const t = d.weather.temp_f;
+                            wTemp.className = 'value ' + (t > 95 ? 'red' : t > 80 ? 'yellow' : t < 40 ? 'blue' : 'green');
+                        }
+                        if (wDesc) wDesc.textContent = d.weather.description;
+                        if (wHum) wHum.textContent = 'Humidity: ' + d.weather.humidity + '%';
                     }
 
                     if (d.schedule) {
