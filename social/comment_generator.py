@@ -25,6 +25,9 @@ _client_lock = threading.Lock()
 MAX_RECENT_CAPTIONS = 10
 _recent_captions: collections.deque = collections.deque(maxlen=MAX_RECENT_CAPTIONS)
 
+# Rolling buffer of recent vision descriptions for "return visitor" storytelling
+_recent_descriptions: collections.deque = collections.deque(maxlen=5)
+
 
 def _get_client():
     global _client, _client_config
@@ -76,6 +79,7 @@ Visit Context:
 - Month: {month}
 - Time since last visitor: {since_last}
 - Sunrise: {sunrise} / Sunset: {sunset}
+{weather_line}
 {milestone_line}
 
 Tone & Style:
@@ -123,10 +127,13 @@ Content Guidelines:
 - If an image is provided, describe what you actually SEE the bird doing — this is \
   the most important detail. Be specific: hovering, perching, tongue out, two birds, \
   chasing, feeding position, wing blur, etc.
+- Note distinguishing features when visible: gorget color/iridescence, bill shape, \
+  size, sex (males have bright gorgets), tail markings, any unique features
 - Use the context naturally — don't force every detail into every caption
 - Prefer specificity over generic phrasing
 - Reference behavior: hovering, quick visits, repeat visits, territorial chasing, \
   tongue work, perching, dive-bombing
+{recent_descriptions_line}
 
 Hard Rules:
 - Do NOT mention AI, models, prompts, or automation
@@ -210,6 +217,24 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
         milestone = kwargs.get("milestone")
         milestone_line = f"- Milestone: {milestone}" if milestone else ""
 
+        weather = kwargs.get("weather")
+        if weather:
+            weather_line = f"- Weather: {weather['temp_f']:.0f}°F, {weather['condition']}"
+        else:
+            weather_line = ""
+
+        # Build recent bird descriptions for return-visitor storytelling
+        if _recent_descriptions:
+            desc_text = "\n".join(f"  - {d}" for d in _recent_descriptions)
+            recent_descriptions_line = (
+                "- Recent bird descriptions from earlier today (if features match, "
+                "reference the bird as a possible returning visitor — e.g., "
+                "\"looks like our morning regular\" or \"same bright gorget as earlier\"):\n"
+                + desc_text
+            )
+        else:
+            recent_descriptions_line = ""
+
         prompt = SYSTEM_PROMPT.format(
             detections=detections,
             rejected=rejected,
@@ -221,7 +246,9 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
             since_last=since_last,
             sunrise=kwargs.get("sunrise", ""),
             sunset=kwargs.get("sunset", ""),
+            weather_line=weather_line,
             milestone_line=milestone_line,
+            recent_descriptions_line=recent_descriptions_line,
         )
         messages: list = [
             {"role": "system", "content": prompt},
@@ -242,7 +269,12 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
 
         if image_url:
             user_content: list | str = [
-                {"type": "text", "text": "Write a post for this hummingbird sighting. Here's a frame from the video:"},
+                {"type": "text", "text": (
+                    "Write a post for this hummingbird sighting. Here's a frame from the video.\n"
+                    "After the caption, on a new line starting with 'BIRD:', write a brief "
+                    "description of the bird's distinguishing features (gorget color, sex, size, "
+                    "behavior). This line won't be posted — it's just for my records."
+                )},
                 {"type": "image_url", "image_url": {"url": image_url, "detail": config.VISION_CAPTION_DETAIL}},
             ]
             logger.info("Sending frame to GPT-4o Vision for caption (detail=%s)", config.VISION_CAPTION_DETAIL)
@@ -253,10 +285,21 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=messages,
-            max_tokens=200,
+            max_tokens=250,
             temperature=0.9,
         )
-        caption = (response.choices[0].message.content or "").strip()
+        raw = (response.choices[0].message.content or "").strip()
+
+        # Split out the bird description line if present
+        caption = raw
+        if "BIRD:" in raw:
+            parts = raw.split("BIRD:", 1)
+            caption = parts[0].strip()
+            bird_desc = parts[1].strip()
+            if bird_desc:
+                _recent_descriptions.append(bird_desc)
+                logger.info("Bird description: %s", bird_desc)
+
         _recent_captions.append(caption)
         logger.info("Generated caption: %s", caption)
         return caption
@@ -278,6 +321,7 @@ Context:
 - Month: {month}
 - Sunrise: {sunrise}
 - Yesterday's tally: {yesterday_text}
+{weather_line}
 
 Tone & Style:
 - Playful, lightly cheeky, subtly suggestive but Facebook-safe
@@ -362,6 +406,12 @@ def generate_good_morning(location: str, sunrise: str, **kwargs) -> str:
     yesterday = kwargs.get("yesterday_detections")
     yesterday_text = f"{yesterday} visit(s) yesterday" if yesterday is not None else "No data"
 
+    weather = kwargs.get("weather")
+    if weather:
+        weather_line = f"- Weather: {weather['temp_f']:.0f}°F, {weather['condition']}"
+    else:
+        weather_line = ""
+
     try:
         client = _get_client()
         response = client.chat.completions.create(
@@ -373,6 +423,7 @@ def generate_good_morning(location: str, sunrise: str, **kwargs) -> str:
                     day_of_week=kwargs.get("day_of_week", ""),
                     month=kwargs.get("month", ""),
                     yesterday_text=yesterday_text,
+                    weather_line=weather_line,
                 )},
                 {"role": "user", "content": "Write this morning's post."},
             ],
@@ -424,3 +475,59 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
     except _OpenAIError:
         logger.exception("OpenAI API call failed for night post")
         return f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
+
+
+MILESTONE_PROMPT = """\
+You are the voice of "Backyard Hummers," an automated hummingbird feeder camera.
+
+Write a celebration post — we just hit lifetime visitor #{count}!
+
+Stats:
+- Lifetime visits recorded: {count}
+- Days the camera has been running: {days_running}
+- Today's count so far: {today_count}
+
+Tone & Style:
+- Celebratory but not over-the-top — more "quiet pride" than "party mode"
+- Playful, lightly cheeky, subtly suggestive but Facebook-safe
+- Frame the milestone in a fun way (e.g., "That's a lot of tiny tongues")
+- Acknowledge the community watching along
+
+Hard Rules:
+- Do NOT mention AI, models, prompts, or automation
+- Do NOT use hashtags
+- Use 0-2 emojis maximum
+- 2-3 sentences max
+
+Output: Return ONLY the caption text.
+"""
+
+
+def generate_milestone_post(lifetime_count: int, today_count: int = 0,
+                            days_running: int = 0) -> str:
+    """Generate a dedicated celebration post for a milestone detection count."""
+    if not config.OPENAI_API_KEY:
+        return f"Lifetime visitor #{lifetime_count} just showed up. Not bad for a backyard feeder."
+
+    try:
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+            messages=[
+                {"role": "system", "content": MILESTONE_PROMPT.format(
+                    count=lifetime_count,
+                    today_count=today_count,
+                    days_running=days_running,
+                )},
+                {"role": "user", "content": "Write the milestone celebration post."},
+            ],
+            max_tokens=200,
+            temperature=0.9,
+        )
+        caption = (response.choices[0].message.content or "").strip()
+        logger.info("Milestone post: %s", caption)
+        return caption
+
+    except _OpenAIError:
+        logger.exception("OpenAI API call failed for milestone post")
+        return f"Lifetime visitor #{lifetime_count} just showed up. Not bad for a backyard feeder."

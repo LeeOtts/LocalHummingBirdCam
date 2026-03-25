@@ -70,6 +70,10 @@ OPENWEATHERMAP_API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 AUTO_REPLY_ENABLED = os.getenv("AUTO_REPLY_ENABLED", "false").lower() in ("true", "1", "yes")
 AUTO_REPLY_MAX_PER_HOUR = int(os.getenv("AUTO_REPLY_MAX_PER_HOUR", "5"))
 
+# Weekly digest — auto-post a recap every week
+WEEKLY_DIGEST_ENABLED = os.getenv("WEEKLY_DIGEST_ENABLED", "true").lower() in ("true", "1", "yes")
+WEEKLY_DIGEST_DAY = os.getenv("WEEKLY_DIGEST_DAY", "sunday").lower().strip()
+
 # Audio — set AUDIO_DEVICE to the ALSA device (e.g. "hw:1,0" or "default")
 # Use "arecord -l" on the Pi to list available audio devices
 AUDIO_ENABLED = os.getenv("AUDIO_ENABLED", "true").lower() in ("true", "1", "yes")
