@@ -670,6 +670,71 @@ def test_bluesky_post():
         return {"ok": False, "error": "Post failed — check logs for Bluesky response"}, 500
 
 
+@app.route("/api/network/speedtest", methods=["POST"])
+def network_speed_test():
+    """Run a lightweight download/upload speed test."""
+    import subprocess
+    import time
+
+    results = {"download_mbps": None, "upload_mbps": None, "ping_ms": None, "error": None}
+
+    # --- Ping test ---
+    try:
+        ping = subprocess.run(
+            ["ping", "-c", "3", "-W", "5", "8.8.8.8"],
+            capture_output=True, text=True, timeout=20,
+        )
+        if ping.returncode == 0:
+            for line in ping.stdout.splitlines():
+                if "avg" in line:
+                    # "rtt min/avg/max/mdev = 12.3/15.6/18.9/2.1 ms"
+                    parts = line.split("=")[1].strip().split("/")
+                    results["ping_ms"] = round(float(parts[1]), 1)
+                    break
+    except Exception:
+        pass
+
+    # --- Download test (fetch a ~10 MB file from a CDN) ---
+    test_urls = [
+        "https://speed.cloudflare.com/__down?bytes=10000000",
+        "http://speedtest.tele2.net/10MB.zip",
+    ]
+    for url in test_urls:
+        try:
+            import requests as req
+            start = time.time()
+            resp = req.get(url, timeout=30, stream=True)
+            total = 0
+            for chunk in resp.iter_content(chunk_size=65536):
+                total += len(chunk)
+            elapsed = time.time() - start
+            if elapsed > 0 and total > 0:
+                results["download_mbps"] = round((total * 8) / (elapsed * 1_000_000), 2)
+                break
+        except Exception:
+            continue
+
+    # --- Upload test (POST ~2 MB of data to Cloudflare) ---
+    try:
+        import requests as req
+        payload = b"\x00" * 2_000_000  # 2 MB
+        start = time.time()
+        req.post("https://speed.cloudflare.com/__up", data=payload, timeout=60)
+        elapsed = time.time() - start
+        if elapsed > 0:
+            results["upload_mbps"] = round((len(payload) * 8) / (elapsed * 1_000_000), 2)
+    except Exception:
+        pass
+
+    if results["download_mbps"] is None and results["upload_mbps"] is None:
+        results["error"] = "Speed test failed — check internet connection"
+        return results, 500
+
+    logger.info("Speed test: ↓ %s Mbps  ↑ %s Mbps  ping %s ms",
+                results["download_mbps"], results["upload_mbps"], results["ping_ms"])
+    return results
+
+
 @app.route("/api/twitter/test", methods=["POST"])
 def test_twitter_post():
     """Send a quick test text post to Twitter/X to verify credentials."""

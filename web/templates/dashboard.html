@@ -589,6 +589,12 @@
                     <div class="value" style="font-size:1em;">Post to timeline</div>
                     <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testTwBtn" onclick="testTwitterPost()">Test Twitter</button>
                 </div>
+                <div class="status-card">
+                    <div class="label">Network Speed</div>
+                    <div class="value" style="font-size:0.9em;" id="speedResult">Run test to check</div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="speedDetails"></div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testSpeedBtn" onclick="testSpeed()">Test Speed</button>
+                </div>
             </div>
         </div>
 
@@ -945,6 +951,50 @@
                     btn.textContent = 'Test Twitter Post';
                     btn.disabled = false;
                     showToast('Twitter test failed — check logs');
+                });
+        }
+
+        function testSpeed() {
+            const btn = document.getElementById('testSpeedBtn');
+            const result = document.getElementById('speedResult');
+            const details = document.getElementById('speedDetails');
+            btn.textContent = 'Testing...';
+            btn.disabled = true;
+            result.textContent = 'Running speed test...';
+            result.className = 'value';
+            details.textContent = 'This may take 30-60 seconds';
+            fetch('/api/network/speedtest', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        result.textContent = data.error;
+                        result.className = 'value red';
+                        details.textContent = '';
+                    } else {
+                        const dl = data.download_mbps != null ? data.download_mbps + ' Mbps' : 'N/A';
+                        const ul = data.upload_mbps != null ? data.upload_mbps + ' Mbps' : 'N/A';
+                        const ping = data.ping_ms != null ? data.ping_ms + ' ms' : 'N/A';
+                        result.innerHTML = '↓ ' + dl + ' &nbsp; ↑ ' + ul;
+                        // Color based on upload speed (most relevant for video posting)
+                        const upMbps = data.upload_mbps || 0;
+                        result.className = 'value ' + (upMbps < 2 ? 'red' : upMbps < 5 ? 'yellow' : 'green');
+                        details.textContent = 'Ping: ' + ping;
+
+                        // Estimate upload time for a 30s 1080p clip (~15-30 MB)
+                        if (data.upload_mbps && data.upload_mbps > 0) {
+                            const estSec = Math.round((25 * 8) / data.upload_mbps);
+                            details.textContent += ' · ~' + estSec + 's to upload 25 MB clip';
+                        }
+                    }
+                    btn.textContent = 'Test Speed';
+                    btn.disabled = false;
+                })
+                .catch(() => {
+                    result.textContent = 'Speed test failed';
+                    result.className = 'value red';
+                    details.textContent = '';
+                    btn.textContent = 'Test Speed';
+                    btn.disabled = false;
                 });
         }
 
