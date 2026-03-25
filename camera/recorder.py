@@ -1,5 +1,6 @@
 """Clip recorder supporting both Pi Camera (CircularOutput) and USB camera."""
 
+import gc
 import logging
 import subprocess
 import time
@@ -152,6 +153,7 @@ class ClipRecorder:
 
             # --- Step 4: Write frames to video file (decompress one at a time to save RAM) ---
             all_jpegs = pre_jpegs + post_frames
+            del pre_jpegs, post_frames  # Free originals, all_jpegs has the data now
             total_frames = len(all_jpegs)
             if total_frames == 0:
                 logger.warning("No frames captured — skipping clip")
@@ -190,6 +192,8 @@ class ClipRecorder:
                 video_path.rename(mp4_path)
                 self._cleanup_temp_files(audio_path)
 
+            del all_jpegs  # Free frame memory before returning
+
             if mp4_path.exists():
                 size_mb = mp4_path.stat().st_size / 1_048_576
                 logger.info("Final clip: %s (%.1f MB, %d frames)",
@@ -210,6 +214,8 @@ class ClipRecorder:
                     audio_proc.wait(timeout=5)
                 except Exception:
                     pass
+            # Force GC to return frame memory to OS
+            gc.collect()
 
     def _write_compressed_frames_to_mp4(self, jpeg_frames: list, mp4_path: Path) -> Path | None:
         """Write JPEG-compressed frames to MP4, decompressing one at a time to save RAM."""

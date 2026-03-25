@@ -58,6 +58,7 @@ class BlueskyPoster(SocialPoster):
 
             # Upload video blob
             upload = client.upload_blob(video_data)
+            del video_data  # Free video bytes (~5-50MB)
             blob = upload.blob
 
             # Create post with video embed
@@ -88,6 +89,7 @@ class BlueskyPoster(SocialPoster):
         try:
             img_data = image_path.read_bytes()
             upload = client.upload_blob(img_data)
+            del img_data  # Free image bytes
 
             from atproto import models
             embed = models.AppBskyEmbedImages.Main(
