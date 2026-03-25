@@ -449,7 +449,7 @@
                     </div>
                 </div>
                 <div class="status-card">
-                    <div class="label">Testing</div>
+                    <div class="label">Mode</div>
                     <div class="value {{ 'yellow' if status.test_mode else 'green' }}" id="stat-testmode">
                         {{ 'TEST MODE' if status.test_mode else 'LIVE' }}
                     </div>
@@ -459,13 +459,6 @@
                             onclick="toggleTestMode()">
                         {{ 'Go Live' if status.test_mode else 'Switch to Test' }}
                     </button>
-                    <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px;">
-                        <button class="btn" style="font-size:0.7em; background:#3d4a2a;" id="testMicBtn" onclick="testMic()">Test Mic</button>
-                        <button class="btn" style="font-size:0.7em; background:#3d4a2a;" id="testRecordBtn" onclick="testRecord()">Test Record</button>
-                        <button class="btn" style="font-size:0.7em; background:#3d4a2a;" id="testFbBtn" onclick="testFacebookPost()">Test FB Post</button>
-                        <button class="btn" style="font-size:0.7em; background:#3d4a2a;" id="testBsBtn" onclick="testBlueskyPost()">Test Bluesky Post</button>
-                        <button class="btn" style="font-size:0.7em; background:#3d4a2a;" id="testTwBtn" onclick="testTwitterPost()">Test Twitter Post</button>
-                    </div>
                 </div>
                 <div class="status-card">
                     <div class="label">Version</div>
@@ -517,6 +510,37 @@
                 <div class="status-card">
                     <div class="label">Camera</div>
                     <div class="value {{ 'red' if status.camera_error else '' }}" id="stat-camera">{{ status.camera_type }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Testing</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="label">Microphone</div>
+                    <div class="value" style="font-size:1em;">Record & playback</div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testMicBtn" onclick="testMic()">Test Mic</button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Camera</div>
+                    <div class="value" style="font-size:1em;">Full pipeline test</div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testRecordBtn" onclick="testRecord()">Test Record</button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Facebook</div>
+                    <div class="value" style="font-size:1em;">Post to page</div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testFbBtn" onclick="testFacebookPost()">Test FB Post</button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Bluesky</div>
+                    <div class="value" style="font-size:1em;">Post to feed</div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testBsBtn" onclick="testBlueskyPost()">Test Bluesky</button>
+                </div>
+                <div class="status-card">
+                    <div class="label">Twitter/X</div>
+                    <div class="value" style="font-size:1em;">Post to timeline</div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testTwBtn" onclick="testTwitterPost()">Test Twitter</button>
                 </div>
             </div>
         </div>
