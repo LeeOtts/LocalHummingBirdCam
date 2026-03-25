@@ -531,8 +531,54 @@ def test_record():
             clip_path = recorder.record_clip()
 
             if clip_path and clip_path.exists():
-                # Generate caption
-                caption = generate_comment()
+                # Build time-of-day context so the AI knows the real time
+                now = datetime.now(tz=_local_tz)
+                schedule_info = get_schedule_info()
+                hour = now.hour
+                if hour < 8:
+                    day_part = "early morning"
+                elif hour < 11:
+                    day_part = "mid-morning"
+                elif hour < 14:
+                    day_part = "midday"
+                elif hour < 17:
+                    day_part = "afternoon"
+                else:
+                    day_part = "evening"
+
+                det = getattr(_monitor, '_detections_today', 0)
+                rej = getattr(_monitor, '_rejected_today', 0)
+
+                # Extract a frame for vision captions
+                frame_path = None
+                try:
+                    frame_path = _monitor._extract_frame(clip_path)
+                except Exception:
+                    pass
+
+                # Fetch weather if configured
+                weather = None
+                if config.OPENWEATHERMAP_API_KEY:
+                    try:
+                        from analytics.patterns import get_weather
+                        weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
+                    except Exception:
+                        pass
+
+                # Generate caption with full context
+                caption = generate_comment(
+                    detections=det,
+                    rejected=rej,
+                    visit_number=det,
+                    time_of_day=now.strftime("%I:%M %p").lstrip("0"),
+                    day_part=day_part,
+                    day_of_week=now.strftime("%A"),
+                    month=now.strftime("%B"),
+                    sunrise=schedule_info.get("sunrise", ""),
+                    sunset=schedule_info.get("sunset", ""),
+                    frame_path=frame_path,
+                    weather=weather,
+                )
                 # Save caption alongside clip
                 caption_file = clip_path.with_suffix(".txt")
                 caption_file.write_text(caption)
@@ -552,6 +598,12 @@ def test_record():
                     logger.warning("No social platforms configured — skipping posting")
             else:
                 logger.warning("Test record failed — no clip produced")
+                # Clean up extracted frame
+                if frame_path:
+                    try:
+                        Path(frame_path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
         except Exception:
             logger.exception("Test record failed")
         finally:
