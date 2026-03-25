@@ -58,7 +58,7 @@ def generate_weekly_digest(db) -> str | None:
                     last_week=summary["last_week_total"],
                     trend=summary["trend"],
                     busiest_day=busiest_text,
-                    best_caption=summary.get("best_caption", "N/A")[:200],
+                    best_caption=(summary.get("best_caption") or "N/A")[:200],
                 )},
                 {"role": "user", "content": "Write this week's recap post."},
             ],
