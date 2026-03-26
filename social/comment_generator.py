@@ -1,9 +1,10 @@
-"""Generate funny Facebook post captions using OpenAI / Azure OpenAI."""
+"""Generate social media captions using OpenAI / Azure OpenAI."""
 
 import base64
 import collections
 import logging
 import random
+import re
 import threading
 from pathlib import Path
 
@@ -27,6 +28,83 @@ _recent_captions: collections.deque = collections.deque(maxlen=MAX_RECENT_CAPTIO
 
 # Rolling buffer of recent vision descriptions for "return visitor" storytelling
 _recent_descriptions: collections.deque = collections.deque(maxlen=5)
+
+# Per-platform constraints for multi-platform caption generation
+PLATFORM_HINTS = {
+    "Facebook": {
+        "max_chars": None,
+        "tone": "Longer, conversational. 1-3 sentences. No hashtags.",
+    },
+    "Bluesky": {
+        "max_chars": 300,
+        "tone": "Concise, punchy. Under 300 characters. Add 1-2 relevant hashtags (e.g. #hummingbird #birdwatching).",
+    },
+    "Twitter": {
+        "max_chars": 280,
+        "tone": "Tightest. Under 280 characters. One-liner preferred. Add 1-2 relevant hashtags (count toward char limit).",
+    },
+}
+
+
+def _build_platform_block(platforms: list[str]) -> str:
+    """Build the multi-platform output instructions to append to a system prompt."""
+    lines = [
+        "\nMulti-Platform Output:",
+        "You must write a UNIQUE caption for each platform below. Each should feel "
+        "distinct — not just a truncated version of the same text. Tailor the voice, "
+        "length, and style to the platform.",
+        "",
+    ]
+    for name in platforms:
+        hint = PLATFORM_HINTS.get(name, {"tone": "Standard caption."})
+        lines.append(f"---{name.upper()}---")
+        lines.append(hint["tone"])
+        lines.append("")
+
+    lines.append("Output format — return EXACTLY this structure, no other text:")
+    for name in platforms:
+        lines.append(f"---{name.upper()}---")
+        lines.append(f"(your {name} caption here)")
+    return "\n".join(lines)
+
+
+def _parse_platform_captions(raw: str, platforms: list[str]) -> dict[str, str]:
+    """Parse tagged multi-platform output into {platform: caption} dict.
+
+    Falls back to returning the raw text for every platform if parsing fails.
+    """
+    captions: dict[str, str] = {}
+    # Build regex pattern to split on ---PLATFORM--- tags (case-insensitive)
+    tag_pattern = "|".join(re.escape(f"---{p.upper()}---") for p in platforms)
+    parts = re.split(f"({tag_pattern})", raw, flags=re.IGNORECASE)
+
+    # parts alternates: [preamble, tag1, content1, tag2, content2, ...]
+    current_platform = None
+    for part in parts:
+        stripped = part.strip()
+        # Check if this part is a tag
+        matched_platform = None
+        for p in platforms:
+            if stripped.upper() == f"---{p.upper()}---":
+                matched_platform = p
+                break
+        if matched_platform:
+            current_platform = matched_platform
+        elif current_platform:
+            captions[current_platform] = stripped
+
+    # If we got captions for at least one platform, fill missing ones with first available
+    if captions:
+        fallback_caption = next(iter(captions.values()))
+        for p in platforms:
+            if p not in captions or not captions[p]:
+                captions[p] = fallback_caption
+        return captions
+
+    # Parsing failed entirely — return raw text for all platforms
+    logger.warning("Failed to parse multi-platform captions, using raw text for all")
+    cleaned = raw.strip()
+    return {p: cleaned for p in platforms}
 
 
 def _get_client():
@@ -68,7 +146,7 @@ def _get_client():
         return _client
 
 SYSTEM_PROMPT = """\
-You are the voice of a Facebook page called "Backyard Hummers," an automated \
+You are the voice of "Backyard Hummers," an automated \
 hummingbird feeder camera.
 
 Your job is to write short, engaging captions (1-3 sentences) for hummingbird visits.
@@ -138,7 +216,6 @@ Content Guidelines:
 Hard Rules:
 - Do NOT mention AI, models, prompts, or automation
 - Do NOT explain jokes
-- Do NOT use hashtags
 - Use 0-1 emojis maximum, and only when it adds value
 - Avoid cliches and generic lines
 - Avoid repeating phrases like "quick visit," "stopping by," or "back again" too frequently
@@ -150,7 +227,7 @@ Style Targets (for guidance only, do not copy):
 - "Three visits in ten minutes. At this point, just move in."
 - "Anyone else's backyard this popular on a Wednesday?"
 - "This one hovered for a solid eight seconds. That's commitment."
-
+{platform_block}
 Output: Return ONLY the caption text. No labels, no extra formatting.
 """
 
@@ -198,16 +275,25 @@ def _encode_frame(frame_path: Path, max_width: int = 512) -> str | None:
         return None
 
 
-def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
-    """Generate a funny innuendo-laden caption for a hummingbird video post.
+def generate_comment(detections: int = 0, rejected: int = 0,
+                     platforms: list[str] | None = None, **kwargs) -> dict[str, str]:
+    """Generate captions for a hummingbird video post, one per platform.
+
+    Returns ``{platform_name: caption}`` dict.  When *platforms* is ``None``
+    or contains a single entry the behaviour is identical to the old single-
+    caption path (wrapped in a dict).
 
     If ``frame_path`` is provided and VISION_CAPTION_ENABLED is true, the frame
     is sent to GPT-4o as a multimodal image so it can describe what the bird
     is actually doing.
     """
+    platforms = platforms or ["Facebook"]
+    multi = len(platforms) > 1
+
     if not config.OPENAI_API_KEY:
         logger.warning("No OpenAI API key configured, using fallback caption")
-        return random.choice(FALLBACK_CAPTIONS)
+        fb = random.choice(FALLBACK_CAPTIONS)
+        return {p: fb for p in platforms}
 
     try:
         client = _get_client()
@@ -235,6 +321,8 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
         else:
             recent_descriptions_line = ""
 
+        platform_block = _build_platform_block(platforms) if multi else ""
+
         prompt = SYSTEM_PROMPT.format(
             detections=detections,
             rejected=rejected,
@@ -249,6 +337,7 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
             weather_line=weather_line,
             milestone_line=milestone_line,
             recent_descriptions_line=recent_descriptions_line,
+            platform_block=platform_block,
         )
         messages: list = [
             {"role": "system", "content": prompt},
@@ -267,13 +356,17 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
         if frame_path and config.VISION_CAPTION_ENABLED:
             image_url = _encode_frame(Path(frame_path))
 
+        bird_note = (
+            "\nAfter all captions, on a new line starting with 'BIRD:', write a brief "
+            "description of the bird's distinguishing features (gorget color, sex, size, "
+            "behavior). This line won't be posted — it's just for my records."
+        ) if image_url else ""
+
         if image_url:
             user_content: list | str = [
                 {"type": "text", "text": (
-                    "Write a post for this hummingbird sighting. Here's a frame from the video.\n"
-                    "After the caption, on a new line starting with 'BIRD:', write a brief "
-                    "description of the bird's distinguishing features (gorget color, sex, size, "
-                    "behavior). This line won't be posted — it's just for my records."
+                    "Write a post for this hummingbird sighting. Here's a frame from the video."
+                    + bird_note
                 )},
                 {"type": "image_url", "image_url": {"url": image_url, "detail": config.VISION_CAPTION_DETAIL}},
             ]
@@ -282,35 +375,44 @@ def generate_comment(detections: int = 0, rejected: int = 0, **kwargs) -> str:
             user_content = "Write a post for a new hummingbird sighting video."
 
         messages.append({"role": "user", "content": user_content})
+        max_tok = 400 if multi else 250
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=messages,
-            max_tokens=250,
+            max_tokens=max_tok,
             temperature=0.9,
         )
         raw = (response.choices[0].message.content or "").strip()
 
         # Split out the bird description line if present
-        caption = raw
+        bird_desc = None
         if "BIRD:" in raw:
             parts = raw.split("BIRD:", 1)
-            caption = parts[0].strip()
+            raw = parts[0].strip()
             bird_desc = parts[1].strip()
             if bird_desc:
                 _recent_descriptions.append(bird_desc)
                 logger.info("Bird description: %s", bird_desc)
 
-        _recent_captions.append(caption)
-        logger.info("Generated caption: %s", caption)
-        return caption
+        if multi:
+            captions = _parse_platform_captions(raw, platforms)
+        else:
+            captions = {platforms[0]: raw}
+
+        # Store the longest caption for repetition avoidance
+        longest = max(captions.values(), key=len)
+        _recent_captions.append(longest)
+        logger.info("Generated captions: %s", captions)
+        return captions
 
     except _OpenAIError:
         logger.exception("OpenAI API call failed, using fallback caption")
-        return random.choice(FALLBACK_CAPTIONS)
+        fb = random.choice(FALLBACK_CAPTIONS)
+        return {p: fb for p in platforms}
 
 
 GOOD_MORNING_PROMPT = """\
-You are the voice of a Facebook page called "Backyard Hummers," an automated \
+You are the voice of "Backyard Hummers," an automated \
 hummingbird feeder camera in {location}.
 
 Write a "good morning" post. The camera just woke up and is ready to watch \
@@ -324,7 +426,7 @@ Context:
 {weather_line}
 
 Tone & Style:
-- Playful, lightly cheeky, subtly suggestive but Facebook-safe
+- Playful, lightly cheeky, subtly suggestive but safe for social media
 - Natural and conversational, like someone half-awake grabbing coffee and \
   checking the feeder
 - Understated humor, never forced
@@ -338,7 +440,6 @@ Engagement Hooks (use occasionally, not every post):
 Hard Rules:
 - Do NOT mention AI, models, prompts, or automation
 - Do NOT explain jokes
-- Do NOT use hashtags
 - Use 0-1 emojis maximum
 - 1-3 sentences max
 
@@ -347,12 +448,12 @@ Style Targets (do not copy):
 - "Monday morning. The hummers don't take weekends off and neither do we."
 - "Yesterday was 8 visits. Think we can beat that?"
 - "April in the backyard. Migration season. The roster is about to get interesting."
-
+{platform_block}
 Output: Return ONLY the caption text. No labels, no extra formatting.
 """
 
 GOOD_NIGHT_PROMPT = """\
-You are the voice of a Facebook page called "Backyard Hummers," an automated \
+You are the voice of "Backyard Hummers," an automated \
 hummingbird feeder camera in {location}.
 
 Write an end-of-day recap post.
@@ -368,7 +469,7 @@ Context:
 You must include the detection count naturally in the caption.
 
 Tone & Style:
-- Playful, lightly cheeky, subtly suggestive but Facebook-safe
+- Playful, lightly cheeky, subtly suggestive but safe for social media
 - Natural and conversational, like wrapping up a day of backyard watching
 - If 0 detections, lean into dry humor about a slow day
 - If many detections, play up how busy the backyard was
@@ -382,7 +483,6 @@ Engagement Hooks (use occasionally, not every post):
 Hard Rules:
 - Do NOT mention AI, models, prompts, or automation
 - Do NOT explain jokes
-- Do NOT use hashtags
 - Use 0-1 emojis maximum
 - 1-3 sentences max
 - Must include the actual number of detections
@@ -393,15 +493,20 @@ Style Targets (do not copy):
 - "11 confirmed sightings. New personal best. The feeder earned its keep today."
 - "7 visits, most of them before 10 AM. Early risers run this yard."
 - "Think we'll top 7 tomorrow? Place your bets."
-
+{platform_block}
 Output: Return ONLY the caption text. No labels, no extra formatting.
 """
 
 
-def generate_good_morning(location: str, sunrise: str, **kwargs) -> str:
-    """Generate a morning greeting post."""
+def generate_good_morning(location: str, sunrise: str,
+                          platforms: list[str] | None = None, **kwargs) -> dict[str, str]:
+    """Generate a morning greeting post, one caption per platform."""
+    platforms = platforms or ["Facebook"]
+    multi = len(platforms) > 1
+    fallback = f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
+
     if not config.OPENAI_API_KEY:
-        return f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
+        return {p: fallback for p in platforms}
 
     yesterday = kwargs.get("yesterday_detections")
     yesterday_text = f"{yesterday} visit(s) yesterday" if yesterday is not None else "No data"
@@ -412,8 +517,11 @@ def generate_good_morning(location: str, sunrise: str, **kwargs) -> str:
     else:
         weather_line = ""
 
+    platform_block = _build_platform_block(platforms) if multi else ""
+
     try:
         client = _get_client()
+        max_tok = 400 if multi else 200
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
@@ -424,34 +532,48 @@ def generate_good_morning(location: str, sunrise: str, **kwargs) -> str:
                     month=kwargs.get("month", ""),
                     yesterday_text=yesterday_text,
                     weather_line=weather_line,
+                    platform_block=platform_block,
                 )},
                 {"role": "user", "content": "Write this morning's post."},
             ],
-            max_tokens=200,
+            max_tokens=max_tok,
             temperature=0.9,
         )
-        caption = (response.choices[0].message.content or "").strip()
-        logger.info("Morning post: %s", caption)
-        return caption
+        raw = (response.choices[0].message.content or "").strip()
+
+        if multi:
+            captions = _parse_platform_captions(raw, platforms)
+        else:
+            captions = {platforms[0]: raw}
+
+        logger.info("Morning post: %s", captions)
+        return captions
 
     except _OpenAIError:
         logger.exception("OpenAI API call failed for morning post")
-        return f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
+        return {p: fallback for p in platforms}
 
 
 def generate_good_night(location: str, sunset: str, detections: int, rejected: int,
-                        **kwargs) -> str:
-    """Generate an end-of-day recap post with hummer tally."""
+                        platforms: list[str] | None = None, **kwargs) -> dict[str, str]:
+    """Generate an end-of-day recap post with hummer tally, one per platform."""
+    platforms = platforms or ["Facebook"]
+    multi = len(platforms) > 1
+    fallback = f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
+
     if not config.OPENAI_API_KEY:
-        return f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
+        return {p: fallback for p in platforms}
 
     peak_hour = kwargs.get("peak_hour")
     peak_hour_text = f"{peak_hour}" if peak_hour else "N/A"
     is_record = kwargs.get("is_record", False)
     record_text = "New all-time record!" if is_record else ""
 
+    platform_block = _build_platform_block(platforms) if multi else ""
+
     try:
         client = _get_client()
+        max_tok = 400 if multi else 200
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
@@ -462,19 +584,26 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
                     month=kwargs.get("month", ""),
                     peak_hour_text=peak_hour_text,
                     record_text=record_text,
+                    platform_block=platform_block,
                 )},
                 {"role": "user", "content": "Write tonight's end-of-day recap post."},
             ],
-            max_tokens=200,
+            max_tokens=max_tok,
             temperature=0.9,
         )
-        caption = (response.choices[0].message.content or "").strip()
-        logger.info("Night post: %s", caption)
-        return caption
+        raw = (response.choices[0].message.content or "").strip()
+
+        if multi:
+            captions = _parse_platform_captions(raw, platforms)
+        else:
+            captions = {platforms[0]: raw}
+
+        logger.info("Night post: %s", captions)
+        return captions
 
     except _OpenAIError:
         logger.exception("OpenAI API call failed for night post")
-        return f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
+        return {p: fallback for p in platforms}
 
 
 MILESTONE_PROMPT = """\
@@ -489,28 +618,35 @@ Stats:
 
 Tone & Style:
 - Celebratory but not over-the-top — more "quiet pride" than "party mode"
-- Playful, lightly cheeky, subtly suggestive but Facebook-safe
+- Playful, lightly cheeky, subtly suggestive but safe for social media
 - Frame the milestone in a fun way (e.g., "That's a lot of tiny tongues")
 - Acknowledge the community watching along
 
 Hard Rules:
 - Do NOT mention AI, models, prompts, or automation
-- Do NOT use hashtags
 - Use 0-2 emojis maximum
 - 2-3 sentences max
-
+{platform_block}
 Output: Return ONLY the caption text.
 """
 
 
 def generate_milestone_post(lifetime_count: int, today_count: int = 0,
-                            days_running: int = 0) -> str:
+                            days_running: int = 0,
+                            platforms: list[str] | None = None) -> dict[str, str]:
     """Generate a dedicated celebration post for a milestone detection count."""
+    platforms = platforms or ["Facebook"]
+    multi = len(platforms) > 1
+    fallback = f"Lifetime visitor #{lifetime_count} just showed up. Not bad for a backyard feeder."
+
     if not config.OPENAI_API_KEY:
-        return f"Lifetime visitor #{lifetime_count} just showed up. Not bad for a backyard feeder."
+        return {p: fallback for p in platforms}
+
+    platform_block = _build_platform_block(platforms) if multi else ""
 
     try:
         client = _get_client()
+        max_tok = 400 if multi else 200
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
             messages=[
@@ -518,16 +654,23 @@ def generate_milestone_post(lifetime_count: int, today_count: int = 0,
                     count=lifetime_count,
                     today_count=today_count,
                     days_running=days_running,
+                    platform_block=platform_block,
                 )},
                 {"role": "user", "content": "Write the milestone celebration post."},
             ],
-            max_tokens=200,
+            max_tokens=max_tok,
             temperature=0.9,
         )
-        caption = (response.choices[0].message.content or "").strip()
-        logger.info("Milestone post: %s", caption)
-        return caption
+        raw = (response.choices[0].message.content or "").strip()
+
+        if multi:
+            captions = _parse_platform_captions(raw, platforms)
+        else:
+            captions = {platforms[0]: raw}
+
+        logger.info("Milestone post: %s", captions)
+        return captions
 
     except _OpenAIError:
         logger.exception("OpenAI API call failed for milestone post")
-        return f"Lifetime visitor #{lifetime_count} just showed up. Not bad for a backyard feeder."
+        return {p: fallback for p in platforms}

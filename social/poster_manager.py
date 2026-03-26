@@ -82,12 +82,20 @@ class PosterManager:
                 return p
         return None
 
-    def post_video(self, mp4_path: Path, caption: str) -> dict[str, bool]:
+    @staticmethod
+    def _resolve_caption(caption: "str | dict[str, str]", platform_name: str) -> str:
+        """Pick the right caption for a platform from a str or per-platform dict."""
+        if isinstance(caption, dict):
+            return caption.get(platform_name, next(iter(caption.values())))
+        return caption
+
+    def post_video(self, mp4_path: Path, caption: "str | dict[str, str]") -> dict[str, bool]:
         """Post a video to all enabled platforms. Returns {platform: success}."""
         results = {}
         for poster in self._posters:
             try:
-                success = poster.post_video(mp4_path, caption)
+                text = self._resolve_caption(caption, poster.platform_name)
+                success = poster.post_video(mp4_path, text)
                 results[poster.platform_name] = success
                 if success:
                     logger.info("Posted video to %s", poster.platform_name)
@@ -98,24 +106,26 @@ class PosterManager:
                 results[poster.platform_name] = False
         return results
 
-    def post_photo(self, image_path: Path, caption: str) -> dict[str, bool]:
+    def post_photo(self, image_path: Path, caption: "str | dict[str, str]") -> dict[str, bool]:
         """Post a photo to all enabled platforms. Returns {platform: success}."""
         results = {}
         for poster in self._posters:
             try:
-                success = poster.post_photo(image_path, caption)
+                text = self._resolve_caption(caption, poster.platform_name)
+                success = poster.post_photo(image_path, text)
                 results[poster.platform_name] = success
             except Exception:
                 logger.exception("Error posting photo to %s", poster.platform_name)
                 results[poster.platform_name] = False
         return results
 
-    def post_text(self, message: str) -> dict[str, bool]:
+    def post_text(self, message: "str | dict[str, str]") -> dict[str, bool]:
         """Post text to all enabled platforms. Returns {platform: success}."""
         results = {}
         for poster in self._posters:
             try:
-                success = poster.post_text(message)
+                text = self._resolve_caption(message, poster.platform_name)
+                success = poster.post_text(text)
                 results[poster.platform_name] = success
             except Exception:
                 logger.exception("Error posting text to %s", poster.platform_name)
