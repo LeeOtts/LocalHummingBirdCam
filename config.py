@@ -124,6 +124,9 @@ WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
 # Leave blank to disable authentication (default — local network only).
 WEB_PASSWORD = os.getenv("WEB_PASSWORD", "")
 
+# Tailscale remote access (optional) — run scripts/setup_tailscale.sh first
+TAILSCALE_ENABLED = os.getenv("TAILSCALE_ENABLED", "false").lower() in ("true", "1", "yes")
+
 # --- Validation (clamp to sane defaults) ---
 import logging as _log
 

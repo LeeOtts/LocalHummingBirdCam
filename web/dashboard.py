@@ -125,6 +125,35 @@ def set_monitor(monitor):
 
 
 
+def _get_tailscale_status():
+    """Query Tailscale daemon for connection status. Returns None if disabled."""
+    if not config.TAILSCALE_ENABLED:
+        return None
+    try:
+        import subprocess as _ts_sp
+        result = _ts_sp.run(
+            ["tailscale", "status", "--json"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return {"connected": False, "ip": None, "hostname": None}
+        import json as _ts_json
+        data = _ts_json.loads(result.stdout)
+        self_node = data.get("Self", {})
+        ts_ips = self_node.get("TailscaleIPs", [])
+        hostname = self_node.get("DNSName", "").rstrip(".")
+        return {
+            "connected": data.get("BackendState") == "Running",
+            "ip": ts_ips[0] if ts_ips else None,
+            "hostname": hostname,
+            "version": data.get("Version", "unknown"),
+        }
+    except FileNotFoundError:
+        return {"connected": False, "ip": None, "hostname": None}
+    except Exception:
+        return {"connected": False, "ip": None, "hostname": None}
+
+
 def _get_status():
     """Gather system status info."""
     import time
@@ -248,6 +277,9 @@ def _get_status():
         s.ram_used_mb = 0
         s.ram_percent = 0
         s.ram_str = "N/A"
+
+    # Tailscale VPN status
+    s.tailscale = _get_tailscale_status()
 
     return s
 
@@ -1193,6 +1225,7 @@ def api_status():
         "disk_free_gb": s.disk_free_gb,
         "schedule": s.schedule,
         "weather": s.weather,
+        "tailscale": s.tailscale,
     }
 
 
