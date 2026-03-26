@@ -34,30 +34,31 @@ class TestNoApiKey:
     """When no API key is configured, fallback captions should be used."""
 
     def test_generate_comment_no_key_returns_fallback(self, monkeypatch):
-        """generate_comment() returns a FALLBACK_CAPTIONS entry when API key is empty."""
+        """generate_comment() returns a dict with FALLBACK_CAPTIONS entry when API key is empty."""
         import config
         monkeypatch.setattr(config, "OPENAI_API_KEY", "")
         result = generate_comment(detections=1, rejected=0)
-        assert result in FALLBACK_CAPTIONS
+        assert isinstance(result, dict)
+        assert result["Facebook"] in FALLBACK_CAPTIONS
 
     def test_generate_good_morning_no_key(self, monkeypatch):
-        """generate_good_morning() returns a default string when API key is empty."""
+        """generate_good_morning() returns a dict with default string when API key is empty."""
         import config
         monkeypatch.setattr(config, "OPENAI_API_KEY", "")
         result = generate_good_morning(location="Bartlett, TN", sunrise="6:30 AM")
-        assert "6:30 AM" in result
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
+        assert "6:30 AM" in result["Facebook"]
 
     def test_generate_good_night_no_key(self, monkeypatch):
-        """generate_good_night() returns a default string when API key is empty."""
+        """generate_good_night() returns a dict with default string when API key is empty."""
         import config
         monkeypatch.setattr(config, "OPENAI_API_KEY", "")
         result = generate_good_night(
             location="Bartlett, TN", sunset="7:45 PM",
             detections=5, rejected=2,
         )
-        assert "5" in result
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
+        assert "5" in result["Facebook"]
 
 
 class TestFallbackCaptions:
@@ -78,7 +79,7 @@ class TestGenerateCommentWithMock:
     """Test generate_comment() with a mocked OpenAI client."""
 
     def test_successful_generation(self, monkeypatch):
-        """When OpenAI API succeeds, the generated caption is returned."""
+        """When OpenAI API succeeds, the generated caption is returned in a dict."""
         import config
         monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key-123")
         monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
@@ -93,7 +94,8 @@ class TestGenerateCommentWithMock:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=3, rejected=1)
 
-        assert result == "Test caption from API"
+        assert isinstance(result, dict)
+        assert result["Facebook"] == "Test caption from API"
         mock_client.chat.completions.create.assert_called_once()
 
     def test_api_failure_returns_fallback(self, monkeypatch):
@@ -113,7 +115,8 @@ class TestGenerateCommentWithMock:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=1, rejected=0)
 
-        assert result in FALLBACK_CAPTIONS
+        assert isinstance(result, dict)
+        assert result["Facebook"] in FALLBACK_CAPTIONS
 
     def test_accepts_detections_and_rejected_params(self, monkeypatch):
         """generate_comment() passes detections/rejected to the prompt."""
@@ -130,6 +133,7 @@ class TestGenerateCommentWithMock:
 
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=7, rejected=3)
+        assert result["Facebook"] == "Visit 7 today"
 
         # Verify the system prompt was formatted with stats
         call_args = mock_client.chat.completions.create.call_args
@@ -157,6 +161,7 @@ class TestGoodMorningGoodNight:
 
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_good_morning(location="Memphis, TN", sunrise="6:15 AM")
+        assert result["Facebook"] == "Morning post"
 
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args.kwargs.get("messages") or call_args[1].get("messages")
@@ -182,6 +187,7 @@ class TestGoodMorningGoodNight:
                 location="Bartlett, TN", sunset="7:30 PM",
                 detections=12, rejected=4,
             )
+        assert result["Facebook"] == "Goodnight post"
 
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args.kwargs.get("messages") or call_args[1].get("messages")
@@ -330,4 +336,4 @@ class TestRecentCaptionDeduplication:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             generate_comment()
 
-        assert "Stored caption" in cg._recent_captions
+        assert any("Stored caption" in c for c in cg._recent_captions)

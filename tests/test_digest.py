@@ -38,7 +38,8 @@ class TestGenerateWeeklyDigest:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_weekly_digest(db)
 
-        assert result == "42 visits this week — up from 35!"
+        assert isinstance(result, dict)
+        assert result["Facebook"] == "42 visits this week — up from 35!"
 
     def test_fallback_when_no_api_key(self, monkeypatch):
         import config
@@ -56,8 +57,10 @@ class TestGenerateWeeklyDigest:
 
         result = generate_weekly_digest(db)
         assert result is not None
-        assert "10" in result
-        assert "down" in result
+        assert isinstance(result, dict)
+        caption = result["Facebook"]
+        assert "10" in caption
+        assert "down" in caption
 
     def test_fallback_on_api_exception(self, monkeypatch):
         import config
@@ -80,7 +83,8 @@ class TestGenerateWeeklyDigest:
             result = generate_weekly_digest(db)
 
         assert result is not None
-        assert "20" in result
+        assert isinstance(result, dict)
+        assert "20" in result["Facebook"]
 
     def test_no_busiest_day_handled(self, monkeypatch):
         import config
@@ -104,7 +108,8 @@ class TestGenerateWeeklyDigest:
 
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_weekly_digest(db)
-        assert result == "First week on the job!"
+        assert isinstance(result, dict)
+        assert result["Facebook"] == "First week on the job!"
 
 
 class TestCreateThumbnailCollage:

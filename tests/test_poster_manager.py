@@ -160,6 +160,47 @@ class TestPostText:
         assert results["Boom"] is False
 
 
+class TestPerPlatformCaptions:
+    """Test PosterManager with per-platform caption dicts."""
+
+    def test_dict_caption_routes_correctly(self, tmp_path):
+        """Each poster gets its own caption from the dict."""
+        poster_a = FakePoster("A")
+        poster_b = FakePoster("B")
+        # Track what caption each poster receives
+        received = {}
+        orig_a = poster_a.post_video
+        orig_b = poster_b.post_video
+        poster_a.post_video = lambda path, cap: (received.update({"A": cap}), True)[1]
+        poster_b.post_video = lambda path, cap: (received.update({"B": cap}), True)[1]
+
+        mgr = _make_manager([poster_a, poster_b])
+        captions = {"A": "Caption for A", "B": "Caption for B"}
+        results = mgr.post_video(tmp_path / "clip.mp4", captions)
+
+        assert results == {"A": True, "B": True}
+        assert received["A"] == "Caption for A"
+        assert received["B"] == "Caption for B"
+
+    def test_dict_caption_falls_back_for_unknown_platform(self, tmp_path):
+        """If platform not in dict, first dict value is used as fallback."""
+        poster = FakePoster("Unknown")
+        received = {}
+        poster.post_text = lambda msg: (received.update({"text": msg}), True)[1]
+
+        mgr = _make_manager([poster])
+        captions = {"Facebook": "FB caption", "Twitter": "TW caption"}
+        mgr.post_text(captions)
+
+        assert received["text"] == "FB caption"  # first value as fallback
+
+    def test_string_caption_still_works(self, tmp_path):
+        """Backward compat: passing a plain string still works."""
+        mgr = _make_manager([FakePoster("A")])
+        results = mgr.post_video(tmp_path / "clip.mp4", "plain string")
+        assert results == {"A": True}
+
+
 class TestDiscoverPlatforms:
     """Test _discover_platforms() auto-discovery logic."""
 

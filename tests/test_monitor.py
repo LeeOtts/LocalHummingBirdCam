@@ -361,17 +361,17 @@ class TestPostGoodnight:
         fake_clip = Path("/tmp/clip.mp4")
         m._get_todays_clip = MagicMock(return_value=fake_clip)
         m.poster_manager.post_video.return_value = {"Facebook": True}
-        with patch("main.generate_good_night", return_value="caption"), \
+        with patch("main.generate_good_night", return_value={"Facebook": "caption"}), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
-        m.poster_manager.post_video.assert_called_once_with(fake_clip, "caption")
+        m.poster_manager.post_video.assert_called_once_with(fake_clip, {"Facebook": "caption"})
 
     def test_falls_back_to_snapshot_when_no_clip(self, tmp_path):
         m = self._make(tmp_path)
         m._get_todays_clip = MagicMock(return_value=None)
         m.camera.capture_snapshot.return_value = True
         m.poster_manager.post_photo.return_value = {"Facebook": True}
-        with patch("main.generate_good_night", return_value="caption"), \
+        with patch("main.generate_good_night", return_value={"Facebook": "caption"}), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
         m.poster_manager.post_photo.assert_called_once()
@@ -380,10 +380,10 @@ class TestPostGoodnight:
         m = self._make(tmp_path)
         m._get_todays_clip = MagicMock(return_value=None)
         m.camera.capture_snapshot.return_value = False
-        with patch("main.generate_good_night", return_value="caption"), \
+        with patch("main.generate_good_night", return_value={"Facebook": "caption"}), \
              patch("main.get_schedule_info", return_value=self._SCHEDULE):
             m._post_goodnight(self._SCHEDULE)
-        m.poster_manager.post_text.assert_called_once_with("caption")
+        m.poster_manager.post_text.assert_called_once_with({"Facebook": "caption"})
 
 
 class TestPostWorker:
@@ -411,7 +411,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption") as mock_gen, \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption"}) as mock_gen, \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 
@@ -427,7 +427,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption") as mock_gen, \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption"}) as mock_gen, \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 
@@ -441,7 +441,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption") as mock_gen, \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption"}) as mock_gen, \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 
@@ -458,7 +458,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption") as mock_gen, \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption"}) as mock_gen, \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 
@@ -472,7 +472,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption") as mock_gen, \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption"}) as mock_gen, \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 
@@ -487,7 +487,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption"), \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption"}), \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 
@@ -500,7 +500,7 @@ class TestPostWorker:
         clip_path = tmp_path / "hummer_test.mp4"
         clip_path.write_bytes(b"fake video data")
 
-        with patch("main.generate_comment", return_value="test caption here"), \
+        with patch("main.generate_comment", return_value={"Facebook": "test caption here"}), \
              patch("main.get_schedule_info", return_value={"sunrise": "6 AM", "sunset": "8 PM"}):
             self._run_worker_with_clip(m, clip_path)
 

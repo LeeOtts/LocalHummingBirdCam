@@ -26,29 +26,36 @@ Tone & Style:
 
 Hard Rules:
 - Do NOT mention AI, models, prompts, or automation
-- Do NOT use hashtags
 - Use 0-1 emojis maximum
-
+{platform_block}
 Output: Return ONLY the caption text.
 """
 
 
-def generate_weekly_digest(db) -> str | None:
+def generate_weekly_digest(db, platforms: list[str] | None = None) -> "dict[str, str] | None":
     """Generate a weekly digest caption from the sightings database."""
+    from social.comment_generator import (
+        _get_client, _OpenAIError, _build_platform_block, _parse_platform_captions,
+    )
+
+    platforms = platforms or ["Facebook"]
+    multi = len(platforms) > 1
     summary = db.get_weekly_summary()
 
     if summary["total"] == 0 and summary["last_week_total"] == 0:
         return None
 
     try:
-        from social.comment_generator import _get_client, _OpenAIError
-
         client = _get_client()
         if not client:
-            return _fallback_digest(summary)
+            fb = _fallback_digest(summary)
+            return {p: fb for p in platforms}
 
         busiest = summary.get("busiest_day")
         busiest_text = f"{busiest['date']} ({busiest['total_detections']} visits)" if busiest else "N/A"
+
+        platform_block = _build_platform_block(platforms) if multi else ""
+        max_tok = 400 if multi else 250
 
         response = client.chat.completions.create(
             model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
@@ -59,19 +66,27 @@ def generate_weekly_digest(db) -> str | None:
                     trend=summary["trend"],
                     busiest_day=busiest_text,
                     best_caption=(summary.get("best_caption") or "N/A")[:200],
+                    platform_block=platform_block,
                 )},
                 {"role": "user", "content": "Write this week's recap post."},
             ],
-            max_tokens=250,
+            max_tokens=max_tok,
             temperature=0.9,
         )
-        caption = (response.choices[0].message.content or "").strip()
-        logger.info("Weekly digest: %s", caption)
-        return caption
+        raw = (response.choices[0].message.content or "").strip()
+
+        if multi:
+            captions = _parse_platform_captions(raw, platforms)
+        else:
+            captions = {platforms[0]: raw}
+
+        logger.info("Weekly digest: %s", captions)
+        return captions
 
     except Exception:
         logger.exception("Failed to generate weekly digest")
-        return _fallback_digest(summary)
+        fb = _fallback_digest(summary)
+        return {p: fb for p in platforms}
 
 
 def _fallback_digest(summary: dict) -> str:

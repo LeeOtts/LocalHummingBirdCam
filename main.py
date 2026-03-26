@@ -426,15 +426,16 @@ class HummingbirdMonitor:
                 from analytics.patterns import get_weather
                 weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
 
-            caption = generate_good_morning(
+            captions = generate_good_morning(
                 location=config.LOCATION_NAME,
                 sunrise=schedule_info["sunrise"],
+                platforms=self.poster_manager.platform_names,
                 day_of_week=now.strftime("%A"),
                 month=now.strftime("%B"),
                 yesterday_detections=self._yesterday_detections or None,
                 weather=weather,
             )
-            logger.info("Morning post: %s", caption)
+            logger.info("Morning post: %s", captions)
 
             if self.test_mode:
                 logger.info("TEST MODE — skipping morning post")
@@ -444,7 +445,7 @@ class HummingbirdMonitor:
             snapshot_path = config.CLIPS_DIR / f"morning_{now.strftime('%Y%m%d')}.jpg"
             if self.camera.capture_snapshot(snapshot_path):
                 logger.info("Morning post: attaching camera snapshot")
-                results = self.poster_manager.post_photo(snapshot_path, caption)
+                results = self.poster_manager.post_photo(snapshot_path, captions)
                 try:
                     snapshot_path.unlink(missing_ok=True)
                 except Exception:
@@ -454,7 +455,7 @@ class HummingbirdMonitor:
 
             # Fallback to text-only
             logger.info("Morning post: no snapshot available, posting text-only")
-            self.poster_manager.post_text(caption)
+            self.poster_manager.post_text(captions)
         except Exception:
             logger.exception("Failed to post morning greeting")
 
@@ -477,17 +478,18 @@ class HummingbirdMonitor:
             # Check for new record
             is_record = det > self._all_time_record and det > 0
 
-            caption = generate_good_night(
+            captions = generate_good_night(
                 location=config.LOCATION_NAME,
                 sunset=schedule_info["sunset"],
                 detections=det,
                 rejected=rej,
+                platforms=self.poster_manager.platform_names,
                 day_of_week=now.strftime("%A"),
                 month=now.strftime("%B"),
                 peak_hour=peak_hour,
                 is_record=is_record,
             )
-            logger.info("Goodnight post: %s", caption)
+            logger.info("Goodnight post: %s", captions)
 
             if self.test_mode:
                 logger.info("TEST MODE — skipping goodnight post")
@@ -498,7 +500,7 @@ class HummingbirdMonitor:
                 clip = self._get_todays_clip()
                 if clip:
                     logger.info("Goodnight post: attaching today's clip %s", clip.name)
-                    results = self.poster_manager.post_video(clip, caption)
+                    results = self.poster_manager.post_video(clip, captions)
                     posted = any(results.values())
 
                 # Fallback: try a live camera snapshot
@@ -507,7 +509,7 @@ class HummingbirdMonitor:
                     snapshot_path = config.CLIPS_DIR / f"goodnight_{now_ts.strftime('%Y%m%d')}.jpg"
                     if self.camera.capture_snapshot(snapshot_path):
                         logger.info("Goodnight post: no clips today, attaching snapshot")
-                        results = self.poster_manager.post_photo(snapshot_path, caption)
+                        results = self.poster_manager.post_photo(snapshot_path, captions)
                         posted = any(results.values())
                         try:
                             snapshot_path.unlink(missing_ok=True)
@@ -517,7 +519,7 @@ class HummingbirdMonitor:
                 # Final fallback: text-only
                 if not posted:
                     logger.info("Goodnight post: no media available, posting text-only")
-                    self.poster_manager.post_text(caption)
+                    self.poster_manager.post_text(captions)
 
             # Save daily stats to database
             if self.sightings_db:
@@ -557,12 +559,15 @@ class HummingbirdMonitor:
         try:
             from social.digest import generate_weekly_digest, create_thumbnail_collage
 
-            caption = generate_weekly_digest(self.sightings_db)
-            if not caption:
+            captions = generate_weekly_digest(
+                self.sightings_db,
+                platforms=self.poster_manager.platform_names,
+            )
+            if not captions:
                 logger.info("Weekly digest: no data to report, skipping")
                 return
 
-            logger.info("Weekly digest: %s", caption)
+            logger.info("Weekly digest: %s", captions)
 
             if self.test_mode:
                 logger.info("TEST MODE — skipping weekly digest post")
@@ -573,13 +578,13 @@ class HummingbirdMonitor:
             # Try to create a thumbnail collage for a photo post
             collage_path = config.CLIPS_DIR / f"digest_{date.today()}.jpg"
             if create_thumbnail_collage(self.sightings_db, collage_path):
-                results = self.poster_manager.post_photo(collage_path, caption)
+                results = self.poster_manager.post_photo(collage_path, captions)
                 try:
                     collage_path.unlink(missing_ok=True)
                 except Exception:
                     pass
             else:
-                results = self.poster_manager.post_text(caption)
+                results = self.poster_manager.post_text(captions)
 
             if any(results.values()):
                 logger.info("Weekly digest posted to: %s",
@@ -647,9 +652,10 @@ class HummingbirdMonitor:
                 # Extract a frame for vision captions
                 frame_path = self._extract_frame(clip_path)
 
-                caption = generate_comment(
+                captions = generate_comment(
                     detections=det,
                     rejected=rej,
+                    platforms=self.poster_manager.platform_names,
                     visit_number=det,
                     time_of_day=now.strftime("%I:%M %p").lstrip("0"),
                     day_part=_get_day_part(now.hour),
@@ -662,6 +668,7 @@ class HummingbirdMonitor:
                     frame_path=frame_path,
                     weather=weather,
                 )
+                caption = captions.get("Facebook") or next(iter(captions.values()))
 
                 # Save caption alongside the clip
                 caption_path = clip_path.with_suffix(".txt")
@@ -681,7 +688,7 @@ class HummingbirdMonitor:
                     logger.info("TEST MODE — skipping posting for %s", clip_path.name)
                 else:
                     logger.info("Posting to platforms: %s", clip_path.name)
-                    results = self.poster_manager.post_video(clip_path, caption)
+                    results = self.poster_manager.post_video(clip_path, captions)
                     any_success = any(results.values())
 
                     if any_success:
@@ -693,13 +700,14 @@ class HummingbirdMonitor:
                     # Post a separate milestone celebration if we hit one
                     if milestone:
                         days_running = (date.today() - date(2025, 3, 1)).days  # approx start
-                        milestone_caption = generate_milestone_post(
+                        milestone_captions = generate_milestone_post(
                             lifetime_count=lifetime,
                             today_count=det,
                             days_running=days_running,
+                            platforms=self.poster_manager.platform_names,
                         )
-                        logger.info("Milestone post: %s", milestone_caption)
-                        self.poster_manager.post_text(milestone_caption)
+                        logger.info("Milestone post: %s", milestone_captions)
+                        self.poster_manager.post_text(milestone_captions)
 
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)

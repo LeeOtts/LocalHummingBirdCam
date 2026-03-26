@@ -43,7 +43,8 @@ class TestGenerateMilestonePost:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_milestone_post(1000, today_count=5, days_running=90)
 
-        assert result == "Visitor #1000! That's a lot of tiny tongues."
+        assert isinstance(result, dict)
+        assert result["Facebook"] == "Visitor #1000! That's a lot of tiny tongues."
         mock_client.chat.completions.create.assert_called_once()
 
     def test_prompt_contains_milestone_count(self, monkeypatch):
@@ -66,7 +67,8 @@ class TestGenerateMilestonePost:
         from social.comment_generator import generate_milestone_post
         monkeypatch.setattr(config, "OPENAI_API_KEY", "")
         result = generate_milestone_post(250)
-        assert "250" in result
+        assert isinstance(result, dict)
+        assert "250" in result["Facebook"]
 
     def test_fallback_on_api_error(self, monkeypatch):
         import config
@@ -82,7 +84,8 @@ class TestGenerateMilestonePost:
         mock_client.chat.completions.create.side_effect = OpenAIError("fail")
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_milestone_post(100)
-        assert "100" in result
+        assert isinstance(result, dict)
+        assert "100" in result["Facebook"]
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +120,7 @@ class TestWeatherInCaptions:
         mock_client = _mock_api_response("Normal caption.")
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=1, rejected=0)
-        assert result == "Normal caption."
+        assert result["Facebook"] == "Normal caption."
 
     def test_weather_in_morning_prompt(self, monkeypatch):
         import config
@@ -162,8 +165,8 @@ class TestBirdPersonality:
             )
 
         # Caption should NOT include the BIRD: line
-        assert "BIRD:" not in result
-        assert result == "Hovering with intent."
+        assert "BIRD:" not in result["Facebook"]
+        assert result["Facebook"] == "Hovering with intent."
         # Description should be stored
         assert len(cg._recent_descriptions) == 1
         assert "magenta gorget" in cg._recent_descriptions[0]
@@ -178,7 +181,7 @@ class TestBirdPersonality:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=1, rejected=0)
 
-        assert result == "Just a regular caption."
+        assert result["Facebook"] == "Just a regular caption."
         assert len(cg._recent_descriptions) == 0
 
     def test_recent_descriptions_fed_into_prompt(self, monkeypatch):
