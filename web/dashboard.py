@@ -252,7 +252,7 @@ def _get_status():
     return s
 
 
-def _get_recent_clips(limit=12):
+def _get_recent_clips(limit=6):
     """Get the most recent clips with their captions."""
     if not config.CLIPS_DIR.exists():
         return []
