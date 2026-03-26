@@ -1,6 +1,7 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--tb=short -q"
+markers = ["memory: memory profiling tests (may be slow)"]
 
 [tool.coverage.run]
 source = ["."]
