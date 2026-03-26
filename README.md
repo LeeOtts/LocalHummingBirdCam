@@ -13,7 +13,7 @@ When a Ruby-throated Hummingbird hits the feeder, the system:
 - checks the weather so it can work that into the commentary
 - and posts it to **Facebook**, **Twitter/X**, and **Bluesky** simultaneously before the bird even leaves
 
-Follow the operation here: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
+Follow the operation: [Facebook](https://www.facebook.com/backyard.hummers) | [Bluesky](https://bsky.app/profile/backyardhummers.bsky.social) | [X](https://x.com/backyardhummers) | [Instagram](https://www.instagram.com/backyard.hummers)
 
 My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi collecting dust on my desk and said:
 
@@ -280,6 +280,9 @@ This started as "I can do that" and turned into a multi-stage AI surveillance pi
 
 It is absolutely over-engineered. It will never not be over-engineered. That is the point.
 
-Watch the birds in action: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
-
-Source code: [github.com/LeeOtts/LocalHummingBirdCam](https://github.com/LeeOtts/LocalHummingBirdCam)
+Follow along:
+- Facebook: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
+- Bluesky: [backyardhummers.bsky.social](https://bsky.app/profile/backyardhummers.bsky.social)
+- Twitter/X: [x.com/backyardhummers](https://x.com/backyardhummers)
+- Instagram: [instagram.com/backyard.hummers](https://www.instagram.com/backyard.hummers)
+- Source code: [github.com/LeeOtts/LocalHummingBirdCam](https://github.com/LeeOtts/LocalHummingBirdCam)
