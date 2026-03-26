@@ -20,22 +20,34 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-import numpy as np
-
 import config
 from tests.memory_helpers import MemorySnapshot, log_snapshots_to_csv, take_snapshot
+
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    _HAS_NUMPY = False
 
 
 def _make_lores_frame():
     """Random 320x240 BGR frame for motion detection."""
-    return np.random.randint(0, 255, (config.LORES_HEIGHT, config.LORES_WIDTH, 3), dtype=np.uint8)
+    if _HAS_NUMPY:
+        return np.random.randint(0, 255, (config.LORES_HEIGHT, config.LORES_WIDTH, 3), dtype=np.uint8)
+    import random
+    size = config.LORES_HEIGHT * config.LORES_WIDTH * 3
+    return bytearray(random.getrandbits(8) for _ in range(size))
 
 
 def _make_hires_frame():
     """Random full-res BGR frame for buffer filling."""
-    return np.random.randint(
-        0, 255, (config.VIDEO_HEIGHT, config.VIDEO_WIDTH, 3), dtype=np.uint8
-    )
+    if _HAS_NUMPY:
+        return np.random.randint(
+            0, 255, (config.VIDEO_HEIGHT, config.VIDEO_WIDTH, 3), dtype=np.uint8
+        )
+    import random
+    size = config.VIDEO_HEIGHT * config.VIDEO_WIDTH * 3
+    return bytearray(random.getrandbits(8) for _ in range(size))
 
 
 def main():
