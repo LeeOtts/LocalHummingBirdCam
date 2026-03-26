@@ -22,10 +22,10 @@ fi
 
 logger -t "$LOG_TAG" "New commit detected: $LOCAL -> $REMOTE"
 
-# Pull the latest changes
-git pull origin "$BRANCH" --ff-only
+# Reset to remote HEAD (avoids conflicts when tracked files like this script change)
+git reset --hard "origin/$BRANCH"
 if [ $? -ne 0 ]; then
-    logger -t "$LOG_TAG" "ERROR: git pull failed, skipping update"
+    logger -t "$LOG_TAG" "ERROR: git reset failed, skipping update"
     exit 1
 fi
 
