@@ -566,6 +566,20 @@
                     <div style="font-size: 0.75em; color: #b0a58e; margin-top: 2px;" id="stat-weather-humidity">Humidity: {{ status.weather.humidity }}%</div>
                 </div>
                 {% endif %}
+                {% if status.tailscale %}
+                <div class="status-card">
+                    <div class="label">Tailscale</div>
+                    <div class="value {{ 'green' if status.tailscale.connected else 'red' }}" style="font-size: 1em;" id="stat-tailscale">
+                        {{ 'CONNECTED' if status.tailscale.connected else 'DISCONNECTED' }}
+                    </div>
+                    {% if status.tailscale.ip %}
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-tailscale-ip">{{ status.tailscale.ip }}</div>
+                    {% endif %}
+                    {% if status.tailscale.hostname %}
+                    <div style="font-size: 0.70em; color: #b0a58e; margin-top: 2px;" id="stat-tailscale-host">{{ status.tailscale.hostname }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -712,6 +726,19 @@
                         }
                         if (wDesc) wDesc.textContent = d.weather.description;
                         if (wHum) wHum.textContent = 'Humidity: ' + d.weather.humidity + '%';
+                    }
+
+                    // Tailscale
+                    if (d.tailscale) {
+                        const tsEl = el('stat-tailscale');
+                        if (tsEl) {
+                            tsEl.textContent = d.tailscale.connected ? 'CONNECTED' : 'DISCONNECTED';
+                            tsEl.className = 'value ' + (d.tailscale.connected ? 'green' : 'red');
+                        }
+                        const tsIp = el('stat-tailscale-ip');
+                        if (tsIp && d.tailscale.ip) tsIp.textContent = d.tailscale.ip;
+                        const tsHost = el('stat-tailscale-host');
+                        if (tsHost && d.tailscale.hostname) tsHost.textContent = d.tailscale.hostname;
                     }
 
                     if (d.schedule) {

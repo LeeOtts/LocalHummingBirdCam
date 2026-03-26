@@ -216,6 +216,39 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `SLEEP_AFTER_SUNSET_MIN` | `30` | Minutes after sunset to sleep |
 | `WEB_PORT` | `8080` | Dashboard port |
 
+## Remote Access (Tailscale)
+
+Access the dashboard and SSH from anywhere using [Tailscale](https://tailscale.com/) — no port forwarding required.
+
+**Setup on the Pi:**
+
+```bash
+bash scripts/setup_tailscale.sh
+```
+
+This installs Tailscale, enables Tailscale SSH, and prints your Tailscale IP. Follow the authentication URL that appears to log in to your Tailscale account.
+
+**Access remotely** from any device on your Tailscale network:
+
+```
+http://<tailscale-ip>:8080    # Dashboard
+ssh pi@<tailscale-hostname>   # SSH
+```
+
+**Show Tailscale status on the dashboard** by adding to `.env`:
+
+```
+TAILSCALE_ENABLED=true
+```
+
+**Optional — public sharing** via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel):
+
+```bash
+bash scripts/setup_tailscale.sh --funnel
+```
+
+> **Security tip:** Set `WEB_PASSWORD` in `.env` when enabling remote access — without it, anyone on your Tailscale network can view the dashboard.
+
 ## Cheat Sheet
 
 | What | How |

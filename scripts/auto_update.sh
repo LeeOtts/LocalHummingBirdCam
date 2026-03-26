@@ -50,4 +50,12 @@ fi
 logger -t "$LOG_TAG" "Restarting hummingbird service..."
 sudo systemctl restart hummingbird
 
+# Restart Tailscale daemon if its setup script changed
+if command -v tailscale &>/dev/null; then
+    if git diff "$LOCAL" "$REMOTE" --name-only | grep -q "setup_tailscale.sh"; then
+        logger -t "$LOG_TAG" "Tailscale setup script changed, restarting tailscaled..."
+        sudo systemctl restart tailscaled 2>/dev/null || true
+    fi
+fi
+
 logger -t "$LOG_TAG" "Update complete! Now running $NEW_HEAD"
