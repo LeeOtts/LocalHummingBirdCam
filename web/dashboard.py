@@ -596,9 +596,10 @@ def test_record():
                         pass
 
                 # Generate caption with full context
-                caption = generate_comment(
+                captions = generate_comment(
                     detections=det,
                     rejected=rej,
+                    platforms=_monitor.poster_manager.platform_names or None,
                     visit_number=det,
                     time_of_day=now.strftime("%I:%M %p").lstrip("0"),
                     day_part=day_part,
@@ -609,6 +610,7 @@ def test_record():
                     frame_path=frame_path,
                     weather=weather,
                 )
+                caption = captions.get("Facebook") or next(iter(captions.values()))
                 # Save caption alongside clip
                 caption_file = clip_path.with_suffix(".txt")
                 caption_file.write_text(caption)
@@ -617,7 +619,7 @@ def test_record():
                 # Post to all configured platforms — full pipeline test
                 if _monitor.poster_manager.platform_names:
                     logger.info("Posting test clip to all platforms...")
-                    results = _monitor.poster_manager.post_video(clip_path, caption)
+                    results = _monitor.poster_manager.post_video(clip_path, captions)
                     posted = [p for p, ok in results.items() if ok]
                     failed = [p for p, ok in results.items() if not ok]
                     if posted:
