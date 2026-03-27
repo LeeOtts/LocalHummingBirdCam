@@ -1100,7 +1100,6 @@ def gallery():
         clips=page_clips,
         page=page,
         has_more=len(clips) > start + per_page,
-        total_visitors=_monitor.sightings_db.get_total_page_views() if _monitor and _monitor.sightings_db else 0,
     )
 
 
