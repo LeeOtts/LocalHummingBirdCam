@@ -13,8 +13,7 @@ from utils import safe_read_json, safe_write_json
 
 logger = logging.getLogger(__name__)
 
-GRAPH_API_VERSION = os.getenv("FACEBOOK_API_VERSION", "v22.0")
-GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
+GRAPH_API_BASE = f"https://graph.facebook.com/{config.FACEBOOK_API_VERSION}"
 
 
 class FacebookPoster(SocialPoster):

@@ -20,13 +20,19 @@ This script will:
     - Write everything to your .env file
 """
 
+import os
 import sys
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 
+# Load .env file so we can read FACEBOOK_API_VERSION if set
+load_dotenv()
 
-GRAPH_API = "https://graph.facebook.com/v22.0"
+# Load version from .env or use default
+api_version = os.getenv("FACEBOOK_API_VERSION", "v25.0")
+GRAPH_API = f"https://graph.facebook.com/{api_version}"
 
 
 def get_long_lived_token(app_id: str, app_secret: str, short_token: str) -> str:
