@@ -292,8 +292,8 @@ class FacebookPoster(SocialPoster):
     def post_photo(self, image_path: Path, caption: str) -> bool:
         """Upload a photo as a feed post on the Facebook Page.
 
-        Posts directly to /photos with published=true and message so it
-        appears as a proper feed/timeline post (not a standalone photo).
+        Posts to /feed with attached photo so it appears as a proper
+        feed/timeline post that people see when scrolling (not just a photo album entry).
         """
         if not self.page_id or not self.access_token:
             logger.error("Facebook credentials not configured")
@@ -305,19 +305,18 @@ class FacebookPoster(SocialPoster):
         try:
             with open(image_path, "rb") as f:
                 resp = requests.post(
-                    f"{GRAPH_API_BASE}/{self.page_id}/photos",
+                    f"{GRAPH_API_BASE}/{self.page_id}/feed",
                     data={
                         "message": caption,
-                        "published": "true",
                         "access_token": self.access_token,
                     },
-                    files={"source": f},
+                    files={"picture": f},
                     timeout=60,
                 )
             resp.raise_for_status()
             resp_data = resp.json()
-            post_id = resp_data.get("post_id", resp_data.get("id", "unknown"))
-            logger.info("Photo post published! Post ID: %s", post_id)
+            post_id = resp_data.get("id", "unknown")
+            logger.info("Photo feed post published! Post ID: %s", post_id)
 
             self._posts_today += 1
             return True
@@ -325,7 +324,7 @@ class FacebookPoster(SocialPoster):
         except requests.RequestException as e:
             if hasattr(e, "response") and e.response is not None:
                 logger.error("Facebook response: %s", e.response.text)
-            logger.exception("Facebook photo upload failed for %s", image_path.name)
+            logger.exception("Facebook photo feed post failed for %s", image_path.name)
             return False
 
     def _save_to_retry_queue(self, mp4_path: Path, caption: str):
