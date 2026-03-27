@@ -146,36 +146,63 @@ class HummingbirdMonitor:
         self._morning_posted, self._night_posted, self._digest_posted = self._load_post_state()
 
     def _load_post_state(self) -> tuple:
-        """Load today's morning/night/digest post flags from disk to prevent duplicates on restart."""
+        """Load morning/night/digest post flags from disk to prevent duplicates on restart.
+        
+        Uses timestamp-based tracking (Unix time) instead of date strings to survive
+        system clock jumps (e.g., NTP resync, manual adjustment). Posts are blocked
+        if they've already been made in the last 24 hours.
+        """
         try:
             data = safe_read_json(self._state_file, default={})
             if not data:
                 return False, False, False
 
-            # Always restore lifetime stats regardless of date
+            # Always restore lifetime stats
             self._all_time_record = data.get("all_time_record", 0)
             self._total_lifetime_detections = data.get("total_lifetime_detections", 0)
             self._yesterday_detections = data.get("yesterday_detections", 0)
 
-            if data.get("date") == str(date.today()):
-                morning = data.get("morning_posted", False)
-                night = data.get("night_posted", False)
-                digest = data.get("digest_posted", False)
-                logger.info("Restored post state: morning=%s, night=%s, digest=%s", morning, night, digest)
-                return morning, night, digest
-            # Stale date — reset
-            logger.info("Post state is from %s, resetting for today", data.get("date"))
-        except (KeyError, TypeError):
+            # Timestamp-based tracking: Check if > 24 hours since last post
+            # This survives clock jumps (unlike date-based tracking)
+            now = time.time()
+            SECONDS_PER_DAY = 24 * 60 * 60
+            
+            morning_ts = data.get("last_morning_post_ts", 0)
+            night_ts = data.get("last_night_post_ts", 0)
+            digest_ts = data.get("last_digest_post_ts", 0)
+            
+            # Posts are active if they were posted < 24 hours ago
+            morning = (now - morning_ts) < SECONDS_PER_DAY
+            night = (now - night_ts) < SECONDS_PER_DAY
+            digest = (now - digest_ts) < SECONDS_PER_DAY
+            
+            logger.info(
+                "Restored post state (timestamp-based): morning=%s (%.1fh ago), "
+                "night=%s (%.1fh ago), digest=%s (%.1fh ago)",
+                morning, (now - morning_ts) / 3600 if morning_ts else float('inf'),
+                night, (now - night_ts) / 3600 if night_ts else float('inf'),
+                digest, (now - digest_ts) / 3600 if digest_ts else float('inf'),
+            )
+            return morning, night, digest
+            
+        except (KeyError, TypeError, ValueError):
             logger.exception("Failed to load post state")
         return False, False, False
 
     def _save_post_state(self):
-        """Save morning/night/digest post flags and engagement stats to disk (atomic write)."""
+        """Save morning/night/digest post flags and engagement stats to disk (atomic write).
+        
+        Uses Unix timestamps to track last post time (survives clock jumps).
+        """
+        now = time.time()
         safe_write_json(self._state_file, {
+            # Timestamp-based tracking (replaces old date-based tracking)
+            "last_morning_post_ts": now if self._morning_posted else 0,
+            "last_night_post_ts": now if self._night_posted else 0,
+            "last_digest_post_ts": now if self._digest_posted else 0,
+            # Legacy date field for debugging/inspection (no longer used for logic)
             "date": str(date.today()),
-            "morning_posted": self._morning_posted,
-            "night_posted": self._night_posted,
-            "digest_posted": self._digest_posted,
+            # Engagement stats
             "yesterday_detections": self._yesterday_detections,
             "all_time_record": self._all_time_record,
             "total_lifetime_detections": self._total_lifetime_detections,

@@ -93,8 +93,12 @@ def _enforce_auth():
 
 
 def _update_env_value(key: str, value) -> bool:
-    """Update or add a key=value in the .env file so it persists across restarts."""
+    """Update or add a key=value in the .env file so it persists across restarts.
+    
+    Uses atomic write (temp file + rename) to prevent corruption if process crashes mid-write.
+    """
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    tmp_path = env_path + ".tmp"
     try:
         lines = []
         found = False
@@ -109,11 +113,20 @@ def _update_env_value(key: str, value) -> bool:
                     break
         if not found:
             lines.append(f"{key}={value}\n")
-        with open(env_path, "w") as f:
+        
+        # Atomic write: temp file then replace (safe from crash mid-write)
+        with open(tmp_path, "w") as f:
             f.writelines(lines)
+        os.replace(tmp_path, env_path)  # Atomic on Windows/POSIX
         return True
     except OSError:
         logger.exception("Failed to save %s to .env", key)
+        # Clean up temp file if it exists
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
         return False
 
 
