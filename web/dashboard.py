@@ -918,6 +918,26 @@ def trigger_update():
         if local == remote:
             return {"ok": True, "updated": False, "message": "Already up to date"}
 
+        # Clean up files that are no longer tracked but may cause merge conflicts
+        # (e.g., retry_queue.json which is now in .gitignore)
+        conflict_files = []
+        try:
+            # Check for conflicting untracked files that would block merge
+            status_result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, timeout=5,
+                cwd=project_dir,
+            )
+            # If retry_queue.json shows as modified or is tracked, remove it
+            if "retry_queue.json" in status_result.stdout:
+                retry_queue_path = Path(project_dir) / "retry_queue.json"
+                if retry_queue_path.exists():
+                    logger.info("Removing retry_queue.json to allow clean merge (will be recreated at runtime)")
+                    retry_queue_path.unlink()
+                    conflict_files.append("retry_queue.json")
+        except Exception as e:
+            logger.warning("Failed to check git status: %s", e)
+
         # Pull
         pull_result = subprocess.run(
             ["git", "pull", "origin", "main", "--ff-only"],
@@ -926,7 +946,11 @@ def trigger_update():
         )
 
         if pull_result.returncode != 0:
-            logger.error("Git pull failed: %s", pull_result.stderr)
+            # If pull failed and we removed files, log that info
+            if conflict_files:
+                logger.error("Git pull failed after cleanup: %s", pull_result.stderr)
+            else:
+                logger.error("Git pull failed: %s", pull_result.stderr)
             return {"ok": False, "error": "git pull failed"}, 500
 
         new_commit = subprocess.run(
