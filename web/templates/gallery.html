@@ -27,7 +27,6 @@
         .nav a { color: #d4a017; text-decoration: none; margin: 0 15px; font-weight: 600; }
         .nav a:hover { text-decoration: underline; }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        .visitor-count { text-align: center; color: #b0a58e; margin-bottom: 20px; font-size: 0.9em; }
         .clip-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -82,8 +81,6 @@
         <a href="/analytics">Analytics</a>
     </div>
     <div class="container">
-        <div class="visitor-count">{{ total_visitors }} birdwatcher{{ 's' if total_visitors != 1 else '' }} have visited</div>
-
         {% if clips %}
         <div class="clip-grid">
             {% for clip in clips %}
