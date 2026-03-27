@@ -95,6 +95,10 @@ LORES_HEIGHT = 240
 # Disk management — auto-delete oldest clips when total exceeds this limit
 MAX_CLIPS_DISK_MB = int(os.getenv("MAX_CLIPS_DISK_MB", "2000"))  # 2GB default
 
+# Video upload size limit (prevents wasted API calls on oversized files)
+# Twitter free tier: ~512MB limit, Facebook: ~4GB limit; use conservative default
+MAX_VIDEO_FILE_SIZE_MB = int(os.getenv("MAX_VIDEO_FILE_SIZE_MB", "500"))
+
 # Paths
 CLIPS_DIR = BASE_DIR / os.getenv("CLIPS_DIR", "clips")
 LOGS_DIR = BASE_DIR / os.getenv("LOGS_DIR", "logs")

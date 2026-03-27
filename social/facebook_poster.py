@@ -27,6 +27,23 @@ class FacebookPoster(SocialPoster):
         self._posts_today = 0
         self._today = self._date_in_local_tz()
         self._retry_in_progress = False
+        
+        # Prune retry queue on startup (remove entries with missing clip files)
+        self._prune_retry_queue_on_startup()
+
+    def _prune_retry_queue_on_startup(self):
+        """Clean up retry queue on startup: remove entries whose clips no longer exist."""
+        if not config.RETRY_QUEUE_FILE.exists():
+            return
+        try:
+            queue = safe_read_json(config.RETRY_QUEUE_FILE, default=[])
+            original_len = len(queue)
+            queue = [e for e in queue if Path(e.get("mp4_path", "")).exists()]
+            if len(queue) < original_len:
+                safe_write_json(config.RETRY_QUEUE_FILE, queue)
+                logger.info("Retry queue pruned on startup: %d → %d entries", original_len, len(queue))
+        except Exception:
+            logger.exception("Failed to prune retry queue on startup")
 
     def is_configured(self) -> bool:
         return bool(self.page_id and self.access_token)
@@ -188,6 +205,16 @@ class FacebookPoster(SocialPoster):
 
         try:
             file_size = os.path.getsize(mp4_path)
+            file_size_mb = file_size / (1024 ** 2)
+            
+            # Validate file size before upload attempt (prevents wasted API calls)
+            if file_size_mb > config.MAX_VIDEO_FILE_SIZE_MB:
+                logger.error(
+                    "Video file %s is %.1f MB, exceeds limit of %d MB. "
+                    "Not posting or retrying (would always fail).",
+                    mp4_path.name, file_size_mb, config.MAX_VIDEO_FILE_SIZE_MB
+                )
+                return False  # Don't retry; file is too large and will never upload
 
             # Step 1: Initialize upload session
             init_resp = requests.post(
@@ -275,7 +302,8 @@ class FacebookPoster(SocialPoster):
             resp.raise_for_status()
             resp_data = resp.json()
             post_id = resp_data.get("id", "unknown")
-            logger.info("Text post published! Post ID: %s | Full response: %s", post_id, resp_data)
+            # Log only response keys to avoid exposing any sensitive fields
+            logger.info("Text post published! Post ID: %s | Response keys: %s", post_id, list(resp_data.keys()))
 
             # Verify the post is actually visible
             if post_id != "unknown":
@@ -330,13 +358,19 @@ class FacebookPoster(SocialPoster):
     def _save_to_retry_queue(self, mp4_path: Path, caption: str):
         """Save failed posts to a JSON retry queue for later.
 
-        Entries whose clip file no longer exists are pruned on write.
+        Entries whose clip file no longer exists are pruned only when queue reaches 80% capacity
+        (optimization: avoid filesystem stats on every post).
         The queue is capped at MAX_RETRY_QUEUE_SIZE; oldest entries are dropped first.
         """
         queue = safe_read_json(config.RETRY_QUEUE_FILE, default=[])
 
-        # Prune entries that point to missing clips
-        queue = [e for e in queue if Path(e.get("mp4_path", "")).exists()]
+        # Prune only if queue is getting large (80% of max) to avoid per-post overhead
+        PRUNE_THRESHOLD = config.MAX_RETRY_QUEUE_SIZE * 0.80
+        if len(queue) > PRUNE_THRESHOLD:
+            original_len = len(queue)
+            queue = [e for e in queue if Path(e.get("mp4_path", "")).exists()]
+            if len(queue) < original_len:
+                logger.info("Retry queue pruned: %d → %d (removed missing clips)", original_len, len(queue))
 
         queue.append({
             "mp4_path": str(mp4_path),
