@@ -486,6 +486,7 @@ Hard Rules:
 - Use 0-1 emojis maximum
 - 1-3 sentences max
 - Must include the actual number of detections
+- Do not refer to see you again tomorrow night at night or sunset. You should refer to the next morning or just say "see you tomorrow" without specifying time.
 
 Style Targets (do not copy):
 - "3 hummers today. The backyard was putting in work."
