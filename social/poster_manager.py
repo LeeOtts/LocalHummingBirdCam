@@ -33,6 +33,18 @@ class PosterManager:
         except Exception:
             logger.warning("Failed to initialize Facebook poster")
 
+        # Instagram
+        try:
+            from social.instagram_poster import InstagramPoster
+            ig = InstagramPoster()
+            if ig.is_configured():
+                self._posters.append(ig)
+                logger.info("Platform enabled: Instagram")
+            else:
+                logger.info("Platform skipped: Instagram (no credentials)")
+        except Exception:
+            logger.warning("Failed to initialize Instagram poster")
+
         # Bluesky
         try:
             from social.bluesky_poster import BlueskyPoster

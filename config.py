@@ -21,6 +21,14 @@ FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
 FACEBOOK_PAGE_ACCESS_TOKEN = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN", "")
 FACEBOOK_API_VERSION = os.getenv("FACEBOOK_API_VERSION", "v25.0")
 
+# Instagram (uses Meta Graph API — requires Instagram Business Account)
+# INSTAGRAM_BUSINESS_ACCOUNT_ID and INSTAGRAM_USER_ID can be found in Meta Business Suite
+# Reuses FACEBOOK_PAGE_ACCESS_TOKEN — ensure it has instagram_business_content_management scope
+INSTAGRAM_BUSINESS_ACCOUNT_ID = os.getenv("INSTAGRAM_BUSINESS_ACCOUNT_ID", "")
+INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID", "")
+INSTAGRAM_MAX_POSTS_PER_DAY = int(os.getenv("INSTAGRAM_MAX_POSTS_PER_DAY", os.getenv("MAX_POSTS_PER_DAY", "10")))
+INSTAGRAM_API_VERSION = os.getenv("INSTAGRAM_API_VERSION", "v25.0")
+
 # Detection tuning
 MOTION_THRESHOLD = float(os.getenv("MOTION_THRESHOLD", "15.0"))
 COLOR_MIN_AREA = int(os.getenv("COLOR_MIN_AREA", "300"))
