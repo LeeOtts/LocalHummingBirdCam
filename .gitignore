@@ -12,6 +12,7 @@ venv/
 
 # Project artifacts
 .post_state.json
+retry_queue.json
 clips/*.mp4
 clips/*.h264
 clips/*.txt
