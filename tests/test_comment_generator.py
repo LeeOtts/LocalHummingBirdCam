@@ -56,6 +56,7 @@ class TestNoApiKey:
         result = generate_good_night(
             location="Bartlett, TN", sunset="7:45 PM",
             detections=5, rejected=2,
+            lifetime_total=5,
         )
         assert isinstance(result, dict)
         assert "5" in result["Facebook"]

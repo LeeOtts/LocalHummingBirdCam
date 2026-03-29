@@ -460,6 +460,7 @@ class HummingbirdMonitor:
                 day_of_week=now.strftime("%A"),
                 month=now.strftime("%B"),
                 yesterday_detections=self._yesterday_detections or None,
+                lifetime_total=self._total_lifetime_detections,
                 weather=weather,
             )
             logger.info("Morning post: %s", captions)
@@ -515,6 +516,7 @@ class HummingbirdMonitor:
                 month=now.strftime("%B"),
                 peak_hour=peak_hour,
                 is_record=is_record,
+                lifetime_total=self._total_lifetime_detections,
             )
             logger.info("Goodnight post: %s", captions)
 

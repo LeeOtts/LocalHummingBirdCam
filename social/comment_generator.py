@@ -431,6 +431,7 @@ Context:
 - Month: {month}
 - Sunrise: {sunrise}
 - Yesterday's tally: {yesterday_text}
+- Lifetime hummingbird sightings so far: {lifetime_total}
 {weather_line}
 
 Tone & Style:
@@ -439,6 +440,7 @@ Tone & Style:
   checking the feeder
 - Understated humor, never forced
 
+{anticipation_block}\
 Engagement Hooks (use occasionally, not every post):
 - Tease a prediction ("Over/under on 5 today?")
 - Reference yesterday's tally to set expectations
@@ -472,6 +474,7 @@ Context:
 - Month: {month}
 - Sunset: {sunset}
 - Busiest hour: {peak_hour_text}
+- Lifetime hummingbird sightings so far: {lifetime_total}
 - {record_text}
 
 You must include the detection count naturally in the caption.
@@ -482,6 +485,7 @@ Tone & Style:
 - If 0 detections, lean into dry humor about a slow day
 - If many detections, play up how busy the backyard was
 
+{anticipation_block}\
 Engagement Hooks (use occasionally, not every post):
 - Ask followers to predict tomorrow's count
 - Compare to the record if relevant
@@ -507,12 +511,56 @@ Output: Return ONLY the caption text. No labels, no extra formatting.
 """
 
 
+_ANTICIPATION_MORNING = """\
+IMPORTANT — We have NEVER seen a hummingbird yet! Lifetime sightings: 0.
+The feeder is set up, the camera is rolling, and we are WAITING for the \
+first-ever visitor. Channel pure anticipation and excitement. This is the \
+"any day now" era. Build hype for the first sighting like it's the most \
+important event in backyard history. Every morning is another shot at \
+witnessing greatness.
+
+Style Targets for anticipation mode (do not copy):
+- "Day {day_number}. Still no hummers. But the feeder is full and hope is irrational."
+- "Sunrise at {sunrise}. Camera's on. Today could be THE day."
+- "The feeder's been out there doing its job. Now we need the hummers to do theirs."
+- "Still waiting on our first visitor. The suspense is honestly killing me."
+
+"""
+
+_ANTICIPATION_NIGHT = """\
+IMPORTANT — We have NEVER seen a hummingbird yet! Lifetime sightings: 0.
+Zero detections again today, but this isn't a slow day — we're still waiting \
+for the FIRST ONE EVER. Channel hopeful anticipation, not disappointment. \
+Tomorrow could be the day. The feeder is ready. We are ready. The hummers \
+are just building suspense.
+
+Style Targets for anticipation mode (do not copy):
+- "0 hummers today. 0 lifetime. But the feeder is patient and so are we."
+- "Still waiting on visitor #1. At this point it's going to be a whole event."
+- "No hummers yet. The feeder remains undefeated in the waiting game."
+- "0 sightings. The hummers are out there somewhere, probably stuck in traffic."
+
+"""
+
+
+def _get_anticipation_block(lifetime_total: int, is_morning: bool) -> str:
+    """Return anticipation prompt block if no hummingbirds have ever been seen."""
+    if lifetime_total > 0:
+        return ""
+    return _ANTICIPATION_MORNING if is_morning else _ANTICIPATION_NIGHT
+
+
 def generate_good_morning(location: str, sunrise: str,
                           platforms: list[str] | None = None, **kwargs) -> dict[str, str]:
     """Generate a morning greeting post, one caption per platform."""
     platforms = platforms or ["Facebook"]
     multi = len(platforms) > 1
-    fallback = f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
+    lifetime_total = kwargs.get("lifetime_total", 0)
+
+    if lifetime_total == 0:
+        fallback = f"Sunrise at {sunrise}. Camera's on. Still waiting for our first hummingbird. Today could be the day."
+    else:
+        fallback = f"Sun's up at {sunrise}. Feeder's full. Let's see who shows up."
 
     if not config.OPENAI_API_KEY:
         return {p: fallback for p in platforms}
@@ -527,6 +575,7 @@ def generate_good_morning(location: str, sunrise: str,
         weather_line = ""
 
     platform_block = _build_platform_block(platforms) if multi else ""
+    anticipation_block = _get_anticipation_block(lifetime_total, is_morning=True)
 
     try:
         client = _get_client()
@@ -540,8 +589,10 @@ def generate_good_morning(location: str, sunrise: str,
                     day_of_week=kwargs.get("day_of_week", ""),
                     month=kwargs.get("month", ""),
                     yesterday_text=yesterday_text,
+                    lifetime_total=lifetime_total,
                     weather_line=weather_line,
                     platform_block=platform_block,
+                    anticipation_block=anticipation_block,
                 )},
                 {"role": "user", "content": "Write this morning's post."},
             ],
@@ -568,7 +619,12 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
     """Generate an end-of-day recap post with hummer tally, one per platform."""
     platforms = platforms or ["Facebook"]
     multi = len(platforms) > 1
-    fallback = f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
+    lifetime_total = kwargs.get("lifetime_total", 0)
+
+    if lifetime_total == 0:
+        fallback = f"0 hummers today. 0 lifetime. But the feeder is patient and so are we. See you tomorrow."
+    else:
+        fallback = f"{detections} hummer(s) on camera today. Sun went down at {sunset}. See you tomorrow."
 
     if not config.OPENAI_API_KEY:
         return {p: fallback for p in platforms}
@@ -579,6 +635,7 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
     record_text = "New all-time record!" if is_record else ""
 
     platform_block = _build_platform_block(platforms) if multi else ""
+    anticipation_block = _get_anticipation_block(lifetime_total, is_morning=False)
 
     try:
         client = _get_client()
@@ -592,8 +649,10 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
                     day_of_week=kwargs.get("day_of_week", ""),
                     month=kwargs.get("month", ""),
                     peak_hour_text=peak_hour_text,
+                    lifetime_total=lifetime_total,
                     record_text=record_text,
                     platform_block=platform_block,
+                    anticipation_block=anticipation_block,
                 )},
                 {"role": "user", "content": "Write tonight's end-of-day recap post."},
             ],
