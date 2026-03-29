@@ -45,7 +45,15 @@ PYTHON="${PROJECT_DIR}/.venv/bin/python3"
 [ -x "$PYTHON" ] || PYTHON="python3"
 "$PYTHON" scripts/generate_site_data.py || echo "[$(date)] WARNING: site data generation failed"
 
-# Step 2: Sync site_data.json
+# Step 2: Sync static website files (HTML/CSS/JS/img — only transfers changed files)
+echo "[$(date)] Syncing website files..."
+rsync -az -e "ssh ${SSH_OPTS}" --timeout=60 \
+    --exclude='data/site_data.json' \
+    --exclude='clips/' \
+    "$PROJECT_DIR/website/" \
+    "${REMOTE}:${REMOTE_PATH}/"
+
+# Step 3: Sync site_data.json
 if [ -f "$SITE_DATA" ]; then
     echo "[$(date)] Syncing site_data.json..."
     rsync -az -e "ssh ${SSH_OPTS}" --timeout=30 \
@@ -53,7 +61,7 @@ if [ -f "$SITE_DATA" ]; then
         "${REMOTE}:${REMOTE_PATH}/data/site_data.json"
 fi
 
-# Step 3: Sync video clips (only .mp4 files, skip temp files)
+# Step 5: Sync video clips (only .mp4 files, skip temp files)
 if [ -d "$CLIPS_DIR" ]; then
     echo "[$(date)] Syncing clips..."
     rsync -az --timeout=60 \
