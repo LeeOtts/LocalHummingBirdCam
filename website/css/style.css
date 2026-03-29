@@ -275,7 +275,8 @@ a:hover { color: var(--gold-light); }
 .feed-wrapper {
     position: relative;
     width: 100%;
-    padding-bottom: 56.25%; /* 16:9 */
+    aspect-ratio: 16 / 9;
+    max-height: 75vh;
     background: #000;
 }
 
@@ -286,7 +287,7 @@ a:hover { color: var(--gold-light); }
     width: 100%;
     height: 100%;
     border: none;
-    object-fit: cover;
+    object-fit: contain;
     background: #000;
 }
 
