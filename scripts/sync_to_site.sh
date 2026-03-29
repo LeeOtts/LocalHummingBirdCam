@@ -15,6 +15,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Auto-update from git — pull latest code before syncing
+echo "[$(date)] Pulling latest from git..."
+git -C "$PROJECT_DIR" pull --ff-only 2>&1 || echo "[$(date)] WARNING: git pull skipped (local changes or conflict)"
+
 # Load config from .env
 if [ -f "$PROJECT_DIR/.env" ]; then
     # shellcheck disable=SC1091
