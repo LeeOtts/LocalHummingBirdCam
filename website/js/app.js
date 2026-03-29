@@ -7,11 +7,17 @@ const DATA_URL = 'data/site_data.json';
 
 // Social platform icons — Simple Icons CDN (colored SVGs)
 const PLATFORM_ICONS = {
-    facebook: { icon: '<img src="https://cdn.simpleicons.org/facebook/1877F2" alt="Facebook" class="social-logo">', label: 'Facebook' },
+    bluesky:   { icon: '<img src="https://cdn.simpleicons.org/bluesky/0085FF" alt="Bluesky" class="social-logo">', label: 'Bluesky' },
+    facebook:  { icon: '<img src="https://cdn.simpleicons.org/facebook/1877F2" alt="Facebook" class="social-logo">', label: 'Facebook' },
+    github:    { icon: '<img src="https://cdn.simpleicons.org/github/ffffff" alt="GitHub" class="social-logo">', label: 'GitHub' },
     instagram: { icon: '<img src="https://cdn.simpleicons.org/instagram/E4405F" alt="Instagram" class="social-logo">', label: 'Instagram' },
-    tiktok: { icon: '<img src="https://cdn.simpleicons.org/tiktok/010101" alt="TikTok" class="social-logo">', label: 'TikTok' },
-    twitter: { icon: '<img src="https://cdn.simpleicons.org/x/000000" alt="X / Twitter" class="social-logo">', label: 'X / Twitter' },
-    bluesky: { icon: '<img src="https://cdn.simpleicons.org/bluesky/0085FF" alt="Bluesky" class="social-logo">', label: 'Bluesky' },
+    tiktok:    { icon: '<img src="https://cdn.simpleicons.org/tiktok/ffffff" alt="TikTok" class="social-logo">', label: 'TikTok' },
+    twitter:   { icon: '<img src="https://cdn.simpleicons.org/x/ffffff" alt="X / Twitter" class="social-logo">', label: 'X / Twitter' },
+};
+
+// Static links always shown (not from Pi data)
+const STATIC_SOCIALS = {
+    github: 'https://github.com/LeeOtts/LocalHummingBirdCam',
 };
 
 let siteData = null;
@@ -168,11 +174,19 @@ function populateLatestDetection(data) {
  */
 function populateSocials(data) {
     const grid = document.getElementById('socialsGrid');
-    if (!grid || !data || !data.socials) return;
+    if (!grid) return;
+
+    const socials = { ...((data && data.socials) || {}), ...STATIC_SOCIALS };
+    const sorted = Object.entries(socials)
+        .filter(([, url]) => url)
+        .sort(([a], [b]) => {
+            const labelA = (PLATFORM_ICONS[a] || { label: a }).label;
+            const labelB = (PLATFORM_ICONS[b] || { label: b }).label;
+            return labelA.localeCompare(labelB);
+        });
 
     grid.innerHTML = '';
-    for (const [platform, url] of Object.entries(data.socials)) {
-        if (!url) continue;
+    for (const [platform, url] of sorted) {
         const info = PLATFORM_ICONS[platform] || { icon: '', label: platform };
         const card = document.createElement('a');
         card.href = url;
