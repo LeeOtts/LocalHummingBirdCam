@@ -278,9 +278,9 @@ a:hover { color: var(--gold-light); }
 
 .feed-wrapper {
     position: relative;
-    width: 100%;
+    width: min(100%, calc(58vh * 16 / 9));
     aspect-ratio: 16 / 9;
-    max-height: 75vh;
+    margin: 0 auto;
     background: #000;
 }
 
