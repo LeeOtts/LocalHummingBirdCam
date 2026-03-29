@@ -738,10 +738,24 @@ class HummingbirdMonitor:
                         logger.info("Milestone post: %s", milestone_captions)
                         self.poster_manager.post_text(milestone_captions)
 
+                # Generate thumbnail for the website gallery
+                try:
+                    ClipRecorder.generate_thumbnail(clip_path)
+                except Exception:
+                    logger.warning("Thumbnail generation failed for %s", clip_path.name)
+
+                # Regenerate site_data.json for the public website
+                if config.WEBSITE_SYNC_ENABLED:
+                    try:
+                        from scripts.generate_site_data import generate_site_data
+                        generate_site_data(self.sightings_db)
+                    except Exception:
+                        logger.warning("Site data generation failed")
+
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)
             finally:
-                # Clean up thumbnail to avoid disk accumulation
+                # Clean up vision frame to avoid disk accumulation
                 if frame_path:
                     try:
                         Path(frame_path).unlink(missing_ok=True)

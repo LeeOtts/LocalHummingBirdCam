@@ -81,7 +81,19 @@
       "Bash(python -m pytest -m memory -v)",
       "Bash(python -m pytest --tb=short -q)",
       "Bash(python -m pytest --tb=short)",
-      "Bash(python -m pytest tests/ -x)"
+      "Bash(python -m pytest tests/ -x)",
+      "Bash(find C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam -type f \\\\\\(-name *.py -o -name *.md \\\\\\) ! -path */.venv/* ! -path */.git/*)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|PLANNED\\\\|TODO:\" C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam --include=*.py --include=*.md)",
+      "WebFetch(domain:developers.facebook.com)",
+      "WebFetch(domain:developers.tiktok.com)",
+      "Bash(python -m pytest tests/test_instagram_poster.py tests/test_tiktok_poster.py tests/test_poster_manager.py tests/test_facebook_poster.py -v)",
+      "Bash(python -m pytest tests/test_instagram_poster.py tests/test_tiktok_poster.py -v)",
+      "Bash(python -m pytest tests/test_comment_generator.py tests/test_comment_generator_new.py tests/test_monitor.py -v)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find /c/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam -type f \\\\\\(-name package.json -o -name *.py -o -name *.sh -o -name *.bat -o -name *.ps1 -o -name vite.config.js -o -name webpack.config.js \\\\\\))",
+      "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/python -c \"import cv2; print\\(cv2.__version__\\)\")",
+      "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/pip list:*)",
+      "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/pip install:*)"
     ]
   }
 }

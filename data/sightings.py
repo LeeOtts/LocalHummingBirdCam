@@ -358,6 +358,96 @@ class SightingsDB:
             finally:
                 conn.close()
 
+    def export_for_website(self) -> dict:
+        """Export all data needed for the public website's site_data.json."""
+        import json as _json
+        from analytics.patterns import predict_next_visit
+
+        lifetime = self.get_total_sightings()
+        today = self.get_today_count()
+        hourly = self.get_hourly_distribution(days=14)
+        daily = self.get_daily_totals(days=30)
+        avg_gap = self.get_average_gap_minutes(days=14)
+
+        # Week count
+        week_ago = (datetime.now(tz=_local_tz) - timedelta(days=7)).isoformat()
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute(
+                    "SELECT COUNT(*) as cnt FROM sightings WHERE timestamp >= ?",
+                    (week_ago,),
+                ).fetchone()
+                week_count = row["cnt"] if row else 0
+            finally:
+                conn.close()
+
+        # Recent clips (last 100)
+        sightings = self.get_sightings(days=90, limit=100)
+        clips = []
+        for s in sightings:
+            platforms = []
+            try:
+                platforms = _json.loads(s.get("posted_to") or "[]")
+            except (ValueError, TypeError):
+                pass
+            clips.append({
+                "filename": s.get("clip_filename", ""),
+                "timestamp": s.get("timestamp", ""),
+                "caption": s.get("caption", ""),
+                "confidence": s.get("confidence"),
+                "platforms_posted": platforms,
+                "thumbnail": (s.get("clip_filename", "").replace(".mp4", "_thumb.jpg")
+                              if s.get("clip_filename") else ""),
+            })
+
+        # Hourly pattern as 24-element array
+        hourly_arr = [hourly.get(h, 0) for h in range(24)]
+
+        # Next visit prediction
+        next_visit = None
+        try:
+            pred = predict_next_visit()
+            if pred:
+                next_visit = {
+                    "time": pred.get("time", ""),
+                    "confidence": pred.get("confidence", "unknown"),
+                }
+        except Exception:
+            pass
+
+        # Milestones
+        milestone_thresholds = [100, 250, 500, 1000, 1500, 2000, 2500, 3000, 5000, 10000]
+        latest_milestone = 0
+        next_milestone = milestone_thresholds[0] if milestone_thresholds else 1000
+        for m in milestone_thresholds:
+            if lifetime >= m:
+                latest_milestone = m
+            else:
+                next_milestone = m
+                break
+
+        return {
+            "last_updated": datetime.now(tz=_local_tz).isoformat(),
+            "live_feed_url": config.WEBSITE_LIVE_FEED_URL if hasattr(config, 'WEBSITE_LIVE_FEED_URL') else "",
+            "lifetime_detections": lifetime,
+            "today_detections": today,
+            "this_week_detections": week_count,
+            "next_predicted_visit": next_visit,
+            "hourly_pattern": hourly_arr,
+            "daily_counts_30d": daily,
+            "avg_gap_minutes": avg_gap,
+            "milestones": {"latest": latest_milestone, "next": next_milestone},
+            "clips": clips,
+            "socials": {
+                "facebook": getattr(config, 'WEBSITE_SOCIAL_FACEBOOK', ''),
+                "instagram": getattr(config, 'WEBSITE_SOCIAL_INSTAGRAM', ''),
+                "tiktok": getattr(config, 'WEBSITE_SOCIAL_TIKTOK', ''),
+                "twitter": getattr(config, 'WEBSITE_SOCIAL_TWITTER', ''),
+                "bluesky": getattr(config, 'WEBSITE_SOCIAL_BLUESKY', ''),
+            },
+        }
+
     def get_replies_last_hour(self) -> int:
         """Count replies made in the last hour (for rate limiting)."""
         one_hour_ago = (datetime.now(tz=_local_tz) - timedelta(hours=1)).isoformat()

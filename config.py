@@ -149,6 +149,21 @@ WEB_PASSWORD = os.getenv("WEB_PASSWORD", "")
 # Tailscale remote access (optional) — run scripts/setup_tailscale.sh first
 TAILSCALE_ENABLED = os.getenv("TAILSCALE_ENABLED", "false").lower() in ("true", "1", "yes")
 
+# Public website sync (backyardhummers.com) — syncs clips + stats to SiteGround
+WEBSITE_SYNC_ENABLED = os.getenv("WEBSITE_SYNC_ENABLED", "false").lower() in ("true", "1", "yes")
+WEBSITE_REMOTE_HOST = os.getenv("WEBSITE_REMOTE_HOST", "")  # SiteGround SSH hostname
+WEBSITE_REMOTE_USER = os.getenv("WEBSITE_REMOTE_USER", "")  # SiteGround SSH username
+WEBSITE_REMOTE_PATH = os.getenv("WEBSITE_REMOTE_PATH", "public_html")  # Remote path
+WEBSITE_LIVE_FEED_URL = os.getenv("WEBSITE_LIVE_FEED_URL", "")  # Tailscale Funnel URL for live feed
+WEBSITE_DATA_DIR = BASE_DIR / "website" / "data"
+
+# Social links for public website
+WEBSITE_SOCIAL_FACEBOOK = os.getenv("WEBSITE_SOCIAL_FACEBOOK", "")
+WEBSITE_SOCIAL_INSTAGRAM = os.getenv("WEBSITE_SOCIAL_INSTAGRAM", "")
+WEBSITE_SOCIAL_TIKTOK = os.getenv("WEBSITE_SOCIAL_TIKTOK", "")
+WEBSITE_SOCIAL_TWITTER = os.getenv("WEBSITE_SOCIAL_TWITTER", "")
+WEBSITE_SOCIAL_BLUESKY = os.getenv("WEBSITE_SOCIAL_BLUESKY", "")
+
 # --- Validation (clamp to sane defaults) ---
 import logging as _log
 

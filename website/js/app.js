@@ -1,0 +1,233 @@
+/**
+ * Backyard Hummers — Shared JS
+ * Handles: data loading, nav, live feed, clock, social links, landing page
+ */
+
+const DATA_URL = 'data/site_data.json';
+
+// Social platform icons — Simple Icons CDN (colored SVGs)
+const PLATFORM_ICONS = {
+    facebook: { icon: '<img src="https://cdn.simpleicons.org/facebook/1877F2" alt="Facebook" class="social-logo">', label: 'Facebook' },
+    instagram: { icon: '<img src="https://cdn.simpleicons.org/instagram/E4405F" alt="Instagram" class="social-logo">', label: 'Instagram' },
+    tiktok: { icon: '<img src="https://cdn.simpleicons.org/tiktok/010101" alt="TikTok" class="social-logo">', label: 'TikTok' },
+    twitter: { icon: '<img src="https://cdn.simpleicons.org/x/000000" alt="X / Twitter" class="social-logo">', label: 'X / Twitter' },
+    bluesky: { icon: '<img src="https://cdn.simpleicons.org/bluesky/0085FF" alt="Bluesky" class="social-logo">', label: 'Bluesky' },
+};
+
+let siteData = null;
+
+/**
+ * Fetch site_data.json
+ */
+async function loadSiteData() {
+    try {
+        const resp = await fetch(DATA_URL + '?t=' + Date.now());
+        if (!resp.ok) throw new Error('Failed to load data');
+        siteData = await resp.json();
+        return siteData;
+    } catch (err) {
+        console.warn('Could not load site data:', err);
+        return null;
+    }
+}
+
+/**
+ * Format a timestamp for display (military style)
+ */
+function formatTimestamp(isoStr) {
+    try {
+        const d = new Date(isoStr);
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        const secs = String(d.getSeconds()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${year}-${month}-${day} ${hours}:${mins}:${secs} CST`;
+    } catch {
+        return isoStr || '--';
+    }
+}
+
+/**
+ * Format a time-only display
+ */
+function formatTime(isoStr) {
+    try {
+        const d = new Date(isoStr);
+        let hours = d.getHours();
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12 || 12;
+        return `${hours}:${mins} ${ampm}`;
+    } catch {
+        return '--';
+    }
+}
+
+/**
+ * Render platform badges
+ */
+function renderPlatformBadges(platforms) {
+    if (!platforms || !platforms.length) return '';
+    return platforms.map(p => {
+        const info = PLATFORM_ICONS[p] || { icon: '', label: p };
+        return `<span class="platform-badge">${info.icon} ${info.label}</span>`;
+    }).join('');
+}
+
+/**
+ * Update the live clock
+ */
+function startClock() {
+    const el = document.getElementById('currentTime');
+    if (!el) return;
+    function tick() {
+        const now = new Date();
+        const h = String(now.getHours()).padStart(2, '0');
+        const m = String(now.getMinutes()).padStart(2, '0');
+        const s = String(now.getSeconds()).padStart(2, '0');
+        el.textContent = `${h}:${m}:${s} CST`;
+    }
+    tick();
+    setInterval(tick, 1000);
+}
+
+/**
+ * Set up live feed iframe
+ */
+function setupLiveFeed(data) {
+    const iframe = document.getElementById('cameraFeed');
+    const offline = document.getElementById('feedOffline');
+    if (!iframe || !data || !data.live_feed_url) {
+        if (iframe) iframe.style.display = 'none';
+        if (offline) offline.style.display = 'flex';
+        return;
+    }
+
+    iframe.src = data.live_feed_url;
+
+    // Detect if feed fails to load
+    iframe.addEventListener('error', () => {
+        iframe.style.display = 'none';
+        if (offline) offline.style.display = 'flex';
+    });
+
+    // Timeout fallback — if iframe doesn't load in 10 seconds
+    setTimeout(() => {
+        try {
+            // If iframe is empty or failed, show offline
+            if (!iframe.contentWindow || iframe.contentWindow.length === 0) {
+                // Can't reliably check cross-origin, so just leave it
+            }
+        } catch {
+            // Cross-origin — feed is loading, which is good
+        }
+    }, 10000);
+}
+
+/**
+ * Populate stats ticker on homepage
+ */
+function populateStatsTicker(data) {
+    if (!data) return;
+
+    const lifetime = document.getElementById('lifetimeCount');
+    const today = document.getElementById('todayCount');
+    const week = document.getElementById('weekCount');
+    const next = document.getElementById('nextVisit');
+
+    if (lifetime) lifetime.textContent = (data.lifetime_detections || 0).toLocaleString();
+    if (today) today.textContent = data.today_detections || 0;
+    if (week) week.textContent = data.this_week_detections || 0;
+
+    if (next && data.next_predicted_visit) {
+        next.textContent = formatTime(data.next_predicted_visit.time);
+    }
+}
+
+/**
+ * Populate latest detection on homepage
+ */
+function populateLatestDetection(data) {
+    if (!data || !data.clips || !data.clips.length) return;
+
+    const clip = data.clips[0]; // Most recent
+    const video = document.getElementById('latestVideo');
+    const timestamp = document.getElementById('latestTimestamp');
+    const caption = document.getElementById('latestCaption');
+    const confidence = document.getElementById('latestConfidence');
+    const platforms = document.getElementById('latestPlatforms');
+
+    if (video) {
+        video.querySelector('source').src = 'clips/' + clip.filename;
+        video.poster = clip.thumbnail ? ('clips/' + clip.thumbnail) : '';
+        video.load();
+    }
+    if (timestamp) timestamp.textContent = formatTimestamp(clip.timestamp);
+    if (caption) caption.textContent = clip.caption || 'No intel available.';
+    if (confidence) {
+        const conf = clip.confidence ? Math.round(clip.confidence * 100) : '--';
+        confidence.textContent = `CONFIDENCE: ${conf}%`;
+    }
+    if (platforms) platforms.innerHTML = renderPlatformBadges(clip.platforms_posted);
+}
+
+/**
+ * Populate social links
+ */
+function populateSocials(data) {
+    const grid = document.getElementById('socialsGrid');
+    if (!grid || !data || !data.socials) return;
+
+    grid.innerHTML = '';
+    for (const [platform, url] of Object.entries(data.socials)) {
+        if (!url) continue;
+        const info = PLATFORM_ICONS[platform] || { icon: '', label: platform };
+        const card = document.createElement('a');
+        card.href = url;
+        card.target = '_blank';
+        card.rel = 'noopener noreferrer';
+        card.className = 'social-card';
+        card.innerHTML = `
+            <span class="social-icon">${info.icon}</span>
+            <span class="social-name">${info.label}</span>
+        `;
+        grid.appendChild(card);
+    }
+}
+
+/**
+ * Mobile nav toggle
+ */
+function setupNav() {
+    const hamburger = document.querySelector('.nav-hamburger');
+    const links = document.querySelector('.nav-links');
+    if (!hamburger || !links) return;
+
+    hamburger.addEventListener('click', () => {
+        links.classList.toggle('open');
+    });
+
+    // Close on link click
+    links.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => links.classList.remove('open'));
+    });
+}
+
+/**
+ * Initialize
+ */
+document.addEventListener('DOMContentLoaded', async () => {
+    setupNav();
+    startClock();
+
+    const data = await loadSiteData();
+    if (!data) return;
+
+    // Homepage-specific
+    setupLiveFeed(data);
+    populateStatsTicker(data);
+    populateLatestDetection(data);
+    populateSocials(data);
+});

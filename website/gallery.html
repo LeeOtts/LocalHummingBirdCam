@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classified Footage - Backyard Hummers</title>
+    <meta name="description" content="Browse classified hummingbird surveillance footage. AI-detected and captioned by GPT-4o.">
+    <link rel="icon" href="img/favicon.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-logo">
+                <span class="nav-logo-text">BACKYARD HUMMERS</span>
+            </a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">HQ</a>
+                <a href="gallery.html" class="nav-link active">Classified Footage</a>
+                <a href="stats.html" class="nav-link">Situation Room</a>
+            </div>
+            <button class="nav-hamburger" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="page-header">
+        <h1 class="page-title">CLASSIFIED FOOTAGE</h1>
+        <p class="page-subtitle">Surveillance recordings reviewed and captioned by AI</p>
+        <div class="gallery-controls">
+            <div class="filter-group">
+                <label class="hud-label">FILTER BY DATE</label>
+                <input type="date" id="dateFilter" class="hud-input">
+            </div>
+            <div class="filter-group">
+                <span class="hud-label">TOTAL FILES:</span>
+                <span class="hud-value" id="clipCount">--</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="gallery-grid" id="galleryGrid">
+            <!-- Populated by JS -->
+        </div>
+        <div class="gallery-empty" id="galleryEmpty" style="display:none;">
+            <div class="offline-icon">&#x1F426;</div>
+            <h3>NO FOOTAGE AVAILABLE</h3>
+            <p>Our surveillance network has not captured any hummingbird activity yet.<br>Check back soon — the hummers are coming!</p>
+        </div>
+    </section>
+
+    <!-- Video Modal -->
+    <div class="modal" id="videoModal" style="display:none;">
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <div class="modal-header">
+                <h3 class="hud-title">INTEL REPORT</h3>
+                <span class="hud-badge" id="modalConfidence">CONFIDENCE: --%</span>
+            </div>
+            <div class="modal-video-wrap">
+                <video id="modalVideo" controls preload="metadata">
+                    <source src="" type="video/mp4">
+                </video>
+                <div class="target-brackets">
+                    <div class="bracket bracket-tl"></div>
+                    <div class="bracket bracket-tr"></div>
+                    <div class="bracket bracket-bl"></div>
+                    <div class="bracket bracket-br"></div>
+                </div>
+            </div>
+            <div class="modal-details">
+                <div class="detection-meta">
+                    <span class="hud-label">TIMESTAMP</span>
+                    <span class="hud-value" id="modalTimestamp">--</span>
+                </div>
+                <div class="detection-meta">
+                    <span class="hud-label">SPECIES</span>
+                    <span class="hud-value species-tag">RUBY-THROATED</span>
+                </div>
+                <div class="modal-caption" id="modalCaption"></div>
+                <div class="modal-platforms" id="modalPlatforms"></div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <span class="footer-logo">BACKYARD HUMMERS</span>
+                <span class="footer-tagline">AI-Powered Hummingbird Surveillance</span>
+            </div>
+            <div class="footer-badge">
+                <span class="hud-mono">AI DETECTION ACTIVE</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/app.js"></script>
+    <script src="js/gallery.js"></script>
+</body>
+</html>
