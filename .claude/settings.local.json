@@ -93,7 +93,8 @@
       "Bash(find /c/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam -type f \\\\\\(-name package.json -o -name *.py -o -name *.sh -o -name *.bat -o -name *.ps1 -o -name vite.config.js -o -name webpack.config.js \\\\\\))",
       "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/python -c \"import cv2; print\\(cv2.__version__\\)\")",
       "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/pip list:*)",
-      "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/pip install:*)"
+      "Bash(C:/Users/leeot/OneDrive/Documents/Projects/LocalHummingBirdCam/.venv/Scripts/pip install:*)",
+      "WebFetch(domain:backyardhummers.com)"
     ]
   }
 }
