@@ -37,6 +37,7 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 a { color: var(--green-bright); text-decoration: none; }
@@ -120,8 +121,6 @@ a:hover { color: var(--gold-light); }
     width: 100%;
     height: auto;
     display: block;
-    max-height: 500px;
-    object-fit: cover;
 }
 
 .hero-overlay {
@@ -1035,7 +1034,6 @@ canvas { max-height: 300px; }
     }
     .nav-hamburger { display: flex; }
 
-    .hero-banner { max-height: 250px; }
 
     .status-bar { font-size: 0.65rem; gap: 0.75rem; }
     .status-time { margin-left: 0; }
