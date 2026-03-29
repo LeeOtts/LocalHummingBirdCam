@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /data/
+Disallow: /clips/
+
+Sitemap: https://backyardhummers.com/sitemap.xml
