@@ -15,9 +15,14 @@ const PLATFORM_ICONS = {
     twitter:   { icon: '<img src="https://cdn.simpleicons.org/x/ffffff" alt="X / Twitter" class="social-logo">', label: 'X / Twitter' },
 };
 
-// Static links always shown (not from Pi data)
+// Static social links — hardcoded, always shown
 const STATIC_SOCIALS = {
-    github: 'https://github.com/LeeOtts/LocalHummingBirdCam',
+    bluesky:   'https://bsky.app/profile/backyardhummers.com',
+    facebook:  'https://facebook.com/backyard.hummers',
+    github:    'https://github.com/LeeOtts/LocalHummingBirdCam',
+    instagram: 'https://instagram.com/backyard.hummers',
+    tiktok:    'https://tiktok.com/@backyardhummers',
+    twitter:   'https://x.com/backyardhummers',
 };
 
 let siteData = null;
@@ -176,7 +181,7 @@ function populateSocials(data) {
     const grid = document.getElementById('socialsGrid');
     if (!grid) return;
 
-    const socials = { ...((data && data.socials) || {}), ...STATIC_SOCIALS };
+    const socials = { ...STATIC_SOCIALS };
     const sorted = Object.entries(socials)
         .filter(([, url]) => url)
         .sort(([a], [b]) => {
