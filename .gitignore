@@ -21,6 +21,9 @@ logs/*.log
 # models/*.tflite  — tracked: only 3.5MB, required for bird detection
 training/
 
+# Claude Code
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
