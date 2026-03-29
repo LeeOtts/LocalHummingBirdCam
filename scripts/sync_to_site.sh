@@ -41,7 +41,9 @@ echo "[$(date)] Starting sync to ${REMOTE}:${REMOTE_PATH}"
 # Step 1: Regenerate site_data.json
 echo "[$(date)] Generating site_data.json..."
 cd "$PROJECT_DIR"
-python3 scripts/generate_site_data.py || echo "[$(date)] WARNING: site data generation failed"
+PYTHON="${PROJECT_DIR}/.venv/bin/python3"
+[ -x "$PYTHON" ] || PYTHON="python3"
+"$PYTHON" scripts/generate_site_data.py || echo "[$(date)] WARNING: site data generation failed"
 
 # Step 2: Sync site_data.json
 if [ -f "$SITE_DATA" ]; then
