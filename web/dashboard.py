@@ -446,22 +446,22 @@ def live_feed():
 
     def generate_frames():
         import cv2
+        import time
         while _monitor and _monitor.running:
             try:
-                frame = _monitor.camera.capture_lores_array()
-                # Convert YUV420 to BGR
-                if frame.shape[0] > frame.shape[1] * 1.2:
-                    bgr = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_I420)
-                else:
-                    bgr = frame
-                _, jpeg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                # Use full-res frame for public feed; fall back to lores
+                frame = _monitor.camera.get_full_res_frame()
+                if frame is None:
+                    frame = _monitor.camera.capture_lores_array()
+                    if frame.shape[0] > frame.shape[1] * 1.2:
+                        frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_I420)
+                _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 yield (
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
                 )
             except Exception:
                 break
-            import time
             time.sleep(0.1)  # ~10 fps for the web feed
 
     return Response(
