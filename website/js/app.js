@@ -97,33 +97,23 @@ function startClock() {
  * Set up live feed iframe
  */
 function setupLiveFeed(data) {
-    const iframe = document.getElementById('cameraFeed');
+    const img = document.getElementById('cameraFeed');
     const offline = document.getElementById('feedOffline');
-    if (!iframe || !data || !data.live_feed_url) {
-        if (iframe) iframe.style.display = 'none';
+    if (!img || !data || !data.live_feed_url) {
+        if (img) img.style.display = 'none';
         if (offline) offline.style.display = 'flex';
         return;
     }
 
-    iframe.src = data.live_feed_url;
+    // MJPEG streams natively in <img> tags across all browsers
+    img.style.display = 'block';
+    img.src = data.live_feed_url;
 
-    // Detect if feed fails to load
-    iframe.addEventListener('error', () => {
-        iframe.style.display = 'none';
+    // Show offline message if stream fails to load
+    img.addEventListener('error', () => {
+        img.style.display = 'none';
         if (offline) offline.style.display = 'flex';
     });
-
-    // Timeout fallback — if iframe doesn't load in 10 seconds
-    setTimeout(() => {
-        try {
-            // If iframe is empty or failed, show offline
-            if (!iframe.contentWindow || iframe.contentWindow.length === 0) {
-                // Can't reliably check cross-origin, so just leave it
-            }
-        } catch {
-            // Cross-origin — feed is loading, which is good
-        }
-    }, 10000);
 }
 
 /**
