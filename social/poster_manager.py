@@ -73,6 +73,18 @@ class PosterManager:
         except Exception:
             logger.warning("Failed to initialize Twitter poster")
 
+        # TikTok
+        try:
+            from social.tiktok_poster import TikTokPoster
+            tt = TikTokPoster()
+            if tt.is_configured():
+                self._posters.append(tt)
+                logger.info("Platform enabled: TikTok")
+            else:
+                logger.info("Platform skipped: TikTok (no credentials)")
+        except Exception:
+            logger.warning("Failed to initialize TikTok poster")
+
         if not self._posters:
             logger.warning("No social media platforms configured!")
         else:

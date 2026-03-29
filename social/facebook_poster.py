@@ -333,12 +333,13 @@ class FacebookPoster(SocialPoster):
         try:
             with open(image_path, "rb") as f:
                 resp = requests.post(
-                    f"{GRAPH_API_BASE}/{self.page_id}/feed",
+                    f"{GRAPH_API_BASE}/{self.page_id}/photos",
                     data={
                         "message": caption,
                         "access_token": self.access_token,
+                        "published": "true",
                     },
-                    files={"picture": f},
+                    files={"source": f},
                     timeout=60,
                 )
             resp.raise_for_status()

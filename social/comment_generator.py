@@ -43,6 +43,14 @@ PLATFORM_HINTS = {
         "max_chars": 280,
         "tone": "Tightest. Under 280 characters. One-liner preferred. Add 1-2 relevant hashtags (count toward char limit).",
     },
+    "Instagram": {
+        "max_chars": 2200,
+        "tone": "Warm, visual. 1-2 sentences. Add 3-5 relevant hashtags (e.g. #hummingbird #birdwatching #nature).",
+    },
+    "TikTok": {
+        "max_chars": 2200,
+        "tone": "Fun, casual, short. 1-2 sentences. Add 2-4 trending hashtags (e.g. #hummingbird #birdsoftiktok #nature).",
+    },
 }
 
 
