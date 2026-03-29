@@ -191,7 +191,7 @@ class TestPostPhoto:
         assert mock_post.call_count == 1
         # Single call: feed post with photo
         upload_url = mock_post.call_args_list[0][0][0]
-        assert "/feed" in upload_url
+        assert "/photos" in upload_url
         assert mock_post.call_args_list[0][1]["data"]["message"] == "Test caption"
 
     def test_post_photo_no_credentials(self, monkeypatch, tmp_path):

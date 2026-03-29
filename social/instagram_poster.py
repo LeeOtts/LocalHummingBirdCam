@@ -1,4 +1,16 @@
-"""Post video clips and photos to Instagram via Meta's Graph API."""
+"""Post video clips and photos to Instagram via Meta's Graph API.
+
+Instagram Content Publishing API requires a two-step flow:
+  1. Create a media container (with image_url or resumable video upload)
+  2. Publish the container via /media_publish
+
+Photos require a publicly accessible URL.  Since this project runs on a
+Raspberry Pi with local files, we upload the image to Facebook as an
+unpublished photo first, grab the CDN URL, then pass it to Instagram.
+
+Videos use the resumable upload flow to rupload.facebook.com which accepts
+binary data directly.
+"""
 
 import logging
 import os
@@ -14,7 +26,13 @@ from utils import safe_read_json, safe_write_json
 
 logger = logging.getLogger(__name__)
 
-GRAPH_API_BASE = f"https://graph.instagram.com/{config.INSTAGRAM_API_VERSION}"
+GRAPH_API_BASE = f"https://graph.facebook.com/{config.INSTAGRAM_API_VERSION}"
+RUPLOAD_BASE = f"https://rupload.facebook.com/ig-api-upload/{config.INSTAGRAM_API_VERSION}"
+
+# Instagram videos are now all Reels
+_MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500 MB practical limit
+_STATUS_POLL_INTERVAL = 5  # seconds between status checks
+_STATUS_POLL_MAX_WAIT = 300  # 5 minutes max wait for processing
 
 
 class InstagramPoster(SocialPoster):
@@ -64,11 +82,108 @@ class InstagramPoster(SocialPoster):
             return False
         return True
 
-    def post_video(self, mp4_path: Path, caption: str) -> bool:
+    # ------------------------------------------------------------------
+    # Photo posting (upload to Facebook CDN first, then create container)
+    # ------------------------------------------------------------------
+
+    def _upload_image_to_facebook_cdn(self, image_path: Path) -> str | None:
+        """Upload image to Facebook as unpublished photo, return CDN URL.
+
+        Instagram's Content Publishing API requires a publicly accessible
+        image_url.  We leverage the Facebook Page /photos endpoint (which
+        accepts binary uploads) to get a CDN URL.
         """
-        Upload a video to Instagram using the graph API.
-        Videos are posted as single media items (not reels, not carousel).
-        Returns True on success.
+        page_id = config.FACEBOOK_PAGE_ID
+        if not page_id:
+            logger.error("Instagram photo post requires FACEBOOK_PAGE_ID for CDN upload")
+            return None
+
+        with open(image_path, "rb") as f:
+            resp = requests.post(
+                f"{GRAPH_API_BASE}/{page_id}/photos",
+                data={
+                    "published": "false",
+                    "access_token": self.access_token,
+                },
+                files={"source": f},
+                timeout=60,
+            )
+        resp.raise_for_status()
+        photo_id = resp.json().get("id")
+        if not photo_id:
+            logger.error("Instagram: Facebook CDN upload returned no photo ID")
+            return None
+
+        # Fetch the CDN URL from the uploaded photo
+        url_resp = requests.get(
+            f"{GRAPH_API_BASE}/{photo_id}",
+            params={"fields": "images", "access_token": self.access_token},
+            timeout=30,
+        )
+        url_resp.raise_for_status()
+        images = url_resp.json().get("images", [])
+        if not images:
+            logger.error("Instagram: no CDN URL returned for photo %s", photo_id)
+            return None
+
+        # First image is the largest resolution
+        cdn_url = images[0].get("source")
+        logger.debug("Instagram: got CDN URL for photo (id=%s)", photo_id)
+        return cdn_url
+
+    def post_photo(self, image_path: Path, caption: str) -> bool:
+        """Upload a photo to Instagram via the Content Publishing API.
+
+        Flow: upload to Facebook CDN -> create IG container with image_url
+        -> publish via media_publish.
+        """
+        if not self.is_configured():
+            logger.error("Instagram credentials not configured")
+            return False
+
+        if not self._check_rate_limit():
+            return False
+
+        try:
+            # Step 1: Get a public URL for the local image
+            image_url = self._upload_image_to_facebook_cdn(image_path)
+            if not image_url:
+                return False
+
+            # Step 2: Create Instagram media container
+            container_resp = requests.post(
+                f"{GRAPH_API_BASE}/{self.business_account_id}/media",
+                data={
+                    "image_url": image_url,
+                    "caption": caption,
+                    "access_token": self.access_token,
+                },
+                timeout=60,
+            )
+            container_resp.raise_for_status()
+            container_id = container_resp.json().get("id")
+            if not container_id:
+                logger.error("Instagram: no container ID for photo: %s", container_resp.json())
+                return False
+
+            # Step 3: Publish
+            return self._publish_container(container_id)
+
+        except requests.RequestException as e:
+            if hasattr(e, "response") and e.response is not None:
+                logger.error("Instagram response: %s", e.response.text)
+            logger.exception("Instagram photo upload failed for %s", image_path.name)
+            return False
+
+    # ------------------------------------------------------------------
+    # Video posting (resumable upload to rupload.facebook.com)
+    # ------------------------------------------------------------------
+
+    def post_video(self, mp4_path: Path, caption: str) -> bool:
+        """Upload a video to Instagram as a Reel via resumable upload.
+
+        Flow: create container with upload_type=resumable -> upload binary
+        to rupload.facebook.com -> wait for processing -> publish.
         """
         if not self.is_configured():
             logger.error("Instagram credentials not configured")
@@ -83,173 +198,114 @@ class InstagramPoster(SocialPoster):
 
         try:
             file_size = os.path.getsize(mp4_path)
+            if file_size > _MAX_VIDEO_SIZE:
+                logger.error("Instagram: video too large (%d MB)", file_size // (1024 * 1024))
+                return False
 
-            # Step 1: Initialize upload session
+            # Step 1: Create resumable upload container
             init_resp = requests.post(
                 f"{GRAPH_API_BASE}/{self.business_account_id}/media",
                 data={
-                    "media_type": "VIDEO",
-                    "video_data": "placeholder_for_chunked_upload",
-                    "access_token": self.access_token,
-                },
-                timeout=30,
-            )
-
-            # If simple upload fails, try chunked upload approach
-            if init_resp.status_code != 200:
-                return self._post_video_chunked(mp4_path, caption)
-
-            init_data = init_resp.json()
-            if "error" in init_data:
-                logger.warning("Instagram video init failed: %s", init_data.get("error"))
-                return self._post_video_chunked(mp4_path, caption)
-
-            media_id = init_data.get("id")
-            if not media_id:
-                return self._post_video_chunked(mp4_path, caption)
-
-            # Step 2: Transfer video using chunked approach
-            with open(mp4_path, "rb") as f:
-                video_data = f.read()
-
-            # Check file size (Instagram max: 1GB, but practically limit to 500MB)
-            if len(video_data) > 500 * 1024 * 1024:
-                logger.error("Instagram: video too large (%d MB)", len(video_data) // (1024 * 1024))
-                return False
-
-            # Upload video in chunks
-            chunk_size = 5 * 1024 * 1024  # 5MB chunks
-            offset = 0
-            while offset < len(video_data):
-                chunk = video_data[offset : offset + chunk_size]
-                chunk_resp = requests.post(
-                    f"{GRAPH_API_BASE}/{media_id}",
-                    data={
-                        "upload_phase": "transfer",
-                        "start_offset": str(offset),
-                        "access_token": self.access_token,
-                    },
-                    files={"video_data": chunk},
-                    timeout=120,
-                )
-                chunk_resp.raise_for_status()
-                offset += len(chunk)
-
-            del video_data  # Free memory
-
-            # Step 3: Finish upload and publish
-            finish_resp = requests.post(
-                f"{GRAPH_API_BASE}/{media_id}",
-                data={
-                    "upload_phase": "finish",
+                    "media_type": "REELS",
+                    "upload_type": "resumable",
                     "caption": caption,
                     "access_token": self.access_token,
                 },
                 timeout=30,
             )
-            finish_resp.raise_for_status()
-            logger.info("Posted video to Instagram! Media ID: %s", media_id)
+            init_resp.raise_for_status()
+            init_data = init_resp.json()
+            container_id = init_data.get("id")
+            upload_uri = init_data.get("uri")
 
-            self._posts_today += 1
-            return True
+            if not container_id or not upload_uri:
+                logger.error("Instagram: resumable init missing id/uri: %s", init_data)
+                return False
+
+            # Step 2: Upload binary to rupload.facebook.com
+            with open(mp4_path, "rb") as f:
+                upload_resp = requests.post(
+                    upload_uri,
+                    headers={
+                        "Authorization": f"OAuth {self.access_token}",
+                        "offset": "0",
+                        "file_size": str(file_size),
+                    },
+                    data=f,
+                    timeout=300,
+                )
+            upload_resp.raise_for_status()
+
+            # Step 3: Wait for processing
+            if not self._wait_for_container(container_id):
+                logger.error("Instagram: video processing timed out for %s", mp4_path.name)
+                return False
+
+            # Step 4: Publish
+            return self._publish_container(container_id)
 
         except requests.RequestException as e:
-            if hasattr(e, 'response') and e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 logger.error("Instagram response: %s", e.response.text)
             logger.exception("Instagram video upload failed for %s", mp4_path.name)
             if not self._retry_in_progress:
                 self._save_to_retry_queue(mp4_path, caption, "video")
             return False
 
-    def _post_video_chunked(self, mp4_path: Path, caption: str) -> bool:
-        """Alternative chunked video upload using media container approach."""
-        try:
-            # First, upload the video file itself
-            with open(mp4_path, "rb") as f:
-                video_data = f.read()
+    # ------------------------------------------------------------------
+    # Shared helpers
+    # ------------------------------------------------------------------
 
-            if len(video_data) > 500 * 1024 * 1024:
-                logger.error("Instagram: video too large (%d MB)", len(video_data) // (1024 * 1024))
-                return False
+    def _publish_container(self, container_id: str) -> bool:
+        """Publish a media container via /{ig-user-id}/media_publish."""
+        publish_resp = requests.post(
+            f"{GRAPH_API_BASE}/{self.business_account_id}/media_publish",
+            data={
+                "creation_id": container_id,
+                "access_token": self.access_token,
+            },
+            timeout=60,
+        )
+        publish_resp.raise_for_status()
+        media_id = publish_resp.json().get("id", "unknown")
+        logger.info("Posted to Instagram! Media ID: %s", media_id)
+        self._posts_today += 1
+        return True
 
-            # Create media object with video
-            create_resp = requests.post(
-                f"{GRAPH_API_BASE}/{self.business_account_id}/media",
-                data={
-                    "media_type": "VIDEO",
-                    "caption": caption,
+    def _wait_for_container(self, container_id: str) -> bool:
+        """Poll container status until ready or timeout."""
+        elapsed = 0
+        while elapsed < _STATUS_POLL_MAX_WAIT:
+            time.sleep(_STATUS_POLL_INTERVAL)
+            elapsed += _STATUS_POLL_INTERVAL
+
+            resp = requests.get(
+                f"{GRAPH_API_BASE}/{container_id}",
+                params={
+                    "fields": "status_code",
                     "access_token": self.access_token,
                 },
-                files={"video_data": video_data},
-                timeout=120,
-            )
-            create_resp.raise_for_status()
-            media_data = create_resp.json()
-            media_id = media_data.get("id")
-
-            if not media_id:
-                logger.error("Instagram: no media ID in response: %s", media_data)
-                return False
-
-            logger.info("Posted video to Instagram (chunked)! Media ID: %s", media_id)
-            self._posts_today += 1
-            return True
-
-        except requests.RequestException as e:
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error("Instagram response: %s", e.response.text)
-            logger.exception("Instagram chunked video upload failed for %s", mp4_path.name)
-            return False
-
-    def post_photo(self, image_path: Path, caption: str) -> bool:
-        """Upload a photo to Instagram and post to feed."""
-        if not self.is_configured():
-            logger.error("Instagram credentials not configured")
-            return False
-
-        if not self._check_rate_limit():
-            return False
-
-        try:
-            with open(image_path, "rb") as f:
-                image_data = f.read()
-
-            # Create media object with photo
-            resp = requests.post(
-                f"{GRAPH_API_BASE}/{self.business_account_id}/media",
-                data={
-                    "media_type": "IMAGE",
-                    "caption": caption,
-                    "access_token": self.access_token,
-                },
-                files={"image_data": image_data},
-                timeout=60,
+                timeout=30,
             )
             resp.raise_for_status()
-            resp_data = resp.json()
-            media_id = resp_data.get("id")
+            status = resp.json().get("status_code", "")
 
-            if not media_id:
-                logger.error("Instagram: no media ID in response: %s", resp_data)
+            if status == "FINISHED":
+                return True
+            if status == "ERROR":
+                logger.error("Instagram: container %s processing failed", container_id)
                 return False
 
-            logger.info("Posted photo to Instagram! Media ID: %s", media_id)
-            self._posts_today += 1
-            return True
+            logger.debug("Instagram: container %s status=%s (%ds)", container_id, status, elapsed)
 
-        except requests.RequestException as e:
-            if hasattr(e, "response") and e.response is not None:
-                logger.error("Instagram response: %s", e.response.text)
-            logger.exception("Instagram photo upload failed for %s", image_path.name)
-            return False
+        return False
 
     def post_text(self, message: str) -> bool:
-        """Post text-only content to Instagram (as a caption-only media, if supported)."""
+        """Instagram doesn't support text-only posts via Graph API."""
         if not self.is_configured():
             logger.error("Instagram credentials not configured")
             return False
 
-        # Instagram doesn't support text-only posts via Graph API, so we log a warning
         logger.warning("Instagram: text-only posts not supported via Graph API (skipped)")
         return False
 
