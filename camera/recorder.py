@@ -302,6 +302,33 @@ class ClipRecorder:
         return "default"
 
     @staticmethod
+    def generate_thumbnail(mp4_path: Path) -> Path | None:
+        """Extract a single frame from a clip as a JPEG thumbnail for the website."""
+        thumb_path = mp4_path.with_name(mp4_path.stem + "_thumb.jpg")
+        try:
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", str(mp4_path),
+                    "-ss", "3",  # 3 seconds in (past pre-roll, into the action)
+                    "-frames:v", "1",
+                    "-q:v", "5",
+                    str(thumb_path),
+                ],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0 and thumb_path.exists():
+                logger.info("Generated thumbnail: %s (%.1f KB)",
+                            thumb_path.name, thumb_path.stat().st_size / 1024)
+                return thumb_path
+            else:
+                logger.warning("Thumbnail generation failed: %s", result.stderr[-200:])
+                return None
+        except Exception:
+            logger.exception("Thumbnail generation error")
+            return None
+
+    @staticmethod
     def _cleanup_temp_files(*paths):
         """Remove temporary files."""
         for p in paths:
