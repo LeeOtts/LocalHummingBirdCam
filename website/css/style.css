@@ -113,14 +113,19 @@ a:hover { color: var(--gold-light); }
 .hero {
     position: relative;
     margin-top: 56px;
-    overflow: hidden;
     background: var(--bg-secondary);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 0;
 }
 
 .hero-banner {
-    width: 100%;
-    height: auto;
     display: block;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    max-height: 60vh;
 }
 
 .hero-overlay {
