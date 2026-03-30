@@ -51,7 +51,7 @@ def generate_site_data(db: SightingsDB | None = None) -> Path | None:
 
         # --- guestbook.json ---
         entries = db.get_guestbook_entries(limit=200)
-        total = db.get_total_visitor_count()
+        total = db.get_total_page_views()
         guestbook_data = {
             "last_updated": data.get("last_updated", ""),
             "total_visitors": total,
