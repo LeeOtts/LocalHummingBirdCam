@@ -297,11 +297,13 @@ def _get_status():
     # B-Hyve sprinkler status
     bm = getattr(_monitor, "bhyve_monitor", None) if _monitor else None
     if bm is not None:
+        watch = getattr(bm, '_watch_station', None)
         s.bhyve = {
             "enabled": True,
             "connected": bm.connected,
             "spraying": bm.is_spraying,
             "zone_count": len(bm.active_zones),
+            "watch_station": watch,
         }
     else:
         s.bhyve = None
