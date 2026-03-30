@@ -1,0 +1,269 @@
+"""Tests for bhyve/monitor.py — BHyveMonitor class."""
+
+import threading
+import time
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+def _make_monitor(email="test@example.com", password="secret", watch_station=1):
+    """Create a BHyveMonitor without touching network or threads."""
+    from bhyve.monitor import BHyveMonitor
+    m = object.__new__(BHyveMonitor)
+    m._email = email
+    m._password = password
+    m._watch_station = watch_station
+    m._token = None
+    m._lock = threading.Lock()
+    m._active = {}
+    m._ws = None
+    m._running = False
+    m._thread = None
+    m.connected = False
+    m.last_event = None
+    m.last_event_time = 0.0
+    return m
+
+
+# ---------------------------------------------------------------------------
+# is_spraying
+# ---------------------------------------------------------------------------
+
+class TestIsSpraying:
+    def test_false_when_no_active(self):
+        m = _make_monitor(watch_station=1)
+        assert m.is_spraying is False
+
+    def test_true_when_watched_station_active(self):
+        m = _make_monitor(watch_station=1)
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": time.time()}
+        assert m.is_spraying is True
+
+    def test_false_when_different_station_active(self):
+        m = _make_monitor(watch_station=1)
+        m._active["dev1"] = {"mode": "auto", "station": 2, "started_at": time.time()}
+        assert m.is_spraying is False
+
+    def test_true_any_station_when_watch_is_none(self):
+        m = _make_monitor(watch_station=None)
+        m._active["dev1"] = {"mode": "auto", "station": 3, "started_at": time.time()}
+        assert m.is_spraying is True
+
+    def test_false_station_none_value_does_not_match_watch(self):
+        """If the event had no current_station, station=None; should not match watch=1."""
+        m = _make_monitor(watch_station=1)
+        m._active["dev1"] = {"mode": "auto", "station": None, "started_at": time.time()}
+        assert m.is_spraying is False
+
+    def test_multiple_devices_one_matches(self):
+        m = _make_monitor(watch_station=2)
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": time.time()}
+        m._active["dev2"] = {"mode": "auto", "station": 2, "started_at": time.time()}
+        assert m.is_spraying is True
+
+
+# ---------------------------------------------------------------------------
+# active_zones
+# ---------------------------------------------------------------------------
+
+class TestActiveZones:
+    def test_empty_when_no_active(self):
+        m = _make_monitor()
+        assert m.active_zones == []
+
+    def test_returns_all_active_entries(self):
+        m = _make_monitor()
+        m._active["devA"] = {"mode": "manual", "station": 1, "started_at": 100.0}
+        m._active["devB"] = {"mode": "auto",   "station": 2, "started_at": 200.0}
+        zones = m.active_zones
+        assert len(zones) == 2
+        device_ids = {z["device_id"] for z in zones}
+        assert device_ids == {"devA", "devB"}
+
+    def test_zone_dict_includes_device_id(self):
+        m = _make_monitor()
+        m._active["xyz"] = {"mode": "auto", "station": 3, "started_at": 50.0}
+        zone = m.active_zones[0]
+        assert zone["device_id"] == "xyz"
+        assert zone["station"] == 3
+        assert zone["mode"] == "auto"
+
+
+# ---------------------------------------------------------------------------
+# _handle_event
+# ---------------------------------------------------------------------------
+
+class TestHandleEvent:
+    def test_watering_in_progress_adds_to_active(self):
+        m = _make_monitor(watch_station=1)
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "mode": "auto",
+            "program": {"current_station": 1},
+        })
+        assert "dev1" in m._active
+        assert m._active["dev1"]["station"] == 1
+        assert m._active["dev1"]["mode"] == "auto"
+
+    def test_watering_in_progress_no_program(self):
+        """Missing program field: station should be None."""
+        m = _make_monitor()
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+        })
+        assert m._active["dev1"]["station"] is None
+
+    def test_watering_complete_removes_from_active(self):
+        m = _make_monitor()
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": 0.0}
+        m._handle_event({"event": "watering_complete", "device_id": "dev1"})
+        assert "dev1" not in m._active
+
+    def test_device_idle_removes_from_active(self):
+        m = _make_monitor()
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": 0.0}
+        m._handle_event({"event": "device_idle", "device_id": "dev1"})
+        assert "dev1" not in m._active
+
+    def test_change_mode_off_removes_from_active(self):
+        m = _make_monitor()
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": 0.0}
+        m._handle_event({"event": "change_mode", "device_id": "dev1", "mode": "off"})
+        assert "dev1" not in m._active
+
+    def test_change_mode_non_off_does_not_remove(self):
+        m = _make_monitor()
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": 0.0}
+        m._handle_event({"event": "change_mode", "device_id": "dev1", "mode": "auto"})
+        assert "dev1" in m._active
+
+    def test_unknown_event_does_not_crash(self):
+        m = _make_monitor()
+        m._handle_event({"event": "some_new_event_type", "device_id": "dev1"})
+        assert m._active == {}
+
+    def test_missing_device_id_uses_unknown(self):
+        m = _make_monitor()
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "mode": "auto",
+            "program": {"current_station": 1},
+        })
+        assert "unknown" in m._active
+
+    def test_last_event_updated(self):
+        m = _make_monitor()
+        m._handle_event({"event": "device_idle", "device_id": "dev1"})
+        assert m.last_event == "device_idle"
+        assert m.last_event_time > 0
+
+    def test_watering_complete_on_unknown_device_no_error(self):
+        """Stopping a device that was never in _active should not raise."""
+        m = _make_monitor()
+        m._handle_event({"event": "watering_complete", "device_id": "not_there"})
+        assert m._active == {}
+
+
+# ---------------------------------------------------------------------------
+# _login
+# ---------------------------------------------------------------------------
+
+class TestLogin:
+    def test_login_success_top_level_token(self):
+        m = _make_monitor()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"orbit_session_token": "tok123"}
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.post", return_value=mock_resp):
+            result = m._login()
+        assert result is True
+        assert m._token == "tok123"
+
+    def test_login_success_nested_token(self):
+        m = _make_monitor()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"user": {"orbit_session_token": "nestedtok"}}
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.post", return_value=mock_resp):
+            result = m._login()
+        assert result is True
+        assert m._token == "nestedtok"
+
+    def test_login_missing_token_returns_false(self):
+        m = _make_monitor()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"some_other_field": "value"}
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.post", return_value=mock_resp):
+            result = m._login()
+        assert result is False
+        assert m._token is None
+
+    def test_login_http_error_returns_false(self):
+        import requests as req
+        m = _make_monitor()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        http_err = req.HTTPError(response=mock_resp)
+        mock_resp.raise_for_status.side_effect = http_err
+        with patch("requests.post", return_value=mock_resp):
+            result = m._login()
+        assert result is False
+
+    def test_login_connection_error_returns_false(self):
+        import requests as req
+        m = _make_monitor()
+        with patch("requests.post", side_effect=req.ConnectionError("unreachable")):
+            result = m._login()
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# start / stop
+# ---------------------------------------------------------------------------
+
+class TestStartStop:
+    def test_start_sets_running_and_spawns_thread(self):
+        m = _make_monitor()
+        barrier = threading.Barrier(2)
+
+        def slow_run():
+            barrier.wait()  # signal we started
+            barrier.wait()  # wait for test to finish checking
+
+        with patch.object(m, "_run", side_effect=slow_run):
+            m.start()
+            barrier.wait()  # wait until thread is running
+            assert m._running is True
+            assert m._thread is not None
+            assert m._thread.is_alive()
+            barrier.wait()  # let thread finish
+            m._running = False
+
+    def test_stop_clears_running(self):
+        m = _make_monitor()
+        m._running = True
+        m._ws = None
+        m.stop()
+        assert m._running is False
+
+    def test_stop_closes_websocket(self):
+        m = _make_monitor()
+        m._running = True
+        mock_ws = MagicMock()
+        m._ws = mock_ws
+        m.stop()
+        mock_ws.close.assert_called_once()
+
+    def test_stop_handles_ws_close_exception(self):
+        m = _make_monitor()
+        m._running = True
+        mock_ws = MagicMock()
+        mock_ws.close.side_effect = Exception("already closed")
+        m._ws = mock_ws
+        # Should not raise
+        m.stop()
+        assert m._running is False
