@@ -225,6 +225,17 @@ function setupNav() {
 }
 
 /**
+ * Update HUD status indicators (sleeping / watering)
+ */
+function updateHudStatus(data) {
+    if (!data) return;
+    const sleeping = document.getElementById('hudSleeping');
+    const watering = document.getElementById('hudWatering');
+    if (sleeping) sleeping.style.display = data.sleeping ? 'flex' : 'none';
+    if (watering) watering.style.display = data.sprinkler_active ? 'flex' : 'none';
+}
+
+/**
  * Initialize
  */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -239,4 +250,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateStatsTicker(data);
     populateLatestDetection(data);
     populateSocials(data);
+    updateHudStatus(data);
 });

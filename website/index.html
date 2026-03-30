@@ -42,24 +42,10 @@
     <!-- Hero Banner -->
     <section class="hero">
         <img src="img/banner.png" alt="Backyard Hummers Banner" class="hero-banner">
-        <div class="hero-overlay">
-            <div class="status-bar">
-                <span class="status-indicator status-active">
-                    <span class="status-dot"></span>
-                    FEEDER CAM LIVE
-                </span>
-                <span class="status-location">MEMPHIS, TN</span>
-                <span class="status-time" id="currentTime"></span>
-            </div>
-        </div>
     </section>
 
     <!-- Live Feed -->
     <section class="section" id="liveFeed">
-        <div class="section-header">
-            <h2 class="hud-title">LIVE FEED</h2>
-            <span class="rec-indicator"><span class="rec-dot"></span> REC</span>
-        </div>
         <div class="feed-container">
             <div class="feed-wrapper">
                 <img id="cameraFeed" class="camera-feed" alt="Live hummingbird feed" style="display:none;" />
@@ -73,6 +59,23 @@
                     <div class="hud-corner hud-tr"></div>
                     <div class="hud-corner hud-bl"></div>
                     <div class="hud-corner hud-br"></div>
+                    <div class="hud-top-left">
+                        <span class="status-indicator status-active">
+                            <span class="status-dot"></span>
+                            FEEDER CAM LIVE
+                        </span>
+                        <span class="status-location">MEMPHIS, TN</span>
+                    </div>
+                    <div class="hud-top-right">
+                        <span class="status-time" id="currentTime"></span>
+                    </div>
+                    <div class="hud-bottom-left">
+                        <span class="hud-sleeping" id="hudSleeping" style="display:none;">&#127769; SLEEPING</span>
+                        <span class="hud-watering" id="hudWatering" style="display:none;">&#128167; WATERING</span>
+                    </div>
+                    <div class="hud-bottom-right">
+                        <span class="rec-indicator"><span class="rec-dot"></span> REC</span>
+                    </div>
                 </div>
             </div>
         </div>

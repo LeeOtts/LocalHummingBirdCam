@@ -26,11 +26,12 @@ def _atomic_write(path: Path, data: dict) -> None:
     tmp.replace(path)
 
 
-def generate_site_data(db: SightingsDB | None = None) -> Path | None:
+def generate_site_data(db: SightingsDB | None = None, *, sprinkler_active: bool = False) -> Path | None:
     """Generate site_data.json and guestbook.json from the sightings database.
 
     Args:
         db: Optional SightingsDB instance. Creates one if not provided.
+        sprinkler_active: Whether the sprinkler is currently running.
 
     Returns:
         Path to the generated site_data.json file, or None on failure.
@@ -43,7 +44,7 @@ def generate_site_data(db: SightingsDB | None = None) -> Path | None:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # --- site_data.json ---
-        data = db.export_for_website()
+        data = db.export_for_website(sprinkler_active=sprinkler_active)
         output_path = output_dir / "site_data.json"
         _atomic_write(output_path, data)
         logger.info("Generated site_data.json (%d clips, %d lifetime detections)",

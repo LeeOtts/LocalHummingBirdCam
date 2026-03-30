@@ -358,10 +358,11 @@ class SightingsDB:
             finally:
                 conn.close()
 
-    def export_for_website(self) -> dict:
+    def export_for_website(self, sprinkler_active: bool = False) -> dict:
         """Export all data needed for the public website's site_data.json."""
         import json as _json
         from analytics.patterns import predict_next_visit
+        from schedule import is_daytime
 
         lifetime = self.get_total_sightings()
         today = self.get_today_count()
@@ -438,6 +439,8 @@ class SightingsDB:
             "daily_counts_30d": daily,
             "avg_gap_minutes": avg_gap,
             "milestones": {"latest": latest_milestone, "next": next_milestone},
+            "sleeping": not is_daytime(),
+            "sprinkler_active": sprinkler_active,
             "clips": clips,
             "socials": {
                 "facebook": getattr(config, 'WEBSITE_SOCIAL_FACEBOOK', ''),

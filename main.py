@@ -762,7 +762,8 @@ class HummingbirdMonitor:
                 if config.WEBSITE_SYNC_ENABLED:
                     try:
                         from scripts.generate_site_data import generate_site_data
-                        generate_site_data(self.sightings_db)
+                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.spraying)
+                        generate_site_data(self.sightings_db, sprinkler_active=spraying)
                     except Exception:
                         logger.warning("Site data generation failed")
 
