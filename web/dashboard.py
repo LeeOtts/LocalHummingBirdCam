@@ -38,6 +38,7 @@ _PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events"}
 _AUTH_FAIL_WINDOW = 300  # 5 minutes
 _AUTH_FAIL_MAX = 5
 _auth_failures: dict[str, list[float]] = {}  # ip -> [timestamps]
+_auth_failures_lock = threading.Lock()
 
 # Cached weather (avoid hitting OpenWeatherMap API on every 5s status poll)
 _weather_cache: dict = {"data": None, "fetched_at": 0}
@@ -75,16 +76,18 @@ def _enforce_auth():
     # Check rate limit before processing auth
     ip = request.remote_addr or "unknown"
     now = _time.time()
-    if ip in _auth_failures:
-        # Prune old entries
-        _auth_failures[ip] = [t for t in _auth_failures[ip] if now - t < _AUTH_FAIL_WINDOW]
-        if len(_auth_failures[ip]) >= _AUTH_FAIL_MAX:
-            return Response("Too many failed login attempts. Try again later.", 429)
+    with _auth_failures_lock:
+        if ip in _auth_failures:
+            # Prune old entries
+            _auth_failures[ip] = [t for t in _auth_failures[ip] if now - t < _AUTH_FAIL_WINDOW]
+            if len(_auth_failures[ip]) >= _AUTH_FAIL_MAX:
+                return Response("Too many failed login attempts. Try again later.", 429)
 
     auth = request.authorization
     if not auth or auth.password != password:
         # Track failed attempt
-        _auth_failures.setdefault(ip, []).append(now)
+        with _auth_failures_lock:
+            _auth_failures.setdefault(ip, []).append(now)
         return Response(
             "Authentication required",
             401,
@@ -180,7 +183,8 @@ def _get_status():
     if _monitor:
         in_cooldown = not _monitor._cooldown_elapsed()
         posts_today = _monitor.poster._posts_today
-        detections_today = getattr(_monitor, '_detections_today', 0)
+        with _monitor._counter_lock:
+            detections_today = getattr(_monitor, '_detections_today', 0)
         if hasattr(_monitor, '_start_time'):
             elapsed = int(time.time() - _monitor._start_time)
             hours, remainder = divmod(elapsed, 3600)
@@ -208,7 +212,11 @@ def _get_status():
     s.camera_error = _monitor.camera.error if _monitor else None
     s.camera_rotation = getattr(_monitor.camera, 'rotation', 0) if _monitor else 0
     s.test_mode = _monitor.test_mode if _monitor else True
-    s.rejected_today = getattr(_monitor, '_rejected_today', 0) if _monitor else 0
+    if _monitor:
+        with _monitor._counter_lock:
+            s.rejected_today = getattr(_monitor, '_rejected_today', 0)
+    else:
+        s.rejected_today = 0
 
     # Training sample count (files are in subdirectories: training/hummingbird/, training/not_hummingbird/)
     training_dir = config.TRAINING_DIR
@@ -653,8 +661,9 @@ def test_record():
                 else:
                     day_part = "evening"
 
-                det = getattr(_monitor, '_detections_today', 0)
-                rej = getattr(_monitor, '_rejected_today', 0)
+                with _monitor._counter_lock:
+                    det = getattr(_monitor, '_detections_today', 0)
+                    rej = getattr(_monitor, '_rejected_today', 0)
 
                 # Extract a frame for vision captions
                 frame_path = None
@@ -757,7 +766,10 @@ def toggle_test_mode():
 
 @app.route("/api/facebook/debug", methods=["GET"])
 def facebook_debug():
-    """Return Facebook token diagnostics — scopes, validity, app info."""
+    """Return Facebook token diagnostics — scopes, validity, app info.
+
+    Requires authentication since it exposes token scope information.
+    """
     if _monitor is None:
         return {"ok": False, "error": "Monitor not running"}, 503
 
@@ -1277,7 +1289,8 @@ def sse_events():
         return Response("Monitor not running", status=503)
 
     q: Queue = Queue(maxsize=50)
-    _monitor._sse_subscribers.append(q)
+    with _monitor._sse_lock:
+        _monitor._sse_subscribers.append(q)
 
     def stream():
         try:
@@ -1290,10 +1303,11 @@ def sse_events():
         except GeneratorExit:
             pass
         finally:
-            try:
-                _monitor._sse_subscribers.remove(q)
-            except (ValueError, AttributeError):
-                pass
+            with _monitor._sse_lock:
+                try:
+                    _monitor._sse_subscribers.remove(q)
+                except ValueError:
+                    pass
 
     return Response(
         stream(),

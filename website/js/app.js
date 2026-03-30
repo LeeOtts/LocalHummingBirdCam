@@ -32,7 +32,10 @@ let siteData = null;
  */
 async function loadSiteData() {
     try {
-        const resp = await fetch(DATA_URL + '?t=' + Date.now());
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const resp = await fetch(DATA_URL + '?t=' + Date.now(), { signal: controller.signal });
+        clearTimeout(timeout);
         if (!resp.ok) throw new Error('Failed to load data');
         siteData = await resp.json();
         return siteData;
@@ -120,20 +123,28 @@ function setupLiveFeed(data) {
     img.style.display = 'block';
     img.src = data.live_feed_url;
 
-    // Auto-reconnect on stream failure (retry every 5s)
+    // Auto-reconnect on stream failure with backoff (max 10 retries)
     let feedReconnectTimer = null;
+    let feedRetryCount = 0;
+    const FEED_MAX_RETRIES = 10;
     img.addEventListener('error', () => {
         img.style.display = 'none';
         if (offline) { offline.style.display = 'flex'; offline.textContent = 'Reconnecting...'; }
-        if (!feedReconnectTimer) {
-            feedReconnectTimer = setTimeout(() => {
-                feedReconnectTimer = null;
-                img.style.display = 'block';
-                img.src = data.live_feed_url + (data.live_feed_url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-            }, 5000);
+        clearTimeout(feedReconnectTimer);
+        if (feedRetryCount >= FEED_MAX_RETRIES) {
+            if (offline) offline.textContent = 'FEED OFFLINE';
+            return;
         }
+        const delay = Math.min(5000 * Math.pow(1.5, feedRetryCount), 60000);
+        feedRetryCount++;
+        feedReconnectTimer = setTimeout(() => {
+            feedReconnectTimer = null;
+            img.style.display = 'block';
+            img.src = data.live_feed_url + (data.live_feed_url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        }, delay);
     });
     img.addEventListener('load', () => {
+        feedRetryCount = 0;  // Reset on successful load
         if (offline) { offline.style.display = 'none'; offline.textContent = 'FEED OFFLINE'; }
     });
 }

@@ -143,6 +143,7 @@ class HummingbirdMonitor:
 
         # SSE event queue for live dashboard notifications
         self._sse_subscribers: list[Queue] = []
+        self._sse_lock = threading.Lock()
 
         self._morning_posted, self._night_posted, self._digest_posted = self._load_post_state()
 
@@ -374,12 +375,13 @@ class HummingbirdMonitor:
                     self._detections_today += 1
                     self._total_lifetime_detections += 1
                     self._detection_hours.append(datetime.now(tz=_local_tz).hour)
+                    det_count = self._detections_today
                 logger.info("Hummingbird confirmed! Starting recording...")
 
                 # Notify SSE subscribers
                 self._broadcast_sse({
                     "event": "detection",
-                    "detections_today": self._detections_today,
+                    "detections_today": det_count,
                     "time": datetime.now(tz=_local_tz).strftime("%I:%M %p").lstrip("0"),
                 })
 
@@ -430,17 +432,16 @@ class HummingbirdMonitor:
     def _broadcast_sse(self, data: dict):
         """Send an event to all SSE subscribers."""
         import json as _json
-        dead = []
-        for q in self._sse_subscribers:
-            try:
-                q.put_nowait(_json.dumps(data))
-            except Exception:
-                dead.append(q)
-        for q in dead:
-            try:
+        msg = _json.dumps(data)
+        with self._sse_lock:
+            dead = []
+            for q in self._sse_subscribers:
+                try:
+                    q.put_nowait(msg)
+                except Exception:
+                    dead.append(q)
+            for q in dead:
                 self._sse_subscribers.remove(q)
-            except ValueError:
-                pass
 
     def _get_todays_clip(self):
         """Return the most recent clip from today, or None."""

@@ -206,8 +206,10 @@ class BHyveMonitor:
         def on_message(ws, raw):
             try:
                 self._handle_event(json.loads(raw))
-            except (json.JSONDecodeError, Exception):
-                pass
+            except json.JSONDecodeError:
+                logger.debug("B-Hyve: non-JSON message: %s", raw[:200])
+            except Exception:
+                logger.warning("B-Hyve: error handling message", exc_info=True)
 
         def on_error(ws, error):
             logger.warning("B-Hyve: WebSocket error: %s", error)

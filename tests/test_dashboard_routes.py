@@ -1,6 +1,7 @@
 """Tests for Flask routes in web/dashboard.py."""
 
 import json
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -29,6 +30,10 @@ def mock_monitor():
     m._cooldown_elapsed.return_value = True
     # Prevent MagicMock auto-creation from leaking non-serializable values
     m.bhyve_monitor = None
+    # Real locks needed by dashboard code for thread-safe counter/SSE access
+    m._counter_lock = threading.Lock()
+    m._sse_lock = threading.Lock()
+    m._sse_subscribers = []
     return m
 
 

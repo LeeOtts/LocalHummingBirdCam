@@ -184,7 +184,7 @@ function populateStats(data) {
     }
 
     // Summary stats from hourly pattern
-    if (data.hourly_pattern) {
+    if (data.hourly_pattern && data.hourly_pattern.some(v => v > 0)) {
         const hourly = data.hourly_pattern;
         const maxVal = Math.max(...hourly);
         const peakIdx = hourly.indexOf(maxVal);

@@ -15,7 +15,7 @@
     --red: #c0392b;
     --red-bright: #e74c3c;
     --text-primary: #e8f0ea;
-    --text-secondary: #8a9e8d;
+    --text-secondary: #a3b8a6;
     --text-muted: #5a7360;
     --border: #1e3625;
     --border-accent: #2a4d33;
@@ -42,6 +42,12 @@ body {
 
 a { color: var(--green-bright); text-decoration: none; }
 a:hover { color: var(--gold-light); }
+
+/* Focus states for keyboard navigation */
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
 
 /* ---- Navigation ---- */
 .top-nav {

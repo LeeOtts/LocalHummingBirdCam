@@ -32,6 +32,7 @@ def _make_monitor(tmp_path):
     m.sightings_db = MagicMock()
     m.camera = MagicMock()
     m._sse_subscribers = []
+    m._sse_lock = threading.Lock()
     return m
 
 
