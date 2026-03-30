@@ -253,6 +253,9 @@
         }
         .btn-update:hover { background: #b8880f; }
         .btn-update:disabled { background: #555; color: #999; cursor: wait; }
+        .btn-restart { background: #c0392b; color: #fff; }
+        .btn-restart:hover { background: #a93226; }
+        .btn-restart:disabled { background: #555; color: #999; cursor: wait; }
 
         .confirm-overlay {
             display: none;
@@ -516,6 +519,12 @@
                             id="updateBtn"
                             onclick="checkForUpdate()">
                         Check for Update
+                    </button>
+                    <button class="btn btn-restart"
+                            style="margin-top: 6px; font-size: 0.7em;"
+                            id="restartBtn"
+                            onclick="restartSystem()">
+                        Restart System
                     </button>
                 </div>
                 <div class="status-card">
@@ -1325,6 +1334,28 @@
                     showToast('Update request failed');
                     btn.disabled = false;
                     btn.textContent = 'Check for Update';
+                });
+        }
+
+        function restartSystem() {
+            if (!confirm('Restart the entire system? The dashboard will be unavailable for ~15 seconds.')) return;
+            const btn = document.getElementById('restartBtn');
+            btn.disabled = true;
+            btn.textContent = 'Restarting...';
+            fetch('/api/restart', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => {
+                    showToast('Restarting — reconnecting shortly...');
+                    setTimeout(function poll() {
+                        fetch('/api/status').then(() => location.reload()).catch(() => setTimeout(poll, 2000));
+                    }, 5000);
+                })
+                .catch(() => {
+                    // Connection lost likely means restart worked
+                    showToast('Restarting — reconnecting shortly...');
+                    setTimeout(function poll() {
+                        fetch('/api/status').then(() => location.reload()).catch(() => setTimeout(poll, 2000));
+                    }, 5000);
                 });
         }
 

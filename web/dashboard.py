@@ -1032,6 +1032,23 @@ def trigger_update():
         return {"ok": False, "error": str(e)}, 500
 
 
+@app.route("/api/restart", methods=["POST"])
+def restart_system():
+    """Restart the hummingbird service via systemd."""
+    import subprocess
+
+    try:
+        logger.info("System restart requested from dashboard")
+        subprocess.Popen(
+            ["sudo", "systemctl", "restart", "hummingbird"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        return {"ok": True, "message": "Restarting..."}
+    except Exception as e:
+        logger.exception("Restart failed")
+        return {"ok": False, "error": str(e)}, 500
+
+
 @app.route("/api/detection-state")
 def detection_state():
     """Return the current detection state for live overlay."""
