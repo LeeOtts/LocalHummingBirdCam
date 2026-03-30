@@ -27,7 +27,7 @@ _PING_INTERVAL = 25     # seconds — keep-alive ping to the WebSocket
 _RECONNECT_DELAY = 10   # seconds between reconnect attempts
 
 # WebSocket event names that affect watering state
-_EV_WATERING_IN_PROGRESS = "watering_in_progress"
+_EV_WATERING_IN_PROGRESS = "watering_in_progress_notification"
 _EV_WATERING_COMPLETE = "watering_complete"
 _EV_DEVICE_IDLE = "device_idle"
 _EV_CHANGE_MODE = "change_mode"
@@ -236,14 +236,16 @@ class BHyveMonitor:
         if event == _EV_WATERING_IN_PROGRESS:
             mode = data.get("mode", "auto")
             program = data.get("program") or {}
+            station = program.get("current_station")
             with self._lock:
                 self._active[device_id] = {
                     "mode": mode,
-                    "program": program,
+                    "station": station,
                     "started_at": time.time(),
                 }
             logger.info(
-                "B-Hyve: watering started — device=%s mode=%s", device_id, mode
+                "B-Hyve: watering started — device=%s mode=%s station=%s",
+                device_id, mode, station,
             )
 
         elif event in (_EV_WATERING_COMPLETE, _EV_DEVICE_IDLE):
