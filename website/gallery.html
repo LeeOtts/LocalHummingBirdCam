@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#d4a017">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -23,9 +23,10 @@
                 <span class="nav-logo-text">BACKYARD HUMMERS</span>
             </a>
             <div class="nav-links">
-                <a href="/" class="nav-link">HQ</a>
-                <a href="gallery.html" class="nav-link active">Classified Footage</a>
-                <a href="stats.html" class="nav-link">Situation Room</a>
+                <a href="/" class="nav-link">Home</a>
+                <a href="gallery.html" class="nav-link active">The Highlight Reel</a>
+                <a href="stats.html" class="nav-link">Bird Brain Stats</a>
+                <a href="guestbook.html" class="nav-link">Guestbook</a>
             </div>
             <button class="nav-hamburger" aria-label="Menu">
                 <span></span><span></span><span></span>
@@ -34,15 +35,15 @@
     </nav>
 
     <section class="page-header">
-        <h1 class="page-title">CLASSIFIED FOOTAGE</h1>
-        <p class="page-subtitle">Surveillance recordings reviewed and captioned by AI</p>
+        <h1 class="page-title">THE HIGHLIGHT REEL</h1>
+        <p class="page-subtitle">Caught on camera and captioned by AI</p>
         <div class="gallery-controls">
             <div class="filter-group">
                 <label class="hud-label">FILTER BY DATE</label>
                 <input type="date" id="dateFilter" class="hud-input">
             </div>
             <div class="filter-group">
-                <span class="hud-label">TOTAL FILES:</span>
+                <span class="hud-label">SIGHTINGS:</span>
                 <span class="hud-value" id="clipCount">--</span>
             </div>
         </div>
@@ -54,8 +55,8 @@
         </div>
         <div class="gallery-empty" id="galleryEmpty" style="display:none;">
             <div class="offline-icon">&#x1F426;</div>
-            <h3>NO FOOTAGE AVAILABLE</h3>
-            <p>Our surveillance network has not captured any hummingbird activity yet.<br>Check back soon — the hummers are coming!</p>
+            <h3>NOTHING YET!</h3>
+            <p>No clips yet — the hummingbirds are playing hard to get.<br>Check back soon!</p>
         </div>
     </section>
 
@@ -65,7 +66,7 @@
         <div class="modal-content">
             <button class="modal-close" id="modalClose">&times;</button>
             <div class="modal-header">
-                <h3 class="hud-title">INTEL REPORT</h3>
+                <h3 class="hud-title">SIGHTING DETAILS</h3>
                 <span class="hud-badge" id="modalConfidence">CONFIDENCE: --%</span>
             </div>
             <div class="modal-video-wrap">
