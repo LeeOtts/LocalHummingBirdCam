@@ -121,6 +121,14 @@ class CameraStream:
             cap.set(cv2.CAP_PROP_FOCUS, config.CAMERA_FOCUS)
             logger.info("Manual focus set to %d (autofocus disabled)", config.CAMERA_FOCUS)
 
+        # Exposure control — keep auto-exposure on even with manual focus
+        # C920: 3 = auto, 1 = manual
+        if config.CAMERA_AUTO_EXPOSURE:
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)
+            logger.info("Auto-exposure enabled")
+        else:
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+
         actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = cap.get(cv2.CAP_PROP_FPS)
