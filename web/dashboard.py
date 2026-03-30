@@ -294,6 +294,18 @@ def _get_status():
     # Tailscale VPN status
     s.tailscale = _get_tailscale_status()
 
+    # B-Hyve sprinkler status
+    bm = getattr(_monitor, "bhyve_monitor", None) if _monitor else None
+    if bm is not None:
+        s.bhyve = {
+            "enabled": True,
+            "connected": bm.connected,
+            "spraying": bm.is_spraying,
+            "zone_count": len(bm.active_zones),
+        }
+    else:
+        s.bhyve = None
+
     return s
 
 
@@ -1262,6 +1274,7 @@ def api_status():
         "schedule": s.schedule,
         "weather": s.weather,
         "tailscale": s.tailscale,
+        "bhyve": s.bhyve,
     }
 
 
