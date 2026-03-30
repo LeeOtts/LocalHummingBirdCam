@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backyard Hummers - Compose Post</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #141a11;
+            color: #e8e0d4;
+            min-height: 100vh;
+        }
+        header {
+            background: #141a11;
+            text-align: center;
+            border-bottom: 3px solid #c4392a;
+            padding: 0;
+            overflow: hidden;
+        }
+        .banner-img {
+            width: 100%;
+            max-width: 700px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+        .section {
+            background: #1c2a1a;
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #3d4a2a;
+        }
+        .section h2 { color: #f5e6c8; margin-bottom: 15px; font-size: 1.2em; }
+
+        label { display: block; color: #b0a58e; font-size: 0.9em; margin-bottom: 6px; }
+
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            background: #141a11;
+            color: #e8e0d4;
+            border: 1px solid #3d4a2a;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 0.95em;
+            resize: vertical;
+        }
+        textarea:focus { outline: none; border-color: #d4a017; }
+
+        .file-upload {
+            border: 2px dashed #3d4a2a;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            position: relative;
+        }
+        .file-upload:hover { border-color: #d4a017; background: rgba(212,160,23,0.05); }
+        .file-upload.has-file { border-color: #4caf50; border-style: solid; }
+        .file-upload input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-upload-text { color: #b0a58e; }
+        .file-upload-text strong { color: #d4a017; }
+        .file-name { color: #4caf50; font-weight: bold; margin-top: 8px; }
+
+        .media-preview {
+            margin-top: 15px;
+            text-align: center;
+        }
+        .media-preview img, .media-preview video {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            border: 1px solid #3d4a2a;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95em;
+            transition: background 0.2s;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-generate { background: #58a6ff; color: #1a1a2e; }
+        .btn-generate:hover:not(:disabled) { background: #4090e0; }
+        .btn-post { background: #4caf50; color: white; font-size: 1.1em; padding: 12px 32px; }
+        .btn-post:hover:not(:disabled) { background: #3d9140; }
+        .btn-edit { background: #d4a017; color: #141a11; }
+        .btn-edit:hover:not(:disabled) { background: #b8880f; }
+        .btn-reset { background: #d44a2a; color: white; }
+        .btn-reset:hover:not(:disabled) { background: #b33a1a; }
+
+        .actions { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+
+        .caption-card {
+            background: #141a11;
+            border: 1px solid #3d4a2a;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+        .caption-card h3 {
+            color: #d4a017;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .caption-card textarea {
+            min-height: 70px;
+            margin-bottom: 0;
+        }
+        .caption-card .char-count {
+            text-align: right;
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .caption-card .char-count.over { color: #d44a2a; font-weight: bold; }
+
+        .status-msg {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-weight: bold;
+            display: none;
+        }
+        .status-msg.success { display: block; background: rgba(76,175,80,0.15); color: #4caf50; border: 1px solid #4caf50; }
+        .status-msg.error { display: block; background: rgba(212,74,42,0.15); color: #d44a2a; border: 1px solid #d44a2a; }
+        .status-msg.info { display: block; background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid #58a6ff; }
+
+        .spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .platform-results {
+            margin-top: 12px;
+        }
+        .platform-results .result-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            font-size: 0.95em;
+        }
+        .result-item .ok { color: #4caf50; }
+        .result-item .fail { color: #d44a2a; }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="/static/backyardhummers.png" alt="Backyard Hummers" class="banner-img">
+    </header>
+
+    <div style="text-align:center; padding:12px; background:#1c2a1a; border-bottom:1px solid #3d4a2a;">
+        <a href="/" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Dashboard</a>
+        <a href="/gallery" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Gallery</a>
+        <a href="/analytics" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Analytics</a>
+        <a href="/compose" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600; border-bottom:2px solid #d4a017; padding-bottom:2px;">Compose</a>
+    </div>
+
+    <div class="container">
+        <!-- Step 1: Upload & Notes -->
+        <div class="section" id="step-upload">
+            <h2>1. Upload Media & Notes</h2>
+
+            <label for="media-file">Photo or Video (optional)</label>
+            <div class="file-upload" id="file-drop">
+                <input type="file" id="media-file" accept="image/*,video/*">
+                <div class="file-upload-text">
+                    <strong>Click or drag</strong> to upload a photo or video
+                </div>
+                <div class="file-name" id="file-name" style="display:none;"></div>
+            </div>
+            <div class="media-preview" id="media-preview"></div>
+
+            <div style="margin-top:15px;">
+                <label for="user-notes">Your Notes / What's Happening</label>
+                <textarea id="user-notes" placeholder="e.g. Two hummers going at it at the feeder this morning, one chased the other off three times..."></textarea>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-generate" id="btn-generate" onclick="generateCaptions()">
+                    Generate Unhinged Captions
+                </button>
+            </div>
+            <div class="status-msg" id="generate-status"></div>
+        </div>
+
+        <!-- Step 2: Review & Edit Captions -->
+        <div class="section" id="step-captions" style="display:none;">
+            <h2>2. Review & Edit Captions</h2>
+            <p style="color:#b0a58e; font-size:0.85em; margin-bottom:15px;">
+                AI-generated in the Backyard Hummers Unhinged voice. Edit any caption before posting.
+            </p>
+            <div id="captions-container"></div>
+            <div class="actions">
+                <button class="btn btn-generate" onclick="generateCaptions()">Regenerate</button>
+                <button class="btn btn-post" id="btn-post" onclick="postToSocials()">
+                    Post to All Socials
+                </button>
+            </div>
+            <div class="status-msg" id="post-status"></div>
+            <div class="platform-results" id="platform-results"></div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('media-file');
+        const fileDrop = document.getElementById('file-drop');
+        const fileNameEl = document.getElementById('file-name');
+        const previewEl = document.getElementById('media-preview');
+        let uploadedFilename = null;  // Server-side filename after upload
+        let generatedCaptions = {};   // {platform: caption}
+        const CHAR_LIMITS = {
+            'Twitter': 280,
+            'Bluesky': 300,
+            'Instagram': 2200,
+            'TikTok': 2200,
+            'Facebook': null
+        };
+
+        // File selection & preview
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag & drop
+        fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.style.borderColor = '#d4a017'; });
+        fileDrop.addEventListener('dragleave', () => { fileDrop.style.borderColor = uploadedFilename ? '#4caf50' : '#3d4a2a'; });
+        fileDrop.addEventListener('drop', e => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+
+        function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            fileNameEl.textContent = file.name;
+            fileNameEl.style.display = 'block';
+            fileDrop.classList.add('has-file');
+
+            // Preview
+            previewEl.innerHTML = '';
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                previewEl.appendChild(img);
+            } else if (file.type.startsWith('video/')) {
+                const vid = document.createElement('video');
+                vid.src = URL.createObjectURL(file);
+                vid.controls = true;
+                vid.muted = true;
+                previewEl.appendChild(vid);
+            }
+
+            // Upload immediately
+            uploadFile(file);
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('media', file);
+            setStatus('generate-status', 'info', '<span class="spinner"></span> Uploading...');
+            try {
+                const resp = await fetch('/api/compose/upload', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (data.ok) {
+                    uploadedFilename = data.filename;
+                    setStatus('generate-status', 'success', 'Uploaded: ' + data.filename);
+                } else {
+                    setStatus('generate-status', 'error', 'Upload failed: ' + (data.error || 'Unknown'));
+                }
+            } catch (e) {
+                setStatus('generate-status', 'error', 'Upload error: ' + e.message);
+            }
+        }
+
+        async function generateCaptions() {
+            const notes = document.getElementById('user-notes').value.trim();
+            if (!notes && !uploadedFilename) {
+                setStatus('generate-status', 'error', 'Please add some notes or upload media first.');
+                return;
+            }
+
+            const btn = document.getElementById('btn-generate');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Generating...';
+            setStatus('generate-status', 'info', '<span class="spinner"></span> Feeding your notes to the AI hummingbird brain...');
+
+            try {
+                const resp = await fetch('/api/compose/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        notes: notes,
+                        filename: uploadedFilename
+                    })
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    generatedCaptions = data.captions;
+                    renderCaptions(data.captions);
+                    document.getElementById('step-captions').style.display = 'block';
+                    setStatus('generate-status', 'success', 'Captions generated! Review and edit below.');
+                    document.getElementById('step-captions').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    setStatus('generate-status', 'error', 'Generation failed: ' + (data.error || 'Unknown'));
+                }
+            } catch (e) {
+                setStatus('generate-status', 'error', 'Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Generate Unhinged Captions';
+            }
+        }
+
+        function renderCaptions(captions) {
+            const container = document.getElementById('captions-container');
+            container.innerHTML = '';
+            for (const [platform, caption] of Object.entries(captions)) {
+                const card = document.createElement('div');
+                card.className = 'caption-card';
+                const limit = CHAR_LIMITS[platform];
+                const limitNote = limit ? ` (${limit} char limit)` : '';
+                card.innerHTML = `
+                    <h3>${platform}${limitNote}</h3>
+                    <textarea id="caption-${platform}" oninput="updateCharCount('${platform}')">${caption}</textarea>
+                    <div class="char-count" id="chars-${platform}"></div>
+                `;
+                container.appendChild(card);
+                // Initial char count
+                setTimeout(() => updateCharCount(platform), 0);
+            }
+        }
+
+        function updateCharCount(platform) {
+            const ta = document.getElementById('caption-' + platform);
+            const el = document.getElementById('chars-' + platform);
+            const limit = CHAR_LIMITS[platform];
+            if (!ta || !el) return;
+            const len = ta.value.length;
+            if (limit) {
+                el.textContent = `${len} / ${limit}`;
+                el.className = 'char-count' + (len > limit ? ' over' : '');
+            } else {
+                el.textContent = `${len} chars`;
+                el.className = 'char-count';
+            }
+        }
+
+        async function postToSocials() {
+            // Collect edited captions from textareas
+            const captions = {};
+            for (const platform of Object.keys(generatedCaptions)) {
+                const ta = document.getElementById('caption-' + platform);
+                if (ta) captions[platform] = ta.value;
+            }
+
+            const btn = document.getElementById('btn-post');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Posting...';
+            setStatus('post-status', 'info', '<span class="spinner"></span> Posting to all platforms...');
+            document.getElementById('platform-results').innerHTML = '';
+
+            try {
+                const resp = await fetch('/api/compose/post', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        captions: captions,
+                        filename: uploadedFilename
+                    })
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    let allOk = Object.values(data.results).every(v => v);
+                    setStatus('post-status', allOk ? 'success' : 'error',
+                        allOk ? 'Posted to all platforms!' : 'Some platforms failed — see details below.');
+                    renderResults(data.results);
+                } else {
+                    setStatus('post-status', 'error', 'Post failed: ' + (data.error || 'Unknown'));
+                }
+            } catch (e) {
+                setStatus('post-status', 'error', 'Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Post to All Socials';
+            }
+        }
+
+        function renderResults(results) {
+            const container = document.getElementById('platform-results');
+            container.innerHTML = '';
+            for (const [platform, success] of Object.entries(results)) {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `<span class="${success ? 'ok' : 'fail'}">${success ? '&#10003;' : '&#10007;'}</span> ${platform}`;
+                container.appendChild(div);
+            }
+        }
+
+        function setStatus(id, type, html) {
+            const el = document.getElementById(id);
+            el.className = 'status-msg ' + type;
+            el.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

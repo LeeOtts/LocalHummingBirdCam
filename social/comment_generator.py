@@ -742,3 +742,128 @@ def generate_milestone_post(lifetime_count: int, today_count: int = 0,
     except _OpenAIError:
         logger.exception("OpenAI API call failed for milestone post")
         return {p: fallback for p in platforms}
+
+
+MANUAL_POST_PROMPT = """\
+You are the voice of "Backyard Hummers," an automated \
+hummingbird feeder camera.
+
+You are writing a manual post based on the operator's notes and any attached media.
+
+Operator's Notes:
+{user_notes}
+
+Tone & Style:
+- You are an UNHINGED HUMMINGBIRD LOVER. You are obsessed with these tiny \
+  chaotic birds and you are NOT apologizing for it
+- Playful, lightly cheeky, and subtly suggestive (double entendre), but always \
+  safe and appropriate for social media
+- The energy is "person who installed a surveillance camera for hummingbirds \
+  and thinks this is completely normal behavior"
+- You are emotionally invested in every visit. Every hummingbird has a \
+  personality. You have opinions about their choices
+- Natural, conversational, unhinged but lovable — like a neighbor who corners \
+  you to talk about hummingbird drama for 20 minutes
+- Channel big "I will protect these tiny dinosaurs with my life" energy
+
+Content Guidelines:
+- If an image or video is provided, describe what you actually SEE — be specific \
+  about what the bird is doing, its colors, behavior
+- Weave in the operator's notes naturally, don't just restate them
+- Make it sound like someone running a full hummingbird surveillance operation \
+  who knows their regulars by sight and has strong feelings about it
+- The vibe is unhinged bird parent meets backyard private investigator
+- Lean into the absurdity of being THIS invested in a feeder camera
+
+Hard Rules:
+- Do NOT mention AI, models, prompts, or automation
+- Do NOT explain jokes
+- Use 0-1 emojis maximum
+- Avoid cliches and generic lines
+- 1-3 sentences max per platform
+{platform_block}
+Output: Return ONLY the caption text. No labels, no extra formatting.
+"""
+
+
+def generate_manual_post(user_notes: str, media_path: Path | None = None,
+                         platforms: list[str] | None = None) -> dict[str, str]:
+    """Generate captions for a manually composed post, one per platform.
+
+    The operator provides notes/context and optionally a photo or video frame.
+    GPT-4o rewrites it in the Backyard Hummers Unhinged voice.
+    """
+    platforms = platforms or ["Facebook"]
+    multi = len(platforms) > 1
+    fallback = user_notes or "The backyard hummingbird surveillance continues."
+
+    if not config.OPENAI_API_KEY:
+        logger.warning("No OpenAI API key configured, using raw notes as caption")
+        return {p: fallback for p in platforms}
+
+    platform_block = _build_platform_block(platforms) if multi else ""
+
+    try:
+        client = _get_client()
+        prompt = MANUAL_POST_PROMPT.format(
+            user_notes=user_notes,
+            platform_block=platform_block,
+        )
+
+        messages: list = [{"role": "system", "content": prompt}]
+
+        # Attach image if provided (photo or extracted video frame)
+        image_url = None
+        if media_path and media_path.exists():
+            suffix = media_path.suffix.lower()
+            if suffix in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+                image_url = _encode_frame(media_path)
+            elif suffix in (".mp4", ".mov", ".avi", ".mkv"):
+                # Extract a frame from the video for vision analysis
+                try:
+                    import cv2
+                    cap = cv2.VideoCapture(str(media_path))
+                    # Seek to 1 second in
+                    fps = cap.get(cv2.CAP_PROP_FPS) or 15
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, int(fps))
+                    ret, frame = cap.read()
+                    cap.release()
+                    if ret:
+                        import tempfile
+                        tmp = Path(tempfile.mktemp(suffix=".jpg"))
+                        cv2.imwrite(str(tmp), frame)
+                        image_url = _encode_frame(tmp)
+                        tmp.unlink(missing_ok=True)
+                except Exception:
+                    logger.warning("Failed to extract frame from video for vision")
+
+        if image_url:
+            user_content: list | str = [
+                {"type": "text", "text": "Write a post based on the operator's notes and this image/video frame."},
+                {"type": "image_url", "image_url": {"url": image_url, "detail": config.VISION_CAPTION_DETAIL}},
+            ]
+        else:
+            user_content = "Write a post based on the operator's notes."
+
+        messages.append({"role": "user", "content": user_content})
+
+        max_tok = 500 if multi else 250
+        response = client.chat.completions.create(
+            model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+            messages=messages,
+            max_tokens=max_tok,
+            temperature=0.95,
+        )
+        raw = (response.choices[0].message.content or "").strip()
+
+        if multi:
+            captions = _parse_platform_captions(raw, platforms)
+        else:
+            captions = {platforms[0]: raw}
+
+        logger.info("Manual post captions: %s", captions)
+        return captions
+
+    except _OpenAIError:
+        logger.exception("OpenAI API call failed for manual post")
+        return {p: fallback for p in platforms}

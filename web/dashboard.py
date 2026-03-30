@@ -1227,6 +1227,115 @@ def sse_events():
     )
 
 
+@app.route("/compose")
+def compose_page():
+    """Manual post composer — upload media, generate AI captions, post to socials."""
+    return render_template("compose.html")
+
+
+@app.route("/api/compose/upload", methods=["POST"])
+def api_compose_upload():
+    """Handle media upload for manual posts. Saves to clips/ directory."""
+    if "media" not in request.files:
+        return {"ok": False, "error": "No file provided"}, 400
+
+    f = request.files["media"]
+    if not f.filename:
+        return {"ok": False, "error": "Empty filename"}, 400
+
+    # Sanitize filename and save
+    import re as _re
+    from werkzeug.utils import secure_filename
+    safe_name = secure_filename(f.filename)
+    # Prefix with timestamp to avoid collisions
+    ts = datetime.now(tz=_local_tz).strftime("%Y%m%d_%H%M%S")
+    dest_name = f"manual_{ts}_{safe_name}"
+    dest_path = config.CLIPS_DIR / dest_name
+    config.CLIPS_DIR.mkdir(parents=True, exist_ok=True)
+    f.save(str(dest_path))
+
+    logger.info("Compose upload saved: %s (%.1f MB)", dest_name, dest_path.stat().st_size / 1_048_576)
+    return {"ok": True, "filename": dest_name}
+
+
+@app.route("/api/compose/generate", methods=["POST"])
+def api_compose_generate():
+    """Generate AI captions from user notes + optional uploaded media."""
+    data = request.get_json(silent=True) or {}
+    notes = data.get("notes", "").strip()
+    filename = data.get("filename")
+
+    if not notes and not filename:
+        return {"ok": False, "error": "Provide notes or upload media"}, 400
+
+    # Determine active platforms
+    platforms = ["Facebook"]
+    if _monitor and _monitor.poster_manager:
+        platforms = _monitor.poster_manager.platform_names or ["Facebook"]
+
+    # Resolve media path
+    media_path = None
+    if filename:
+        candidate = config.CLIPS_DIR / filename
+        if candidate.exists():
+            media_path = candidate
+
+    try:
+        from social.comment_generator import generate_manual_post
+        captions = generate_manual_post(
+            user_notes=notes or "(no notes — just vibes and this media)",
+            media_path=media_path,
+            platforms=platforms,
+        )
+        return {"ok": True, "captions": captions}
+    except Exception as e:
+        logger.exception("Failed to generate manual post captions")
+        return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/api/compose/post", methods=["POST"])
+def api_compose_post():
+    """Post manually composed content to all enabled social platforms."""
+    data = request.get_json(silent=True) or {}
+    captions = data.get("captions", {})
+    filename = data.get("filename")
+
+    if not captions:
+        return {"ok": False, "error": "No captions provided"}, 400
+
+    if not _monitor or not _monitor.poster_manager:
+        return {"ok": False, "error": "Monitor not running"}, 503
+
+    pm = _monitor.poster_manager
+
+    # Resolve media path
+    media_path = None
+    if filename:
+        candidate = config.CLIPS_DIR / filename
+        if candidate.exists():
+            media_path = candidate
+
+    try:
+        if media_path:
+            suffix = media_path.suffix.lower()
+            if suffix in (".mp4", ".mov", ".avi", ".mkv"):
+                results = pm.post_video(media_path, captions)
+            elif suffix in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+                results = pm.post_photo(media_path, captions)
+            else:
+                # Unknown media type — post as text
+                results = pm.post_text(captions)
+        else:
+            # Text-only post
+            results = pm.post_text(captions)
+
+        logger.info("Manual compose post results: %s", results)
+        return {"ok": True, "results": results}
+    except Exception as e:
+        logger.exception("Failed to post manual compose")
+        return {"ok": False, "error": str(e)}, 500
+
+
 @app.route("/api/platforms")
 def api_platforms():
     """Return list of active social media platforms."""
