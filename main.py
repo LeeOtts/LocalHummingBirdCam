@@ -345,7 +345,7 @@ class HummingbirdMonitor:
                     self._last_site_data_regen = now
                     try:
                         from scripts.generate_site_data import generate_site_data
-                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.spraying)
+                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.is_spraying)
                         generate_site_data(self.sightings_db, sprinkler_active=spraying)
                     except Exception:
                         logger.debug("Periodic site data regen failed")
@@ -777,7 +777,7 @@ class HummingbirdMonitor:
                 if config.WEBSITE_SYNC_ENABLED:
                     try:
                         from scripts.generate_site_data import generate_site_data
-                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.spraying)
+                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.is_spraying)
                         generate_site_data(self.sightings_db, sprinkler_active=spraying)
                     except Exception:
                         logger.warning("Site data generation failed")
