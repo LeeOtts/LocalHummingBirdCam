@@ -86,6 +86,7 @@
         .feed-overlay.state-confirmed { border-color: #4caf50; box-shadow: 0 0 20px #4caf50; }
         .feed-overlay.state-rejected { border-color: #d44a2a; }
         .feed-overlay.state-camera_error { border-color: #e05535; box-shadow: 0 0 20px #e05535; }
+        .feed-overlay.state-watering { border-color: #5dade2; box-shadow: 0 0 15px #5dade2; }
         .feed-overlay .state-label {
             position: absolute;
             top: 10px; left: 10px;
@@ -806,6 +807,8 @@
                                 bhyveDetail.textContent = d.bhyve.connected ? 'Live' : 'Connecting...';
                             }
                         }
+                        // Show watering overlay on feed when spraying
+                        window._bhyveSpraying = !!d.bhyve.spraying;
                     }
 
                     if (d.schedule) {
@@ -883,11 +886,13 @@
                 .then(r => r.json())
                 .then(data => {
                     const overlay = document.getElementById('feedOverlay');
-                    overlay.className = 'feed-overlay state-' + data.state;
+                    // If idle but B-Hyve is spraying, show watering overlay instead
+                    const effectiveState = (data.state === 'idle' && window._bhyveSpraying) ? 'watering' : data.state;
+                    overlay.className = 'feed-overlay state-' + effectiveState;
 
                     // Update or create state label
                     let label = overlay.querySelector('.state-label');
-                    if (data.state !== 'idle') {
+                    if (effectiveState !== 'idle') {
                         if (!label) {
                             label = document.createElement('div');
                             label.className = 'state-label';
@@ -900,6 +905,7 @@
                             'rejected': 'NOT A BIRD',
                             'sleeping': 'SLEEPING',
                             'camera_error': 'CAMERA ERROR',
+                            'watering': 'WATERING',
                         };
                         const colors = {
                             'motion': '#f0c040',
@@ -908,10 +914,11 @@
                             'rejected': '#d44a2a',
                             'sleeping': '#b08ad4',
                             'camera_error': '#e05535',
+                            'watering': '#5dade2',
                         };
-                        label.textContent = labels[data.state] || data.state;
-                        label.style.background = colors[data.state] || '#555';
-                        label.style.color = data.state === 'motion' ? '#0d1a12' : 'white';
+                        label.textContent = labels[effectiveState] || effectiveState;
+                        label.style.background = colors[effectiveState] || '#555';
+                        label.style.color = effectiveState === 'motion' ? '#0d1a12' : 'white';
                     } else if (label) {
                         label.remove();
                     }

@@ -71,7 +71,19 @@ def generate_site_data(db: SightingsDB | None = None, *, sprinkler_active: bool 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    result = generate_site_data()
+
+    # Preserve sprinkler_active state from existing site_data.json
+    # (main.py keeps this up-to-date via the B-Hyve monitor)
+    sprinkler_active = False
+    existing_path = config.WEBSITE_DATA_DIR / "site_data.json"
+    if existing_path.exists():
+        try:
+            existing = json.loads(existing_path.read_text())
+            sprinkler_active = existing.get("sprinkler_active", False)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    result = generate_site_data(sprinkler_active=sprinkler_active)
     if result:
         print(f"Generated: {result}")
     else:

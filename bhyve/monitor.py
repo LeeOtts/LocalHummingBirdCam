@@ -250,6 +250,10 @@ class BHyveMonitor:
             program = data.get("program") or {}
             station = program.get("current_station") if isinstance(program, dict) else None
             with self._lock:
+                if device_id in self._active:
+                    # Already tracking — update silently to avoid duplicate logs
+                    self._active[device_id]["station"] = station
+                    return
                 self._active[device_id] = {
                     "mode": mode,
                     "station": station,
