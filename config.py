@@ -144,6 +144,10 @@ NIGHT_MODE_ENABLED = os.getenv("NIGHT_MODE_ENABLED", "true").lower() in ("true",
 BHYVE_EMAIL = os.getenv("BHYVE_EMAIL", "")
 BHYVE_PASSWORD = os.getenv("BHYVE_PASSWORD", "")
 BHYVE_ENABLED = bool(BHYVE_EMAIL and BHYVE_PASSWORD)
+# Station number to watch (1-based, matches the zone order in the B-Hyve app).
+# 0 = light up for any active station.  Default 1 = first zone only.
+_bhyve_station_raw = int(os.getenv("BHYVE_STATION", "1"))
+BHYVE_STATION: int | None = _bhyve_station_raw if _bhyve_station_raw > 0 else None
 
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")

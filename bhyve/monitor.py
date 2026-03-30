@@ -53,12 +53,15 @@ class BHyveMonitor:
         monitor.stop()
     """
 
-    def __init__(self, email: str, password: str):
+    def __init__(self, email: str, password: str, watch_station: int | None = None):
         self._email = email
         self._password = password
+        # If set, only report is_spraying=True when this station number is active.
+        # None means any active station counts.
+        self._watch_station = watch_station
         self._token: str | None = None
         self._lock = threading.Lock()
-        # device_id -> {"mode": str, "program": dict, "started_at": float}
+        # device_id -> {"mode": str, "station": int|None, "started_at": float}
         self._active: dict[str, dict] = {}
         self._ws = None
         self._running = False
@@ -73,9 +76,16 @@ class BHyveMonitor:
 
     @property
     def is_spraying(self) -> bool:
-        """True if any zone on any device is currently watering."""
+        """True if the watched station (or any station) is currently watering."""
         with self._lock:
-            return bool(self._active)
+            if not self._active:
+                return False
+            if self._watch_station is None:
+                return True
+            return any(
+                info.get("station") == self._watch_station
+                for info in self._active.values()
+            )
 
     @property
     def active_zones(self) -> list[dict]:

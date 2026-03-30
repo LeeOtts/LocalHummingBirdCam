@@ -250,9 +250,15 @@ class HummingbirdMonitor:
         # Start B-Hyve sprinkler monitor if credentials are configured
         if config.BHYVE_ENABLED:
             from bhyve.monitor import BHyveMonitor
-            self.bhyve_monitor = BHyveMonitor(config.BHYVE_EMAIL, config.BHYVE_PASSWORD)
+            self.bhyve_monitor = BHyveMonitor(
+                config.BHYVE_EMAIL, config.BHYVE_PASSWORD,
+                watch_station=config.BHYVE_STATION,
+            )
             self.bhyve_monitor.start()
-            logger.info("B-Hyve sprinkler monitor enabled")
+            logger.info(
+                "B-Hyve sprinkler monitor enabled (watching station %s)",
+                config.BHYVE_STATION or "any",
+            )
 
         # Start AI comment responder if enabled
         if config.AUTO_REPLY_ENABLED:

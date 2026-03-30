@@ -587,7 +587,7 @@
                         {{ 'SPRAYING' if status.bhyve.spraying else 'IDLE' }}
                     </div>
                     <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-bhyve-detail">
-                        {% if status.bhyve.spraying %}{{ status.bhyve.zone_count }} zone{{ 's' if status.bhyve.zone_count != 1 else '' }} active{% else %}{{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% endif %}
+                        {% if status.bhyve.spraying %}Hummingbird Mister active{% elif status.bhyve.watch_station %}Zone {{ status.bhyve.watch_station }} — {{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% else %}{{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -762,8 +762,9 @@
                         }
                         if (bhyveDetail) {
                             if (d.bhyve.spraying) {
-                                const n = d.bhyve.zone_count;
-                                bhyveDetail.textContent = n + ' zone' + (n !== 1 ? 's' : '') + ' active';
+                                bhyveDetail.textContent = 'Hummingbird Mister active';
+                            } else if (d.bhyve.watch_station) {
+                                bhyveDetail.textContent = 'Zone ' + d.bhyve.watch_station + ' — ' + (d.bhyve.connected ? 'Live' : 'Connecting...');
                             } else {
                                 bhyveDetail.textContent = d.bhyve.connected ? 'Live' : 'Connecting...';
                             }
