@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#d4a017">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
@@ -24,9 +24,10 @@
                 <span class="nav-logo-text">BACKYARD HUMMERS</span>
             </a>
             <div class="nav-links">
-                <a href="/" class="nav-link">HQ</a>
-                <a href="gallery.html" class="nav-link">Classified Footage</a>
-                <a href="stats.html" class="nav-link active">Situation Room</a>
+                <a href="/" class="nav-link">Home</a>
+                <a href="gallery.html" class="nav-link">The Highlight Reel</a>
+                <a href="stats.html" class="nav-link active">Bird Brain Stats</a>
+                <a href="guestbook.html" class="nav-link">Guestbook</a>
             </div>
             <button class="nav-hamburger" aria-label="Menu">
                 <span></span><span></span><span></span>
@@ -35,15 +36,15 @@
     </nav>
 
     <section class="page-header">
-        <h1 class="page-title">SITUATION ROOM</h1>
-        <p class="page-subtitle">Hummingbird activity intelligence & pattern analysis</p>
+        <h1 class="page-title">BIRD BRAIN STATS</h1>
+        <p class="page-subtitle">All the numbers, none of the mystery</p>
     </section>
 
     <!-- Key Metrics -->
     <section class="section">
         <div class="metrics-grid">
             <div class="metric-card">
-                <span class="metric-label">LIFETIME DETECTIONS</span>
+                <span class="metric-label">LIFETIME SIGHTINGS</span>
                 <span class="metric-value" id="statLifetime">--</span>
                 <div class="milestone-bar">
                     <div class="milestone-fill" id="milestoneFill"></div>
@@ -51,7 +52,7 @@
                 </div>
             </div>
             <div class="metric-card">
-                <span class="metric-label">TODAY'S INCURSIONS</span>
+                <span class="metric-label">TODAY'S VISITS</span>
                 <span class="metric-value" id="statToday">--</span>
             </div>
             <div class="metric-card">
@@ -59,7 +60,7 @@
                 <span class="metric-value" id="statWeek">--</span>
             </div>
             <div class="metric-card prediction-card">
-                <span class="metric-label">NEXT EXPECTED CONTACT</span>
+                <span class="metric-label">NEXT EXPECTED VISIT</span>
                 <span class="metric-value" id="statNextVisit">--</span>
                 <span class="confidence-badge" id="statNextConfidence">CONFIDENCE: --</span>
             </div>
@@ -69,7 +70,7 @@
     <!-- Hourly Distribution -->
     <section class="section">
         <div class="section-header">
-            <h2 class="hud-title">PEAK INFILTRATION HOURS</h2>
+            <h2 class="hud-title">PEAK VISITING HOURS</h2>
             <span class="hud-badge">14-DAY PATTERN</span>
         </div>
         <div class="chart-container">
@@ -91,7 +92,7 @@
     <!-- Summary Stats -->
     <section class="section">
         <div class="section-header">
-            <h2 class="hud-title">OPERATIONAL SUMMARY</h2>
+            <h2 class="hud-title">AT A GLANCE</h2>
         </div>
         <div class="summary-grid">
             <div class="summary-card">

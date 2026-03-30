@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backyard Hummers - AI-Powered Hummingbird Surveillance</title>
-    <meta name="description" content="Live AI-powered hummingbird surveillance from Memphis, TN. Watch Ruby-throated hummingbirds visit our feeder in real-time.">
-    <meta property="og:title" content="Backyard Hummers - AI-Powered Hummingbird Surveillance">
-    <meta property="og:description" content="Live AI-powered hummingbird surveillance from Memphis, TN. Watch Ruby-throated hummingbirds visit our feeder in real-time.">
+    <title>Backyard Hummers - AI-Powered Hummingbird Cam</title>
+    <meta name="description" content="Live AI-powered hummingbird cam from Memphis, TN. Watch Ruby-throated hummingbirds visit our feeder in real-time.">
+    <meta property="og:title" content="Backyard Hummers - AI-Powered Hummingbird Cam">
+    <meta property="og:description" content="Live AI-powered hummingbird cam from Memphis, TN. Watch Ruby-throated hummingbirds visit our feeder in real-time.">
     <meta property="og:image" content="img/banner.png">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://backyardhummers.com">
@@ -18,7 +18,7 @@
     <meta name="theme-color" content="#d4a017">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -28,10 +28,10 @@
                 <span class="nav-logo-text">BACKYARD HUMMERS</span>
             </a>
             <div class="nav-links">
-                <a href="/" class="nav-link active">HQ</a>
-                <a href="gallery.html" class="nav-link">Classified Footage</a>
-                <a href="stats.html" class="nav-link">Situation Room</a>
-                <a href="guestbook.html" class="nav-link">Field Reports</a>
+                <a href="/" class="nav-link active">Home</a>
+                <a href="gallery.html" class="nav-link">The Highlight Reel</a>
+                <a href="stats.html" class="nav-link">Bird Brain Stats</a>
+                <a href="guestbook.html" class="nav-link">Guestbook</a>
             </div>
             <button class="nav-hamburger" aria-label="Menu">
                 <span></span><span></span><span></span>
@@ -46,9 +46,9 @@
             <div class="status-bar">
                 <span class="status-indicator status-active">
                     <span class="status-dot"></span>
-                    FLOCK SURVEILLANCE
+                    FEEDER CAM LIVE
                 </span>
-                <span class="status-location">MEMPHIS, TN / ZONE 901</span>
+                <span class="status-location">MEMPHIS, TN</span>
                 <span class="status-time" id="currentTime"></span>
             </div>
         </div>
@@ -65,8 +65,8 @@
                 <img id="cameraFeed" class="camera-feed" alt="Live hummingbird feed" style="display:none;" />
                 <div class="feed-offline" id="feedOffline" style="display:none;">
                     <div class="offline-icon">&#x1F50D;</div>
-                    <h3>SIGNAL LOST</h3>
-                    <p>Hummingbird operatives have gone dark.<br>Surveillance will resume shortly.</p>
+                    <h3>FEED OFFLINE</h3>
+                    <p>The hummingbirds are hiding.<br>Check back soon!</p>
                 </div>
                 <div class="feed-hud">
                     <div class="hud-corner hud-tl"></div>
@@ -82,7 +82,7 @@
     <section class="stats-ticker">
         <div class="ticker-inner">
             <div class="ticker-stat">
-                <span class="ticker-label">LIFETIME DETECTIONS</span>
+                <span class="ticker-label">LIFETIME SIGHTINGS</span>
                 <span class="ticker-value" id="lifetimeCount">--</span>
             </div>
             <div class="ticker-divider"></div>
@@ -97,7 +97,7 @@
             </div>
             <div class="ticker-divider"></div>
             <div class="ticker-stat">
-                <span class="ticker-label">NEXT EXPECTED CONTACT</span>
+                <span class="ticker-label">NEXT EXPECTED VISIT</span>
                 <span class="ticker-value" id="nextVisit">--</span>
             </div>
         </div>
@@ -106,7 +106,7 @@
     <!-- Latest Detection -->
     <section class="section">
         <div class="section-header">
-            <h2 class="hud-title">LATEST DETECTION</h2>
+            <h2 class="hud-title">LATEST VISITOR</h2>
             <span class="hud-badge" id="latestConfidence">CONFIDENCE: --%</span>
         </div>
         <div class="latest-detection" id="latestDetection">
@@ -132,7 +132,7 @@
                         <span class="hud-value species-tag">RUBY-THROATED</span>
                     </div>
                     <div class="detection-caption" id="latestCaption">
-                        Awaiting intel...
+                        Waiting for a visitor...
                     </div>
                     <div class="detection-platforms" id="latestPlatforms"></div>
                 </div>
@@ -142,7 +142,7 @@
 
     <!-- Social Links -->
     <section class="section socials-section">
-        <h2 class="hud-title center">JOIN THE SURVEILLANCE NETWORK</h2>
+        <h2 class="hud-title center">FOLLOW THE FLOCK</h2>
         <p class="socials-subtitle">Follow the hummers across all platforms</p>
         <div class="socials-grid" id="socialsGrid">
             <!-- Populated by JS -->
@@ -154,15 +154,10 @@
         <div class="footer-inner">
             <div class="footer-brand">
                 <span class="footer-logo">BACKYARD HUMMERS</span>
-                <span class="footer-tagline">AI-Powered Hummingbird Surveillance</span>
-            </div>
-            <div class="footer-info">
-                <span class="hud-mono">MODEL: backyard_hummers_v1</span>
-                <span class="hud-mono">DEVICE: raspberry_pi_node_01</span>
-                <span class="hud-mono">LOCATION: MEMPHIS, TN / ZONE 901</span>
+                <span class="footer-tagline">Memphis, TN — watching the feeder since 2024</span>
             </div>
             <div class="footer-badge">
-                <span class="hud-mono">AI DETECTION ACTIVE</span>
+                <span class="hud-mono">Powered by AI + a lot of sunflower seeds 🌻</span>
             </div>
         </div>
     </footer>
