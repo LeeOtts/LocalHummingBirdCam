@@ -1206,7 +1206,50 @@ def api_analytics():
     return summary
 
 
-# Guestbook routes removed — just the two of us watching 🐦
+def _cors(response):
+    """Add CORS headers so the public website can call guestbook endpoints."""
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
+
+@app.route("/guestbook")
+def guestbook_page():
+    if not _monitor or not _monitor.sightings_db:
+        return render_template("guestbook.html", entries=[], total_visitors=0)
+    entries = _monitor.sightings_db.get_guestbook_entries(limit=100)
+    total = _monitor.sightings_db.get_total_visitor_count()
+    return render_template("guestbook.html", entries=entries, total_visitors=total)
+
+
+@app.route("/api/guestbook", methods=["GET", "OPTIONS"])
+def api_guestbook_get():
+    if request.method == "OPTIONS":
+        return _cors(Response("", status=204))
+    if not _monitor or not _monitor.sightings_db:
+        return _cors(jsonify({"entries": [], "total": 0}))
+    entries = _monitor.sightings_db.get_guestbook_entries(limit=100)
+    total = _monitor.sightings_db.get_total_visitor_count()
+    return _cors(jsonify({"entries": entries, "total": total}))
+
+
+@app.route("/api/guestbook", methods=["POST"])
+def api_guestbook_post():
+    if not _monitor or not _monitor.sightings_db:
+        return _cors(jsonify({"ok": False, "error": "Service unavailable"})), 503
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()[:50]
+    message = (data.get("message") or "").strip()[:500]
+    if not name or not message:
+        return _cors(jsonify({"ok": False, "error": "Name and message are required."})), 400
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+    import hashlib
+    ip_hash = hashlib.sha256(ip.encode()).hexdigest()[:16]
+    entry_id = _monitor.sightings_db.add_guestbook_entry(name, message, ip_hash)
+    if entry_id is None:
+        return _cors(jsonify({"ok": False, "error": "Too many entries. Try again later."})), 429
+    return _cors(jsonify({"ok": True, "id": entry_id}))
 
 
 @app.route("/api/events")

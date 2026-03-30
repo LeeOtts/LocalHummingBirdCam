@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Reports - Backyard Hummers</title>
+    <meta name="description" content="Sign the Backyard Hummers guestbook. Leave a note for the hummingbirds (or the humans watching them).">
+    <link rel="icon" href="img/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+    <meta name="theme-color" content="#d4a017">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .gb-layout {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 20px 60px;
+        }
+
+        /* Visitor strip */
+        .visitor-strip {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 20px;
+            margin-bottom: 28px;
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+        .visitor-strip .count { color: var(--gold); font-size: 1.4em; font-weight: 700; }
+        .visitor-strip .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--green-bright); flex-shrink: 0;
+            animation: pulse 2s infinite;
+        }
+
+        /* Form */
+        .form-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            margin-bottom: 36px;
+        }
+        .form-card h2 {
+            font-family: var(--font-display);
+            font-size: 1.6em;
+            color: var(--gold);
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+        .form-subtitle { color: var(--text-secondary); font-size: 0.85em; margin-bottom: 20px; }
+
+        .form-card input,
+        .form-card textarea {
+            width: 100%;
+            padding: 11px 14px;
+            margin-bottom: 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 0.95em;
+            transition: border-color 0.2s;
+        }
+        .form-card input:focus,
+        .form-card textarea:focus { outline: none; border-color: var(--gold); }
+        .form-card textarea { height: 90px; resize: vertical; }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.75em;
+            color: var(--text-muted);
+            margin-top: -8px;
+            margin-bottom: 14px;
+        }
+        .char-count.near { color: var(--gold-light); }
+        .char-count.over { color: var(--red-bright); }
+
+        .btn-submit {
+            background: var(--gold);
+            color: #0f1923;
+            border: none;
+            padding: 11px 28px;
+            border-radius: var(--radius);
+            font-weight: 700;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .btn-submit:hover:not(:disabled) { background: var(--gold-light); }
+        .btn-submit:active:not(:disabled) { transform: scale(0.97); }
+        .btn-submit:disabled { background: #3a4a5c; color: var(--text-muted); cursor: not-allowed; }
+
+        .form-msg { margin-top: 12px; font-size: 0.9em; }
+        .form-msg.ok  { color: var(--green-bright); }
+        .form-msg.err { color: var(--red-bright); }
+
+        /* Entries */
+        .entries-header {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .entries-header h2 {
+            font-family: var(--font-display);
+            font-size: 1.4em;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+        }
+        .entry-count { font-family: var(--font-mono); font-size: 0.8em; color: var(--text-muted); }
+
+        .entry-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-bottom: 10px;
+            transition: border-color 0.2s;
+        }
+        .entry-card:hover { border-color: var(--border-accent); }
+        .entry-card.entry-new {
+            border-color: var(--green);
+            animation: fadeInSlide 0.4s ease;
+        }
+        .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .entry-name { font-weight: 700; color: var(--gold-light); font-size: 0.95em; }
+        .entry-time { font-family: var(--font-mono); font-size: 0.75em; color: var(--text-muted); flex-shrink: 0; }
+        .entry-msg  { color: var(--text-primary); line-height: 1.55; font-size: 0.95em; word-break: break-word; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .empty-state .empty-icon { font-size: 2.5em; margin-bottom: 12px; }
+        .empty-state p { font-size: 0.9em; }
+        .loading-state { text-align: center; padding: 40px; color: var(--text-muted); font-family: var(--font-mono); font-size: 0.85em; }
+
+        @keyframes fadeInSlide {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
+        @media (max-width: 600px) {
+            .form-card { padding: 20px; }
+            .entry-header { flex-direction: column; gap: 2px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-inner">
+            <a href="/" class="nav-logo">
+                <span class="nav-logo-text">BACKYARD HUMMERS</span>
+            </a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">HQ</a>
+                <a href="gallery.html" class="nav-link">Classified Footage</a>
+                <a href="stats.html" class="nav-link">Situation Room</a>
+                <a href="guestbook.html" class="nav-link active">Field Reports</a>
+            </div>
+            <button class="nav-hamburger" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="page-header">
+        <h1 class="page-title">FIELD REPORTS</h1>
+        <p class="page-subtitle">Dispatches from birdwatchers in the field — leave your mark</p>
+    </section>
+
+    <div class="gb-layout">
+
+        <div class="visitor-strip">
+            <span class="dot"></span>
+            <span class="count" id="visitorCount">—</span>
+            <span>birdwatchers have checked in</span>
+        </div>
+
+        <div class="form-card">
+            <h2>SIGN IN</h2>
+            <p class="form-subtitle">Leave a note for the hummingbirds. Or the humans watching them.</p>
+            <input type="text" id="gbName" placeholder="Field operative name" maxlength="50" autocomplete="name">
+            <textarea id="gbMessage" placeholder="Your field report..." maxlength="500"></textarea>
+            <div class="char-count" id="charCount">0 / 500</div>
+            <button class="btn-submit" id="gbSubmit" onclick="submitEntry()">Transmit Report</button>
+            <div class="form-msg" id="gbMsg"></div>
+        </div>
+
+        <div class="entries-header">
+            <h2>REPORTS FROM THE FIELD</h2>
+            <span class="entry-count" id="entryCount"></span>
+        </div>
+        <div id="entriesContainer">
+            <div class="loading-state">Loading field reports...</div>
+        </div>
+
+    </div>
+
+    <script src="js/main.js"></script>
+    <script>
+        const API = 'guestbook_api.php';
+
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function formatTs(ts) {
+            if (!ts) return '';
+            try {
+                const d = new Date(ts.includes('T') ? ts : ts.replace(' ', 'T'));
+                return d.getFullYear() + '-' +
+                    String(d.getMonth()+1).padStart(2,'0') + '-' +
+                    String(d.getDate()).padStart(2,'0') + ' ' +
+                    String(d.getHours()).padStart(2,'0') + ':' +
+                    String(d.getMinutes()).padStart(2,'0');
+            } catch { return (ts || '').slice(0,16); }
+        }
+
+        function renderEntries(entries) {
+            const container = document.getElementById('entriesContainer');
+            const countEl   = document.getElementById('entryCount');
+            if (!entries || entries.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📡</div>
+                        <p>No field reports yet. Be the first operative to check in.</p>
+                    </div>`;
+                countEl.textContent = '';
+                return;
+            }
+            countEl.textContent = entries.length + ' report' + (entries.length !== 1 ? 's' : '');
+            container.innerHTML = entries.map(e => `
+                <div class="entry-card">
+                    <div class="entry-header">
+                        <span class="entry-name">${escapeHtml(e.name)}</span>
+                        <span class="entry-time">${escapeHtml(formatTs(e.timestamp))}</span>
+                    </div>
+                    <div class="entry-msg">${escapeHtml(e.message)}</div>
+                </div>
+            `).join('');
+        }
+
+        function prependEntry(name, message) {
+            const container = document.getElementById('entriesContainer');
+            const empty = container.querySelector('.empty-state');
+            if (empty) container.innerHTML = '';
+
+            const div = document.createElement('div');
+            div.className = 'entry-card entry-new';
+            const now = formatTs(new Date().toISOString());
+            div.innerHTML = `
+                <div class="entry-header">
+                    <span class="entry-name">${escapeHtml(name)}</span>
+                    <span class="entry-time">${escapeHtml(now)}</span>
+                </div>
+                <div class="entry-msg">${escapeHtml(message)}</div>
+            `;
+            container.insertBefore(div, container.firstChild);
+
+            const countEl  = document.getElementById('entryCount');
+            const visitorEl = document.getElementById('visitorCount');
+            const prev = parseInt(countEl.textContent) || 0;
+            const next = prev + 1;
+            countEl.textContent = next + ' report' + (next !== 1 ? 's' : '');
+            if (visitorEl) {
+                const vc = parseInt(visitorEl.textContent.replace(/,/g, '')) || 0;
+                visitorEl.textContent = (vc + 1).toLocaleString();
+            }
+        }
+
+        // Character counter
+        document.getElementById('gbMessage').addEventListener('input', function() {
+            const len = this.value.length;
+            const el  = document.getElementById('charCount');
+            el.textContent = len + ' / 500';
+            el.className = 'char-count' + (len > 480 ? ' over' : len > 400 ? ' near' : '');
+        });
+
+        async function submitEntry() {
+            const name    = document.getElementById('gbName').value.trim();
+            const message = document.getElementById('gbMessage').value.trim();
+            const msgEl   = document.getElementById('gbMsg');
+            const btn     = document.getElementById('gbSubmit');
+
+            if (!name || !message) {
+                msgEl.textContent = 'Name and message are required.';
+                msgEl.className   = 'form-msg err';
+                return;
+            }
+
+            btn.disabled    = true;
+            btn.textContent = 'Transmitting...';
+            msgEl.textContent = '';
+
+            try {
+                const resp = await fetch(API, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ name, message }),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    msgEl.textContent = 'Report received. Welcome to the flock.';
+                    msgEl.className   = 'form-msg ok';
+                    document.getElementById('gbName').value    = '';
+                    document.getElementById('gbMessage').value = '';
+                    document.getElementById('charCount').textContent = '0 / 500';
+                    prependEntry(name, message);
+                } else {
+                    msgEl.textContent = data.error || 'Transmission failed.';
+                    msgEl.className   = 'form-msg err';
+                }
+            } catch {
+                msgEl.textContent = 'Could not reach the field station. Try again later.';
+                msgEl.className   = 'form-msg err';
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Transmit Report';
+            }
+        }
+
+        // Load entries on page init
+        async function init() {
+            try {
+                const resp = await fetch(API + '?t=' + Date.now());
+                const data = await resp.json();
+                const visitorEl = document.getElementById('visitorCount');
+                if (visitorEl) visitorEl.textContent = (data.total || 0).toLocaleString();
+                renderEntries(data.entries || []);
+            } catch {
+                document.getElementById('entriesContainer').innerHTML =
+                    '<div class="loading-state">Could not load field reports.</div>';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
