@@ -1,1 +1,15 @@
 ErrorDocument 404 /404.html
+
+# Protect guestbook data files from direct HTTP access
+<Files "guestbook_entries.json">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</Files>
+
+# Block dotfiles (protects .guestbook_config.php etc.)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>

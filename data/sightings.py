@@ -328,6 +328,17 @@ class SightingsDB:
             finally:
                 conn.close()
 
+    def delete_guestbook_entry(self, entry_id: int) -> bool:
+        """Delete a guestbook entry by ID. Returns True if deleted."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cur = conn.execute("DELETE FROM guestbook WHERE id = ?", (entry_id,))
+                conn.commit()
+                return cur.rowcount > 0
+            finally:
+                conn.close()
+
     def has_replied_to(self, comment_id: str) -> bool:
         """Check if we've already replied to a Facebook comment."""
         with self._lock:

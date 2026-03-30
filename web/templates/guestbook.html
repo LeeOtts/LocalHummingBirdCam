@@ -104,6 +104,9 @@
         <div class="form-card">
             <h2>Sign the Guestbook</h2>
             <input type="text" id="gbName" placeholder="Your name" maxlength="50">
+            <!-- Honeypot — hidden from real users -->
+            <input type="text" name="website" id="gbWebsite" autocomplete="off" tabindex="-1"
+                   style="position:absolute;left:-9999px;opacity:0;height:0;width:0;" aria-hidden="true">
             <textarea id="gbMessage" placeholder="Leave a message..." maxlength="500"></textarea>
             <button class="btn-submit" id="gbSubmit" onclick="submitEntry()">Post</button>
             <div class="form-msg" id="gbMsg"></div>
@@ -126,6 +129,8 @@
     </div>
 
     <script>
+        const _pageLoadedAt = performance.now();
+
         function escapeHtml(str) {
             const div = document.createElement('div');
             div.textContent = str;
@@ -150,7 +155,12 @@
             fetch('/api/guestbook', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name, message})
+                body: JSON.stringify({
+                    name,
+                    message,
+                    website: document.getElementById('gbWebsite').value,
+                    _t: Math.round(performance.now() - _pageLoadedAt),
+                })
             })
             .then(r => r.json())
             .then(data => {
