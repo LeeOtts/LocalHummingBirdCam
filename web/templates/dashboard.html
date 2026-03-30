@@ -4,27 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backyard Hummers Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #141a11;
-            color: #e8e0d4;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0d1a12;
+            color: #e8f0ea;
             min-height: 100vh;
         }
         header {
-            background: #141a11;
-            text-align: center;
-            border-bottom: 3px solid #c4392a;
+            background: #111f16;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             padding: 0;
             overflow: hidden;
+            line-height: 0;
         }
         .banner-img {
-            width: 100%;
-            max-width: 700px;
-            height: auto;
             display: block;
-            margin: 0 auto;
+            max-width: 100%;
+            width: auto;
+            height: auto;
+            max-height: 60vh;
         }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
 
@@ -35,13 +40,13 @@
             margin-bottom: 30px;
         }
         .status-card {
-            background: #1c2a1a;
+            background: #152419;
             border-radius: 10px;
             padding: 20px;
             text-align: center;
-            border: 1px solid #3d4a2a;
+            border: 1px solid #1e3625;
         }
-        .status-card .label { color: #b0a58e; font-size: 0.85em; text-transform: uppercase; }
+        .status-card .label { color: #a3b8a6; font-size: 0.85em; text-transform: uppercase; }
         .status-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
         .status-card .value.green { color: #4caf50; }
         .status-card .value.red { color: #e05535; }
@@ -49,13 +54,13 @@
         .status-card .value.purple { color: #b08ad4; }
 
         .live-feed {
-            background: #1c2a1a;
+            background: #152419;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #3d4a2a;
+            border: 1px solid #1e3625;
         }
-        .live-feed h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .live-feed h2 { color: #e8f0ea; margin-bottom: 15px; font-family: 'Bangers', cursive; letter-spacing: 2px; }
         .feed-container {
             position: relative;
             max-width: {{ video_width }}px;
@@ -99,7 +104,7 @@
             width: 40px; height: 40px;
             font-size: 1.2em;
             cursor: pointer;
-            color: #e8e0d4;
+            color: #e8f0ea;
             padding: 0;
             line-height: 40px;
             text-align: center;
@@ -119,7 +124,7 @@
         }
         .btn-mark-yes {
             background: #d4a017;
-            color: #141a11;
+            color: #0d1a12;
             font-weight: bold;
         }
         .btn-mark-yes:hover { background: #b8880f; }
@@ -129,7 +134,7 @@
         }
         .btn-mark-no:hover { background: #b33a1a; }
         .training-stats {
-            color: #b0a58e;
+            color: #a3b8a6;
             font-size: 0.85em;
         }
         .retrain-section {
@@ -168,7 +173,7 @@
             text-align: center;
             margin-top: 10px;
             font-size: 0.8em;
-            color: #b0a58e;
+            color: #a3b8a6;
         }
         .legend-dot {
             display: inline-block;
@@ -179,13 +184,13 @@
         }
 
         .section {
-            background: #1c2a1a;
+            background: #152419;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 30px;
-            border: 1px solid #3d4a2a;
+            border: 1px solid #1e3625;
         }
-        .section h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .section h2 { color: #e8f0ea; margin-bottom: 15px; font-family: 'Bangers', cursive; letter-spacing: 2px; }
         .section .section-actions {
             float: right;
         }
@@ -196,10 +201,10 @@
             gap: 15px;
         }
         .clip-card {
-            background: #141a11;
+            background: #0d1a12;
             border-radius: 8px;
             overflow: hidden;
-            border: 1px solid #3d4a2a;
+            border: 1px solid #1e3625;
         }
         .clip-card video {
             width: 100%;
@@ -208,14 +213,14 @@
         .clip-card .clip-info {
             padding: 10px;
             font-size: 0.85em;
-            color: #b0a58e;
+            color: #a3b8a6;
         }
         .clip-card .clip-caption {
             padding: 8px 10px;
             font-size: 0.9em;
-            color: #e8e0d4;
-            background: #1e2e18;
-            border-top: 1px solid #3d4a2a;
+            color: #e8f0ea;
+            background: #1a2d1f;
+            border-top: 1px solid #1e3625;
             font-style: italic;
             line-height: 1.4;
         }
@@ -223,7 +228,7 @@
             padding: 8px 10px;
             display: flex;
             gap: 8px;
-            border-top: 1px solid #3d4a2a;
+            border-top: 1px solid #1e3625;
         }
         .btn {
             padding: 6px 14px;
@@ -249,7 +254,7 @@
         .btn-delete-all:hover { background: #b33a1a; }
         .btn-update {
             background: #d4a017;
-            color: #141a11;
+            color: #0d1a12;
         }
         .btn-update:hover { background: #b8880f; }
         .btn-update:disabled { background: #555; color: #999; cursor: wait; }
@@ -268,7 +273,7 @@
         }
         .confirm-overlay.active { display: flex; }
         .confirm-box {
-            background: #1c2a1a;
+            background: #152419;
             border: 2px solid #d44a2a;
             border-radius: 12px;
             padding: 30px;
@@ -278,12 +283,12 @@
         .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
         .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
         .btn-cancel {
-            background: #3d4a2a;
-            color: #e8e0d4;
+            background: #1e3625;
+            color: #e8f0ea;
         }
 
         .log-box {
-            background: #0f140b;
+            background: #0d1a12;
             border-radius: 8px;
             padding: 15px;
             font-family: 'Courier New', monospace;
@@ -333,7 +338,7 @@
         .refresh-bar {
             text-align: center;
             padding: 10px;
-            color: #b0a58e;
+            color: #a3b8a6;
             font-size: 0.85em;
         }
         .refresh-bar a { color: #d4a017; text-decoration: none; }
@@ -344,7 +349,7 @@
             left: 50%;
             transform: translateX(-50%);
             background: #d4a017;
-            color: #141a11;
+            color: #0d1a12;
             padding: 12px 24px;
             border-radius: 8px;
             font-weight: 600;
@@ -356,15 +361,15 @@
 </head>
 <body>
     <header>
-        <img src="/static/backyardhummers.png" alt="Backyard Hummers - AI-Powered Hummingbird Surveillance" class="banner-img">
+        <img src="/static/banner.png" alt="Backyard Hummers - AI-Powered Hummingbird Surveillance" class="banner-img">
     </header>
 
-    <div style="text-align:center; padding:12px; background:#1c2a1a; border-bottom:1px solid #3d4a2a;">
-        <a href="/" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Dashboard</a>
-        <a href="/gallery" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Gallery</a>
-        <a href="/analytics" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Analytics</a>
-        <a href="/compose" style="color:#d4a017; text-decoration:none; margin:0 15px; font-weight:600;">Compose</a>
-    </div>
+    <nav style="text-align:center; padding:12px; background:rgba(13,26,18,0.95); backdrop-filter:blur(10px); border-bottom:1px solid #1e3625;">
+        <a href="/" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Dashboard</a>
+        <a href="/gallery" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Gallery</a>
+        <a href="/analytics" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Analytics</a>
+        <a href="/compose" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Compose</a>
+    </nav>
 
     <div class="container">
         <div class="refresh-bar">
@@ -380,11 +385,11 @@
             <h2>Live Camera Feed</h2>
             <div class="feed-container">
                 {% if status.camera_error %}
-                <div style="width:100%; height:360px; background:#0f140b; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                <div style="width:100%; height:360px; background:#0d1a12; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-direction:column;">
                     <div style="font-size:3em; margin-bottom:15px;">&#128247;</div>
                     <div style="color:#d44a2a; font-size:1.2em; font-weight:bold;">Camera Unavailable</div>
-                    <div style="color:#b0a58e; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
-                    <div style="color:#b0a58e; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
+                    <div style="color:#a3b8a6; margin-top:8px; font-size:0.9em;">{{ status.camera_error }}</div>
+                    <div style="color:#a3b8a6; margin-top:5px; font-size:0.8em;">Retrying every 10 seconds...</div>
                 </div>
                 {% else %}
                 <img src="/feed" alt="Live camera feed" id="liveFeed">
@@ -398,7 +403,7 @@
             <div class="feed-controls">
                 <button class="btn btn-mark-yes" onclick="markHummingbird()">I See a Hummingbird!</button>
                 <button class="btn btn-mark-no" onclick="markNotHummingbird()">Not a Hummingbird</button>
-                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#3d4a2a; color:#e8e0d4; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
+                <select id="rotateSelect" onchange="rotateCamera(this.value)" style="background:#1e3625; color:#e8f0ea; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.85em;">
                     <option value="0" {% if status.camera_rotation == 0 %}selected{% endif %}>0° (Normal)</option>
                     <option value="90" {% if status.camera_rotation == 90 %}selected{% endif %}>90° CW</option>
                     <option value="180" {% if status.camera_rotation == 180 %}selected{% endif %}>180° (Upside Down)</option>
@@ -460,7 +465,7 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p style="color: #b0a58e; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
+            <p style="color: #a3b8a6; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
             {% endif %}
         </div>
 
@@ -532,7 +537,7 @@
                     <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
                         {{ status.schedule.status }}
                     </div>
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 8px;" id="stat-schedule-detail">
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 8px;" id="stat-schedule-detail">
                         {{ status.schedule.location }}<br>
                         Rise {{ status.schedule.sunrise }} / Set {{ status.schedule.sunset }}<br>
                         Active {{ status.schedule.wake_time }} - {{ status.schedule.sleep_time }}
@@ -555,14 +560,14 @@
                     <div class="value {{ 'red' if status.ram_percent > 85 else 'yellow' if status.ram_percent > 70 else 'green' }}" style="font-size: 1.2em;" id="stat-ram">
                         {{ status.ram_str }}
                     </div>
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 4px;" id="stat-ram-pct">{{ "%.0f"|format(status.ram_percent) }}% used</div>
                 </div>
                 <div class="status-card">
                     <div class="label">SD Card</div>
                     <div class="value {{ 'red' if status.disk_percent > 90 else 'yellow' if status.disk_percent > 75 else 'green' }}" style="font-size: 1.2em;" id="stat-disk">
                         {{ status.disk_str }}
                     </div>
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 4px;" id="stat-disk-pct">{{ "%.0f"|format(status.disk_percent) }}% used ({{ "%.1f"|format(status.disk_free_gb) }} GB free)</div>
                 </div>
                 <div class="status-card">
                     <div class="label">Camera</div>
@@ -572,8 +577,8 @@
                 <div class="status-card">
                     <div class="label">Weather</div>
                     <div class="value" style="font-size: 1.2em;" id="stat-weather-temp">{{ "%.0f"|format(status.weather.temp_f) }}°F</div>
-                    <div style="font-size: 0.85em; color: #b0a58e; margin-top: 4px; text-transform: capitalize;" id="stat-weather-desc">{{ status.weather.description }}</div>
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 2px;" id="stat-weather-humidity">Humidity: {{ status.weather.humidity }}%</div>
+                    <div style="font-size: 0.85em; color: #a3b8a6; margin-top: 4px; text-transform: capitalize;" id="stat-weather-desc">{{ status.weather.description }}</div>
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 2px;" id="stat-weather-humidity">Humidity: {{ status.weather.humidity }}%</div>
                 </div>
                 {% endif %}
                 {% if status.tailscale %}
@@ -583,10 +588,10 @@
                         {{ 'CONNECTED' if status.tailscale.connected else 'DISCONNECTED' }}
                     </div>
                     {% if status.tailscale.ip %}
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-tailscale-ip">{{ status.tailscale.ip }}</div>
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 4px;" id="stat-tailscale-ip">{{ status.tailscale.ip }}</div>
                     {% endif %}
                     {% if status.tailscale.hostname %}
-                    <div style="font-size: 0.70em; color: #b0a58e; margin-top: 2px;" id="stat-tailscale-host">{{ status.tailscale.hostname }}</div>
+                    <div style="font-size: 0.70em; color: #a3b8a6; margin-top: 2px;" id="stat-tailscale-host">{{ status.tailscale.hostname }}</div>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -596,7 +601,7 @@
                     <div class="value {{ 'green' if status.bhyve.spraying else '' }}" id="stat-bhyve">
                         {{ 'SPRAYING' if status.bhyve.spraying else 'IDLE' }}
                     </div>
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-bhyve-detail">
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 4px;" id="stat-bhyve-detail">
                         {% if status.bhyve.spraying %}Hummingbird Mister active{% elif status.bhyve.watch_station %}Zone {{ status.bhyve.watch_station }} — {{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% else %}{{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% endif %}
                     </div>
                 </div>
@@ -610,33 +615,33 @@
                 <div class="status-card">
                     <div class="label">Microphone</div>
                     <div class="value" style="font-size:1em;">Record & playback</div>
-                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testMicBtn" onclick="testMic()">Test Mic</button>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#1e3625;" id="testMicBtn" onclick="testMic()">Test Mic</button>
                 </div>
                 <div class="status-card">
                     <div class="label">Camera</div>
                     <div class="value" style="font-size:1em;">Full pipeline test</div>
-                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testRecordBtn" onclick="testRecord()">Test Record</button>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#1e3625;" id="testRecordBtn" onclick="testRecord()">Test Record</button>
                 </div>
                 <div class="status-card">
                     <div class="label">Facebook</div>
                     <div class="value" style="font-size:1em;">Post to page</div>
-                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testFbBtn" onclick="testFacebookPost()">Test FB Post</button>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#1e3625;" id="testFbBtn" onclick="testFacebookPost()">Test FB Post</button>
                 </div>
                 <div class="status-card">
                     <div class="label">Bluesky</div>
                     <div class="value" style="font-size:1em;">Post to feed</div>
-                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testBsBtn" onclick="testBlueskyPost()">Test Bluesky</button>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#1e3625;" id="testBsBtn" onclick="testBlueskyPost()">Test Bluesky</button>
                 </div>
                 <div class="status-card">
                     <div class="label">Twitter/X</div>
                     <div class="value" style="font-size:1em;">Post to timeline</div>
-                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testTwBtn" onclick="testTwitterPost()">Test Twitter</button>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#1e3625;" id="testTwBtn" onclick="testTwitterPost()">Test Twitter</button>
                 </div>
                 <div class="status-card">
                     <div class="label">Network Speed</div>
                     <div class="value" style="font-size:0.9em;" id="speedResult">Run test to check</div>
-                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="speedDetails"></div>
-                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#3d4a2a;" id="testSpeedBtn" onclick="testSpeed()">Test Speed</button>
+                    <div style="font-size: 0.75em; color: #a3b8a6; margin-top: 4px;" id="speedDetails"></div>
+                    <button class="btn" style="margin-top:10px; font-size:0.8em; background:#1e3625;" id="testSpeedBtn" onclick="testSpeed()">Test Speed</button>
                 </div>
             </div>
         </div>
@@ -644,7 +649,7 @@
         <div class="section">
             <h2>Recent Logs
                 <div class="log-header-controls" style="float:right; display:flex; gap:8px;">
-                    <select id="logFilter" onchange="filterLogs()" style="background:#12150e; color:#e8e0d4; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
+                    <select id="logFilter" onchange="filterLogs()" style="background:#12150e; color:#e8f0ea; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
                         <option value="all">All</option>
                         <option value="log-error">Errors</option>
                         <option value="log-warn">Warnings</option>
@@ -906,7 +911,7 @@
                         };
                         label.textContent = labels[data.state] || data.state;
                         label.style.background = colors[data.state] || '#555';
-                        label.style.color = data.state === 'motion' ? '#141a11' : 'white';
+                        label.style.color = data.state === 'motion' ? '#0d1a12' : 'white';
                     } else if (label) {
                         label.remove();
                     }
@@ -1406,15 +1411,15 @@
         }
     </script>
 
-    <footer style="text-align:center; padding:18px 12px; background:#1c2a1a; border-top:1px solid #3d4a2a; margin-top:30px;">
+    <footer style="text-align:center; padding:18px 12px; background:#152419; border-top:1px solid #1e3625; margin-top:30px;">
         <a href="https://www.facebook.com/backyard.hummers" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">Facebook</a>
-        <span style="color:#3d4a2a;">|</span>
+        <span style="color:#1e3625;">|</span>
         <a href="https://bsky.app/profile/backyardhummers.bsky.social" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">Bluesky</a>
-        <span style="color:#3d4a2a;">|</span>
+        <span style="color:#1e3625;">|</span>
         <a href="https://x.com/backyardhummers" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">X</a>
-        <span style="color:#3d4a2a;">|</span>
+        <span style="color:#1e3625;">|</span>
         <a href="https://www.instagram.com/backyard.hummers" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">Instagram</a>
-        <span style="color:#3d4a2a;">|</span>
+        <span style="color:#1e3625;">|</span>
         <a href="https://github.com/LeeOtts/LocalHummingBirdCam" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">GitHub</a>
     </footer>
 </body>
