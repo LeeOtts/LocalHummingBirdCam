@@ -4,44 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backyard Hummers - Guestbook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #141a11;
-            color: #e8e0d4;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0d1a12;
+            color: #e8f0ea;
             min-height: 100vh;
         }
         header {
-            background: #141a11;
+            background: #0d1a12;
             text-align: center;
             border-bottom: 3px solid #c4392a;
             padding: 20px;
         }
-        header h1 { color: #f5e6c8; font-size: 1.8em; }
-        header p { color: #b0a58e; margin-top: 5px; }
-        .nav { text-align: center; padding: 15px; background: #1c2a1a; border-bottom: 1px solid #3d4a2a; }
-        .nav a { color: #d4a017; text-decoration: none; margin: 0 15px; font-weight: 600; }
-        .nav a:hover { text-decoration: underline; }
+        header h1 { color: #e8f0ea; font-size: 1.8em; }
+        header p { color: #a3b8a6; margin-top: 5px; }
+        nav { text-align: center; padding: 15px; background: rgba(13,26,18,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid #1e3625; }
+        nav a { font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration: none; margin: 0 15px; }
+        nav a:hover { text-decoration: underline; }
         .container { max-width: 700px; margin: 0 auto; padding: 20px; }
-        .visitor-count { text-align: center; color: #b0a58e; margin-bottom: 25px; font-size: 0.9em; }
+        .visitor-count { text-align: center; color: #a3b8a6; margin-bottom: 25px; font-size: 0.9em; }
 
         .form-card {
-            background: #1c2a1a;
+            background: #152419;
             border-radius: 10px;
             padding: 25px;
             margin-bottom: 30px;
-            border: 1px solid #3d4a2a;
+            border: 1px solid #1e3625;
         }
-        .form-card h2 { color: #f5e6c8; margin-bottom: 15px; }
+        .form-card h2 { color: #e8f0ea; margin-bottom: 15px; font-family: 'Bangers', cursive; letter-spacing: 2px; }
         .form-card input, .form-card textarea {
             width: 100%;
             padding: 10px 14px;
             margin-bottom: 12px;
-            background: #0f140b;
-            border: 1px solid #3d4a2a;
+            background: #0d1a12;
+            border: 1px solid #1e3625;
             border-radius: 6px;
-            color: #e8e0d4;
+            color: #e8f0ea;
             font-family: inherit;
             font-size: 0.95em;
         }
@@ -52,7 +55,7 @@
         }
         .btn-submit {
             background: #d4a017;
-            color: #141a11;
+            color: #0d1a12;
             border: none;
             padding: 10px 24px;
             border-radius: 6px;
@@ -67,22 +70,22 @@
         .form-msg.err { color: #e05535; }
 
         .entry {
-            background: #1c2a1a;
+            background: #152419;
             border-radius: 8px;
             padding: 15px 18px;
             margin-bottom: 12px;
-            border: 1px solid #3d4a2a;
+            border: 1px solid #1e3625;
         }
         .entry .entry-header {
             display: flex;
             justify-content: space-between;
             margin-bottom: 8px;
         }
-        .entry .entry-name { font-weight: bold; color: #f5e6c8; }
-        .entry .entry-time { font-size: 0.8em; color: #b0a58e; }
+        .entry .entry-name { font-weight: bold; color: #e8f0ea; }
+        .entry .entry-time { font-size: 0.8em; color: #a3b8a6; }
         .entry .entry-msg { line-height: 1.5; }
 
-        .empty { text-align: center; color: #b0a58e; padding: 40px; }
+        .empty { text-align: center; color: #a3b8a6; padding: 40px; }
         @media (max-width: 768px) { .container { padding: 10px; } }
     </style>
 </head>
@@ -91,13 +94,13 @@
         <h1>Backyard Hummers Guestbook</h1>
         <p>Leave a note for the hummingbirds (or the humans watching them)</p>
     </header>
-    <div class="nav">
+    <nav>
         <a href="/">Dashboard</a>
         <a href="/gallery">Gallery</a>
         <a href="/analytics">Analytics</a>
         <a href="/compose">Compose</a>
         <a href="/guestbook">Guestbook</a>
-    </div>
+    </nav>
     <div class="container">
         <div class="visitor-count">{{ total_visitors }} birdwatcher{{ 's' if total_visitors != 1 else '' }} have visited</div>
 
