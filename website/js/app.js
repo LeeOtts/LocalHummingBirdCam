@@ -284,4 +284,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateLatestDetection(data);
     populateSocials(data);
     updateHudStatus(data);
+
+    // Poll for status changes (sprinkler/sleeping overlays) every 30 seconds
+    setInterval(async () => {
+        const fresh = await loadSiteData();
+        if (fresh) updateHudStatus(fresh);
+    }, 30000);
 });

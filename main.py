@@ -134,6 +134,7 @@ class HummingbirdMonitor:
         self._sleeping = False
         self._state_file = Path(config.BASE_DIR) / ".post_state.json"
         self.bhyve_monitor = None  # set in start() if BHYVE_ENABLED
+        self._last_site_data_regen = 0.0  # timestamp of last periodic site_data.json update
 
         # Engagement tracking
         self._detection_hours: list = []  # hour ints for peak-hour calc
@@ -335,6 +336,19 @@ class HummingbirdMonitor:
                 self._morning_posted = True
                 self._save_post_state()
                 threading.Thread(target=self._post_goodmorning, daemon=True).start()
+
+            # Periodically regenerate site_data.json so sprinkler/sleeping
+            # state reaches the public website without waiting for a detection.
+            if config.WEBSITE_SYNC_ENABLED:
+                now = time.time()
+                if now - self._last_site_data_regen >= 30:
+                    self._last_site_data_regen = now
+                    try:
+                        from scripts.generate_site_data import generate_site_data
+                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.spraying)
+                        generate_site_data(self.sightings_db, sprinkler_active=spraying)
+                    except Exception:
+                        logger.debug("Periodic site data regen failed")
 
             try:
                 frame = self.camera.capture_lores_array()
