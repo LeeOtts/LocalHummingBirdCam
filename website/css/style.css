@@ -290,6 +290,110 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     letter-spacing: 1px;
 }
 
+/* Watering Overlay */
+.watering-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(30, 100, 180, 0.12);
+    border: 3px solid rgba(93, 173, 226, 0.6);
+    box-shadow: inset 0 0 30px rgba(30, 100, 180, 0.15), 0 0 15px rgba(93, 173, 226, 0.3);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.watering-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #5dade2;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(93, 173, 226, 0.6), 0 1px 4px rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.45);
+    padding: 0.5rem 1.2rem;
+    border-radius: 6px;
+    border: 1px solid rgba(93, 173, 226, 0.4);
+}
+
+.watering-dot {
+    width: 8px;
+    height: 8px;
+    background: #5dade2;
+    border-radius: 50%;
+    animation: pulse-dot-blue 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot-blue {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(93, 173, 226, 0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(93, 173, 226, 0); }
+}
+
+/* HUD corners turn blue when watering */
+.feed-hud.watering-active .hud-corner {
+    border-color: #5dade2;
+    opacity: 0.7;
+}
+
+/* Sleeping Overlay */
+.sleeping-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(100, 60, 160, 0.12);
+    border: 3px solid rgba(176, 138, 212, 0.6);
+    box-shadow: inset 0 0 30px rgba(100, 60, 160, 0.15), 0 0 15px rgba(176, 138, 212, 0.3);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.sleeping-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #b08ad4;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(176, 138, 212, 0.6), 0 1px 4px rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.45);
+    padding: 0.5rem 1.2rem;
+    border-radius: 6px;
+    border: 1px solid rgba(176, 138, 212, 0.4);
+}
+
+.sleeping-dot {
+    width: 8px;
+    height: 8px;
+    background: #b08ad4;
+    border-radius: 50%;
+    animation: pulse-dot-purple 3s ease-in-out infinite;
+}
+
+@keyframes pulse-dot-purple {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(176, 138, 212, 0.4); }
+    50% { opacity: 0.4; box-shadow: 0 0 0 6px rgba(176, 138, 212, 0); }
+}
+
+/* HUD corners turn purple when sleeping */
+.feed-hud.sleeping-active .hud-corner {
+    border-color: #b08ad4;
+    opacity: 0.7;
+}
+
 /* ---- Live Feed ---- */
 .feed-container {
     background: var(--bg-card);

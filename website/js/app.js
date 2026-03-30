@@ -253,8 +253,19 @@ function updateHudStatus(data) {
     if (!data) return;
     const sleeping = document.getElementById('hudSleeping');
     const watering = document.getElementById('hudWatering');
-    if (sleeping) sleeping.style.display = data.sleeping ? 'flex' : 'none';
-    if (watering) watering.style.display = data.sprinkler_active ? 'flex' : 'none';
+    const wateringOverlay = document.getElementById('wateringOverlay');
+    const sleepingOverlay = document.getElementById('sleepingOverlay');
+    const hud = document.querySelector('.feed-hud');
+    const isSleeping = !!data.sleeping;
+    const isWatering = !!data.sprinkler_active;
+    if (sleeping) sleeping.style.display = isSleeping ? 'flex' : 'none';
+    if (watering) watering.style.display = isWatering ? 'flex' : 'none';
+    if (wateringOverlay) wateringOverlay.style.display = isWatering ? 'flex' : 'none';
+    if (sleepingOverlay) sleepingOverlay.style.display = isSleeping ? 'flex' : 'none';
+    if (hud) {
+        hud.classList.toggle('watering-active', isWatering);
+        hud.classList.toggle('sleeping-active', isSleeping);
+    }
 }
 
 /**
