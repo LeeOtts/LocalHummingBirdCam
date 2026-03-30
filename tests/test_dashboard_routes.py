@@ -24,8 +24,11 @@ def mock_monitor():
     m.camera.camera_type = "usb"
     m.camera.error = None
     m.poster._posts_today = 0
+    m.camera.rotation = 0
     # _cooldown_elapsed is called by _get_status
     m._cooldown_elapsed.return_value = True
+    # Prevent MagicMock auto-creation from leaking non-serializable values
+    m.bhyve_monitor = None
     return m
 
 
