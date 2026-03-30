@@ -10,6 +10,9 @@ venv/
 # Environment
 .env
 
+# Secrets
+website/data/.guestbook_config.php
+
 # Project artifacts
 .post_state.json
 retry_queue.json
