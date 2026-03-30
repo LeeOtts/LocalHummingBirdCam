@@ -664,6 +664,28 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        // Auto-reconnect MJPEG feed on error/freeze
+        (function() {
+            const feed = document.getElementById('liveFeed');
+            if (!feed) return;
+            const overlay = document.getElementById('feedOverlay');
+            let reconnectTimer = null;
+
+            function reconnectFeed() {
+                if (reconnectTimer) return;
+                if (overlay) { overlay.textContent = 'Reconnecting...'; overlay.style.display = 'flex'; }
+                reconnectTimer = setTimeout(function() {
+                    feed.src = '/feed?' + Date.now();
+                    reconnectTimer = null;
+                }, 3000);
+            }
+
+            feed.addEventListener('error', reconnectFeed);
+            feed.addEventListener('load', function() {
+                if (overlay) { overlay.textContent = ''; overlay.style.display = ''; }
+            });
+        })();
+
         // Escape HTML to prevent XSS in dynamic content
         function escapeHtml(str) {
             const div = document.createElement('div');

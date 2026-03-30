@@ -120,10 +120,21 @@ function setupLiveFeed(data) {
     img.style.display = 'block';
     img.src = data.live_feed_url;
 
-    // Show offline message if stream fails to load
+    // Auto-reconnect on stream failure (retry every 5s)
+    let feedReconnectTimer = null;
     img.addEventListener('error', () => {
         img.style.display = 'none';
-        if (offline) offline.style.display = 'flex';
+        if (offline) { offline.style.display = 'flex'; offline.textContent = 'Reconnecting...'; }
+        if (!feedReconnectTimer) {
+            feedReconnectTimer = setTimeout(() => {
+                feedReconnectTimer = null;
+                img.style.display = 'block';
+                img.src = data.live_feed_url + (data.live_feed_url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+            }, 5000);
+        }
+    });
+    img.addEventListener('load', () => {
+        if (offline) { offline.style.display = 'none'; offline.textContent = 'FEED OFFLINE'; }
     });
 }
 

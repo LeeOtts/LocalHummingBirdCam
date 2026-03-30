@@ -461,6 +461,7 @@ def live_feed():
     def generate_frames():
         import cv2
         import time
+        consecutive_errors = 0
         while _monitor and _monitor.running:
             try:
                 # Use full-res frame for public feed; fall back to lores
@@ -469,18 +470,35 @@ def live_feed():
                     frame = _monitor.camera.capture_lores_array()
                     if frame.shape[0] > frame.shape[1] * 1.2:
                         frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_I420)
+                if frame is None:
+                    time.sleep(0.5)
+                    continue
                 _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
                 yield (
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
                 )
+                consecutive_errors = 0
+            except GeneratorExit:
+                return
             except Exception:
-                break
+                consecutive_errors += 1
+                logger.warning("MJPEG stream frame error (%d consecutive)", consecutive_errors)
+                if consecutive_errors >= 10:
+                    logger.error("MJPEG stream: too many consecutive errors, ending stream")
+                    break
+                time.sleep(0.5)
+                continue
             time.sleep(0.1)  # ~10 fps for the web feed
 
     return Response(
         generate_frames(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 
@@ -1442,7 +1460,7 @@ def start_web_server(monitor, host="0.0.0.0", port=8080):
 
     import threading
     thread = threading.Thread(
-        target=lambda: app.run(host=host, port=port, debug=False, use_reloader=False),
+        target=lambda: app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True),
         daemon=True,
     )
     thread.start()
