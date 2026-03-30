@@ -248,7 +248,7 @@ class BHyveMonitor:
         if event == _EV_WATERING_IN_PROGRESS:
             mode = data.get("mode", "auto")
             program = data.get("program") or {}
-            station = program.get("current_station")
+            station = program.get("current_station") if isinstance(program, dict) else None
             with self._lock:
                 self._active[device_id] = {
                     "mode": mode,
