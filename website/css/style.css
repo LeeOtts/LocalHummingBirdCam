@@ -4,21 +4,21 @@
    ============================================ */
 
 :root {
-    --bg-primary: #1a1209;
-    --bg-secondary: #231a0e;
-    --bg-card: #2a1f10;
-    --bg-card-hover: #332617;
+    --bg-primary: #0d1a12;
+    --bg-secondary: #111f16;
+    --bg-card: #152419;
+    --bg-card-hover: #1a2d1f;
     --green: #3d7a35;
     --green-bright: #6dbf5a;
-    --gold: #e8890a;
-    --gold-light: #f5b942;
+    --gold: #d4a017;
+    --gold-light: #f0c54d;
     --red: #c0392b;
     --red-bright: #e74c3c;
-    --text-primary: #f5ede0;
-    --text-secondary: #a89880;
-    --text-muted: #7a6855;
-    --border: #3d2e1a;
-    --border-accent: #4f3c22;
+    --text-primary: #e8f0ea;
+    --text-secondary: #8a9e8d;
+    --text-muted: #5a7360;
+    --border: #1e3625;
+    --border-accent: #2a4d33;
     --font-display: 'Bangers', cursive;
     --font-mono: 'Patrick Hand', cursive;
     --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -50,7 +50,7 @@ a:hover { color: var(--gold-light); }
     left: 0;
     right: 0;
     z-index: 100;
-    background: rgba(26, 18, 9, 0.95);
+    background: rgba(13, 26, 18, 0.95);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
 }
@@ -72,6 +72,12 @@ a:hover { color: var(--gold-light); }
     font-size: 1.4rem;
     color: var(--gold);
     letter-spacing: 2px;
+}
+
+.nav-logo-img {
+    height: 44px;
+    width: auto;
+    display: block;
 }
 
 .nav-links { display: flex; gap: 0.25rem; }
@@ -133,7 +139,7 @@ a:hover { color: var(--gold-light); }
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(transparent, rgba(26, 18, 9, 0.9));
+    background: linear-gradient(transparent, rgba(13, 26, 18, 0.9));
     padding: 2rem 1.5rem 1rem;
 }
 
@@ -305,7 +311,7 @@ a:hover { color: var(--gold-light); }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(26, 18, 9, 0.95);
+    background: rgba(13, 26, 18, 0.95);
     text-align: center;
     padding: 2rem;
 }
