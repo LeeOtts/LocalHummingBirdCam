@@ -88,7 +88,7 @@ function openModal(clip) {
     video.load();
 
     if (timestamp) timestamp.textContent = formatTimestamp(clip.timestamp);
-    if (caption) caption.textContent = clip.caption || 'No intel available.';
+    if (caption) caption.textContent = clip.caption || 'No caption yet.';
     if (confidence) {
         const conf = clip.confidence ? Math.round(clip.confidence * 100) : '--';
         confidence.textContent = `CONFIDENCE: ${conf}%`;

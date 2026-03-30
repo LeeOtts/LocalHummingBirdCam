@@ -19,36 +19,52 @@ from data.sightings import SightingsDB
 logger = logging.getLogger(__name__)
 
 
+def _atomic_write(path: Path, data: dict) -> None:
+    """Write JSON atomically via a temp file."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, default=str))
+    tmp.replace(path)
+
+
 def generate_site_data(db: SightingsDB | None = None) -> Path | None:
-    """Generate site_data.json from the sightings database.
+    """Generate site_data.json and guestbook.json from the sightings database.
 
     Args:
         db: Optional SightingsDB instance. Creates one if not provided.
 
     Returns:
-        Path to the generated JSON file, or None on failure.
+        Path to the generated site_data.json file, or None on failure.
     """
     try:
         if db is None:
             db = SightingsDB()
 
-        data = db.export_for_website()
-
         output_dir = config.WEBSITE_DATA_DIR
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # --- site_data.json ---
+        data = db.export_for_website()
         output_path = output_dir / "site_data.json"
-
-        # Atomic write to prevent partial reads during sync
-        tmp_path = output_path.with_suffix(".tmp")
-        tmp_path.write_text(json.dumps(data, indent=2, default=str))
-        tmp_path.replace(output_path)
-
+        _atomic_write(output_path, data)
         logger.info("Generated site_data.json (%d clips, %d lifetime detections)",
-                     len(data.get("clips", [])), data.get("lifetime_detections", 0))
+                    len(data.get("clips", [])), data.get("lifetime_detections", 0))
+
+        # --- guestbook.json ---
+        entries = db.get_guestbook_entries(limit=200)
+        total = db.get_total_visitor_count()
+        guestbook_data = {
+            "last_updated": data.get("last_updated", ""),
+            "total_visitors": total,
+            "entries": entries,
+        }
+        gb_path = output_dir / "guestbook.json"
+        _atomic_write(gb_path, guestbook_data)
+        logger.info("Generated guestbook.json (%d entries)", len(entries))
+
         return output_path
 
     except Exception:
-        logger.exception("Failed to generate site_data.json")
+        logger.exception("Failed to generate site data")
         return None
 
 

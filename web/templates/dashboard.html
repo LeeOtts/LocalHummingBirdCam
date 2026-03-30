@@ -581,6 +581,17 @@
                     {% endif %}
                 </div>
                 {% endif %}
+                {% if status.bhyve %}
+                <div class="status-card">
+                    <div class="label">Sprinkler</div>
+                    <div class="value {{ 'green' if status.bhyve.spraying else '' }}" id="stat-bhyve">
+                        {{ 'SPRAYING' if status.bhyve.spraying else 'IDLE' }}
+                    </div>
+                    <div style="font-size: 0.75em; color: #b0a58e; margin-top: 4px;" id="stat-bhyve-detail">
+                        {% if status.bhyve.spraying %}Hummingbird Mister active{% elif status.bhyve.watch_station %}Zone {{ status.bhyve.watch_station }} — {{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% else %}{{ 'Live' if status.bhyve.connected else 'Connecting...' }}{% endif %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -740,6 +751,25 @@
                         if (tsIp && d.tailscale.ip) tsIp.textContent = d.tailscale.ip;
                         const tsHost = el('stat-tailscale-host');
                         if (tsHost && d.tailscale.hostname) tsHost.textContent = d.tailscale.hostname;
+                    }
+
+                    // B-Hyve sprinkler
+                    if (d.bhyve) {
+                        const bhyveEl = el('stat-bhyve');
+                        const bhyveDetail = el('stat-bhyve-detail');
+                        if (bhyveEl) {
+                            bhyveEl.textContent = d.bhyve.spraying ? 'SPRAYING' : 'IDLE';
+                            bhyveEl.className = 'value ' + (d.bhyve.spraying ? 'green' : '');
+                        }
+                        if (bhyveDetail) {
+                            if (d.bhyve.spraying) {
+                                bhyveDetail.textContent = 'Hummingbird Mister active';
+                            } else if (d.bhyve.watch_station) {
+                                bhyveDetail.textContent = 'Zone ' + d.bhyve.watch_station + ' — ' + (d.bhyve.connected ? 'Live' : 'Connecting...');
+                            } else {
+                                bhyveDetail.textContent = d.bhyve.connected ? 'Live' : 'Connecting...';
+                            }
+                        }
                     }
 
                     if (d.schedule) {
