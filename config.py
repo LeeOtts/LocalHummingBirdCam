@@ -139,6 +139,12 @@ SLEEP_AFTER_SUNSET_MIN = int(os.getenv("SLEEP_AFTER_SUNSET_MIN", "30"))
 # Set to false to disable night mode (run 24/7)
 NIGHT_MODE_ENABLED = os.getenv("NIGHT_MODE_ENABLED", "true").lower() in ("true", "1", "yes")
 
+# B-Hyve sprinkler monitor — leave blank to disable
+# Your Orbit/B-Hyve account email and password (same as the B-Hyve mobile app)
+BHYVE_EMAIL = os.getenv("BHYVE_EMAIL", "")
+BHYVE_PASSWORD = os.getenv("BHYVE_PASSWORD", "")
+BHYVE_ENABLED = bool(BHYVE_EMAIL and BHYVE_PASSWORD)
+
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
