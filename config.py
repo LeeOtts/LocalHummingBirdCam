@@ -55,6 +55,10 @@ CAMERA_ROTATION = int(os.getenv("CAMERA_ROTATION", "0"))
 CAMERA_TYPE = os.getenv("CAMERA_TYPE", "usb")
 USB_CAMERA_INDEX = int(os.getenv("USB_CAMERA_INDEX", "0"))
 
+# Focus control (USB cameras with autofocus, e.g. Logitech C920)
+CAMERA_AUTOFOCUS = os.getenv("CAMERA_AUTOFOCUS", "true").lower() in ("true", "1", "yes")
+CAMERA_FOCUS = int(os.getenv("CAMERA_FOCUS", "0"))  # 0-255, only used when autofocus is off
+
 # Vision verification — use local MobileNetV2 bird classifier to confirm hummingbird
 VISION_VERIFY_ENABLED = os.getenv("VISION_VERIFY_ENABLED", "true").lower() in ("true", "1", "yes")
 

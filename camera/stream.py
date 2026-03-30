@@ -113,6 +113,14 @@ class CameraStream:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.VIDEO_HEIGHT)
         cap.set(cv2.CAP_PROP_FPS, config.VIDEO_FPS)
 
+        # Focus control (e.g. Logitech C920)
+        if config.CAMERA_AUTOFOCUS:
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        else:
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+            cap.set(cv2.CAP_PROP_FOCUS, config.CAMERA_FOCUS)
+            logger.info("Manual focus set to %d (autofocus disabled)", config.CAMERA_FOCUS)
+
         actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = cap.get(cv2.CAP_PROP_FPS)
