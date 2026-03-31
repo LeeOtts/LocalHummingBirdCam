@@ -87,6 +87,9 @@ def setup_logging():
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
+    # Suppress noisy websocket-client library logs (transient reconnect noise)
+    logging.getLogger("websocket").setLevel(logging.WARNING)
+
 
 logger = logging.getLogger(__name__)
 

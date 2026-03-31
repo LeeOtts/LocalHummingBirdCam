@@ -1708,8 +1708,14 @@ def start_web_server(monitor, host="0.0.0.0", port=8080):
     set_monitor(monitor)
 
     # Suppress Flask's default request logging to keep logs clean
+    # Suppress werkzeug noise; filter out transient network error tracebacks
+    class _NetworkErrorFilter(logging.Filter):
+        def filter(self, record):
+            return "Network is unreachable" not in record.getMessage()
+
     werkzeug_logger = logging.getLogger("werkzeug")
     werkzeug_logger.setLevel(logging.WARNING)
+    werkzeug_logger.addFilter(_NetworkErrorFilter())
 
     import threading
     thread = threading.Thread(

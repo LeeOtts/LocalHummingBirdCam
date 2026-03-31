@@ -186,7 +186,7 @@ class BHyveMonitor:
                 # Reset backoff after a successful session; increase on repeated failures
                 if was_connected:
                     delay = _RECONNECT_MIN
-                logger.info(
+                logger.debug(
                     "B-Hyve: WebSocket disconnected — reconnecting in %ds",
                     delay,
                 )
@@ -227,12 +227,12 @@ class BHyveMonitor:
                 logger.warning("B-Hyve: error handling message", exc_info=True)
 
         def on_error(ws, error):
-            logger.warning("B-Hyve: WebSocket error: %s", error)
+            logger.debug("B-Hyve: WebSocket error: %s", error)
             self.connected = False
 
         def on_close(ws, code, msg):
             self.connected = False
-            logger.info("B-Hyve: WebSocket closed (code=%s)", code)
+            logger.debug("B-Hyve: WebSocket closed (code=%s)", code)
 
         self._ws = websocket.WebSocketApp(
             _WS_URL,
