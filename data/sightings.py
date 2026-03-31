@@ -103,6 +103,7 @@ class SightingsDB:
                         location_description TEXT,
                         port_count INTEGER DEFAULT 4,
                         active INTEGER DEFAULT 1,
+                        camera_feeder INTEGER DEFAULT 0,
                         created_at TEXT NOT NULL
                     );
 
@@ -199,6 +200,12 @@ class SightingsDB:
                         conn.execute(f"ALTER TABLE sightings ADD COLUMN {col_name} {col_type}")
                     except sqlite3.OperationalError:
                         pass  # Column already exists
+
+                # Add camera_feeder column to feeders table (idempotent)
+                try:
+                    conn.execute("ALTER TABLE feeders ADD COLUMN camera_feeder INTEGER DEFAULT 0")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
 
                 # Seed historical season data if table is empty
                 row = conn.execute("SELECT COUNT(*) as cnt FROM season_dates").fetchone()
@@ -779,16 +786,19 @@ class SightingsDB:
     # ------------------------------------------------------------------
 
     def add_feeder(self, name: str, location_description: str = "",
-                   port_count: int = 4) -> int:
+                   port_count: int = 4, camera_feeder: bool = False) -> int:
         """Add a new feeder. Returns the feeder ID."""
         now = datetime.now(tz=_local_tz).isoformat()
         with self._lock:
             conn = self._get_conn()
             try:
+                # If marking as camera feeder, clear any existing camera feeder
+                if camera_feeder:
+                    conn.execute("UPDATE feeders SET camera_feeder = 0")
                 cur = conn.execute(
-                    """INSERT INTO feeders (name, location_description, port_count, active, created_at)
-                       VALUES (?, ?, ?, 1, ?)""",
-                    (name, location_description, port_count, now),
+                    """INSERT INTO feeders (name, location_description, port_count, active, camera_feeder, created_at)
+                       VALUES (?, ?, ?, 1, ?, ?)""",
+                    (name, location_description, port_count, int(camera_feeder), now),
                 )
                 conn.commit()
                 return cur.lastrowid
@@ -810,7 +820,8 @@ class SightingsDB:
     def update_feeder(self, feeder_id: int, name: str | None = None,
                       location_description: str | None = None,
                       port_count: int | None = None,
-                      active: bool | None = None):
+                      active: bool | None = None,
+                      camera_feeder: bool | None = None):
         """Update a feeder's details."""
         updates = {}
         if name is not None:
@@ -821,12 +832,17 @@ class SightingsDB:
             updates["port_count"] = port_count
         if active is not None:
             updates["active"] = int(active)
+        if camera_feeder is not None:
+            updates["camera_feeder"] = int(camera_feeder)
         if not updates:
             return
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         with self._lock:
             conn = self._get_conn()
             try:
+                # If marking as camera feeder, clear any existing one first
+                if camera_feeder:
+                    conn.execute("UPDATE feeders SET camera_feeder = 0")
                 conn.execute(
                     f"UPDATE feeders SET {set_clause} WHERE id = ?",
                     (*updates.values(), feeder_id),

@@ -1592,6 +1592,7 @@ def api_feeder_config_post():
             location_description=data.get("location_description", ""),
             port_count=data.get("port_count", 4),
             active=data.get("active", True),
+            camera_feeder=data.get("camera_feeder", False),
         )
         return {"ok": True, "id": feeder_id}
     else:
@@ -1599,6 +1600,7 @@ def api_feeder_config_post():
             name=name,
             location_description=data.get("location_description", ""),
             port_count=data.get("port_count", 4),
+            camera_feeder=data.get("camera_feeder", False),
         )
         return {"ok": True, "id": new_id}
 

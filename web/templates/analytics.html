@@ -290,6 +290,11 @@
                         <input type="number" name="port_count" value="4" min="1" max="12"
                             style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px; width:70px;">
                     </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" name="camera_feeder" id="cameraFeederCheck"
+                            style="width:18px; height:18px; accent-color:#4caf50; cursor:pointer;">
+                        <label for="cameraFeederCheck" style="color:#a3b8a6; font-size:0.8em; cursor:pointer;">Camera feeder</label>
+                    </div>
                     <button type="submit" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold;">Add Feeder</button>
                 </form>
                 <div id="feederList" style="margin-top:10px;"></div>
@@ -309,7 +314,8 @@
                 list.innerHTML = '';
                 for (const f of (data.feeders || [])) {
                     select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
-                    list.innerHTML += `<div style="padding:4px 0;">${f.active ? '&#x2705;' : '&#x274C;'} ${f.name} — ${f.port_count} ports${f.location_description ? ' (' + f.location_description + ')' : ''}</div>`;
+                    const cam = f.camera_feeder ? ' &#x1F4F7;' : '';
+                    list.innerHTML += `<div style="padding:4px 0;">${f.active ? '&#x2705;' : '&#x274C;'} ${f.name}${cam} — ${f.port_count} ports${f.location_description ? ' (' + f.location_description + ')' : ''}</div>`;
                 }
             }
             async function loadFeederHistory() {
@@ -377,6 +383,7 @@
                         name: fd.get('name'),
                         location_description: fd.get('location_description') || '',
                         port_count: parseInt(fd.get('port_count')) || 4,
+                        camera_feeder: !!fd.get('camera_feeder'),
                     }),
                 });
                 e.target.reset();
