@@ -373,16 +373,15 @@ class HummingbirdMonitor:
 
             # Periodically regenerate site_data.json so sprinkler/sleeping
             # state reaches the public website without waiting for a detection.
-            if config.WEBSITE_SYNC_ENABLED:
-                now = time.time()
-                if now - self._last_site_data_regen >= 30:
-                    self._last_site_data_regen = now
-                    try:
-                        from scripts.generate_site_data import generate_site_data
-                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.is_spraying)
-                        generate_site_data(self.sightings_db, sprinkler_active=spraying)
-                    except Exception:
-                        logger.debug("Periodic site data regen failed")
+            now = time.time()
+            if now - self._last_site_data_regen >= 30:
+                self._last_site_data_regen = now
+                try:
+                    from scripts.generate_site_data import generate_site_data
+                    spraying = bool(self.bhyve_monitor and self.bhyve_monitor.is_spraying)
+                    generate_site_data(self.sightings_db, sprinkler_active=spraying)
+                except Exception:
+                    logger.debug("Periodic site data regen failed")
 
             try:
                 frame = self.camera.capture_lores_array()
@@ -896,13 +895,12 @@ class HummingbirdMonitor:
                     logger.warning("Thumbnail generation failed for %s", clip_path.name)
 
                 # Regenerate site_data.json for the public website
-                if config.WEBSITE_SYNC_ENABLED:
-                    try:
-                        from scripts.generate_site_data import generate_site_data
-                        spraying = bool(self.bhyve_monitor and self.bhyve_monitor.is_spraying)
-                        generate_site_data(self.sightings_db, sprinkler_active=spraying)
-                    except Exception:
-                        logger.warning("Site data generation failed")
+                try:
+                    from scripts.generate_site_data import generate_site_data
+                    spraying = bool(self.bhyve_monitor and self.bhyve_monitor.is_spraying)
+                    generate_site_data(self.sightings_db, sprinkler_active=spraying)
+                except Exception:
+                    logger.warning("Site data generation failed")
 
             except Exception:
                 logger.exception("Post worker error for %s", clip_path.name)
