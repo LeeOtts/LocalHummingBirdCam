@@ -15,6 +15,8 @@ def _make_monitor(email="test@example.com", password="secret", watch_station=1):
     m._password = password
     m._watch_station = watch_station
     m._token = None
+    m._user_id = None
+    m._device_id = None
     m._lock = threading.Lock()
     m._active = {}
     m._ws = None
@@ -307,3 +309,192 @@ class TestStartStop:
         # Should not raise
         m.stop()
         assert m._running is False
+
+
+# ---------------------------------------------------------------------------
+# device_id property
+# ---------------------------------------------------------------------------
+
+class TestDeviceId:
+    def test_device_id_none_by_default(self):
+        m = _make_monitor()
+        assert m.device_id is None
+
+    def test_device_id_returns_value(self):
+        m = _make_monitor()
+        m._device_id = "abc123"
+        assert m.device_id == "abc123"
+
+
+# ---------------------------------------------------------------------------
+# _discover_devices
+# ---------------------------------------------------------------------------
+
+class TestDiscoverDevices:
+    def test_discover_success(self):
+        m = _make_monitor()
+        m._token = "tok"
+        m._user_id = "uid"
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {"id": "dev1", "type": "sprinkler_timer", "name": "Front Yard"},
+            {"id": "dev2", "type": "bridge", "name": "Hub"},
+        ]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        assert m._device_id == "dev1"
+
+    def test_discover_no_sprinkler(self):
+        m = _make_monitor()
+        m._token = "tok"
+        m._user_id = "uid"
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {"id": "dev2", "type": "bridge", "name": "Hub"},
+        ]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        assert m._device_id is None
+
+    def test_discover_network_error(self):
+        import requests as req
+        m = _make_monitor()
+        m._token = "tok"
+        m._user_id = "uid"
+        with patch("requests.get", side_effect=req.ConnectionError("fail")):
+            m._discover_devices()  # should not raise
+        assert m._device_id is None
+
+    def test_discover_no_token(self):
+        m = _make_monitor()
+        m._token = None
+        m._discover_devices()
+        assert m._device_id is None
+
+
+# ---------------------------------------------------------------------------
+# start_watering / stop_watering
+# ---------------------------------------------------------------------------
+
+class TestStartWatering:
+    def test_start_success(self):
+        m = _make_monitor(watch_station=1)
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        result = m.start_watering(run_time_minutes=5)
+        assert result["ok"] is True
+        assert result["station"] == 1
+        assert result["run_time"] == 5
+        m._ws.send.assert_called_once()
+        import json
+        payload = json.loads(m._ws.send.call_args[0][0])
+        assert payload["event"] == "change_mode"
+        assert payload["mode"] == "manual"
+        assert payload["device_id"] == "dev1"
+        assert payload["stations"] == [{"station": 1, "run_time": 5}]
+
+    def test_start_not_connected(self):
+        m = _make_monitor()
+        m._device_id = "dev1"
+        m.connected = False
+        result = m.start_watering()
+        assert result["ok"] is False
+        assert "Not connected" in result["error"]
+
+    def test_start_no_device(self):
+        m = _make_monitor()
+        m.connected = True
+        m._ws = MagicMock()
+        result = m.start_watering()
+        assert result["ok"] is False
+        assert "No device" in result["error"]
+
+    def test_start_clamps_run_time(self):
+        m = _make_monitor(watch_station=1)
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        result = m.start_watering(run_time_minutes=999)
+        assert result["ok"] is True
+        assert result["run_time"] <= 30  # BHYVE_MAX_RUN_MINUTES default
+
+    def test_start_ws_send_error(self):
+        m = _make_monitor(watch_station=1)
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        m._ws.send.side_effect = Exception("connection lost")
+        result = m.start_watering()
+        assert result["ok"] is False
+        assert "connection lost" in result["error"]
+
+    def test_start_default_station(self):
+        m = _make_monitor(watch_station=2)
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        result = m.start_watering()
+        assert result["station"] == 2
+
+
+class TestStopWatering:
+    def test_stop_success(self):
+        m = _make_monitor()
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        result = m.stop_watering()
+        assert result["ok"] is True
+        m._ws.send.assert_called_once()
+        import json
+        payload = json.loads(m._ws.send.call_args[0][0])
+        assert payload["event"] == "change_mode"
+        assert payload["mode"] == "auto"
+        assert payload["device_id"] == "dev1"
+
+    def test_stop_not_connected(self):
+        m = _make_monitor()
+        m._device_id = "dev1"
+        m.connected = False
+        result = m.stop_watering()
+        assert result["ok"] is False
+
+    def test_stop_no_device(self):
+        m = _make_monitor()
+        m.connected = True
+        m._ws = MagicMock()
+        result = m.stop_watering()
+        assert result["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# _login captures user_id
+# ---------------------------------------------------------------------------
+
+class TestLoginUserId:
+    def test_login_captures_top_level_user_id(self):
+        m = _make_monitor()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "orbit_session_token": "tok",
+            "user_id": "uid123",
+        }
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.post", return_value=mock_resp):
+            m._login()
+        assert m._user_id == "uid123"
+
+    def test_login_captures_nested_user_id(self):
+        m = _make_monitor()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "orbit_session_token": "tok",
+            "user": {"id": "nested_uid"},
+        }
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.post", return_value=mock_resp):
+            m._login()
+        assert m._user_id == "nested_uid"

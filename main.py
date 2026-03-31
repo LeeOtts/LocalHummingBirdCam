@@ -287,6 +287,13 @@ class HummingbirdMonitor:
                 config.BHYVE_STATION or "any",
             )
 
+            # Start automated watering scheduler
+            from bhyve.scheduler import WateringScheduler
+            self.watering_scheduler = WateringScheduler(self.bhyve_monitor)
+            self.watering_scheduler.start()
+            from web.dashboard import set_watering_scheduler
+            set_watering_scheduler(self.watering_scheduler)
+
         # Start social engagement tracker
         if config.FACEBOOK_PAGE_ACCESS_TOKEN:
             try:

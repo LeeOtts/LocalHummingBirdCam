@@ -30,6 +30,7 @@ app.secret_key = os.urandom(24)  # ephemeral — sessions last until restart
 
 # Reference to the monitor instance (set by main.py)
 _monitor = None
+_watering_scheduler = None
 
 # Routes that are always public (live camera feed, gallery, SSE events)
 _PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events"}
@@ -138,6 +139,11 @@ def _update_env_value(key: str, value) -> bool:
 def set_monitor(monitor):
     global _monitor
     _monitor = monitor
+
+
+def set_watering_scheduler(scheduler):
+    global _watering_scheduler
+    _watering_scheduler = scheduler
 
 
 
@@ -306,14 +312,26 @@ def _get_status():
 
     # B-Hyve sprinkler status
     bm = getattr(_monitor, "bhyve_monitor", None) if _monitor else None
+    ws = _watering_scheduler
     if bm is not None:
         watch = getattr(bm, '_watch_station', None)
+        can_control = bm.connected and bm.device_id is not None
+        sched_slots = ws.todays_schedule if ws else []
+        next_w = ws.next_watering if ws else None
         s.bhyve = {
             "enabled": True,
             "connected": bm.connected,
             "spraying": bm.is_spraying,
             "zone_count": len(bm.active_zones),
             "watch_station": watch,
+            "can_control": can_control,
+            "device_id": bm.device_id,
+            "schedule_enabled": config.BHYVE_SCHEDULE_ENABLED,
+            "schedule_interval_hours": config.BHYVE_SCHEDULE_INTERVAL_HOURS,
+            "schedule_offset_hours": config.BHYVE_SCHEDULE_OFFSET_HOURS,
+            "run_minutes": config.BHYVE_RUN_MINUTES,
+            "next_watering": next_w.strftime("%I:%M %p") if next_w else None,
+            "todays_schedule": [t.strftime("%I:%M %p") for t in sched_slots],
         }
     elif config.BHYVE_ENABLED:
         s.bhyve = {
@@ -322,6 +340,14 @@ def _get_status():
             "spraying": False,
             "zone_count": 0,
             "watch_station": None,
+            "can_control": False,
+            "device_id": None,
+            "schedule_enabled": config.BHYVE_SCHEDULE_ENABLED,
+            "schedule_interval_hours": config.BHYVE_SCHEDULE_INTERVAL_HOURS,
+            "schedule_offset_hours": config.BHYVE_SCHEDULE_OFFSET_HOURS,
+            "run_minutes": config.BHYVE_RUN_MINUTES,
+            "next_watering": None,
+            "todays_schedule": [],
         }
     else:
         s.bhyve = None
@@ -772,6 +798,72 @@ def toggle_test_mode():
     state = "TEST MODE" if _monitor.test_mode else "LIVE"
     logger.info("Facebook posting toggled to: %s (saved to .env)", state)
     return {"ok": True, "test_mode": _monitor.test_mode}
+
+
+@app.route("/api/bhyve/control", methods=["POST"])
+def bhyve_control():
+    """Start or stop the mister manually."""
+    bm = getattr(_monitor, "bhyve_monitor", None) if _monitor else None
+    if bm is None:
+        return {"ok": False, "error": "B-Hyve not enabled"}, 503
+
+    data = request.get_json() or {}
+    action = data.get("action")
+
+    if action == "start":
+        run_time = data.get("run_time", config.BHYVE_RUN_MINUTES)
+        try:
+            run_time = int(run_time)
+        except (ValueError, TypeError):
+            run_time = config.BHYVE_RUN_MINUTES
+        result = bm.start_watering(run_time_minutes=run_time)
+        return result if result.get("ok") else (result, 500)
+    elif action == "stop":
+        result = bm.stop_watering()
+        return result if result.get("ok") else (result, 500)
+    else:
+        return {"ok": False, "error": "Invalid action (use 'start' or 'stop')"}, 400
+
+
+@app.route("/api/bhyve/schedule", methods=["POST"])
+def bhyve_schedule():
+    """Update watering schedule settings from the admin panel."""
+    data = request.get_json() or {}
+
+    if "enabled" in data:
+        val = bool(data["enabled"])
+        config.BHYVE_SCHEDULE_ENABLED = val
+        _update_env_value("BHYVE_SCHEDULE_ENABLED", "true" if val else "false")
+
+    if "interval_hours" in data:
+        val = max(1, min(int(data["interval_hours"]), 12))
+        config.BHYVE_SCHEDULE_INTERVAL_HOURS = val
+        _update_env_value("BHYVE_SCHEDULE_INTERVAL_HOURS", str(val))
+
+    if "offset_hours" in data:
+        val = max(0, min(int(data["offset_hours"]), 12))
+        config.BHYVE_SCHEDULE_OFFSET_HOURS = val
+        _update_env_value("BHYVE_SCHEDULE_OFFSET_HOURS", str(val))
+
+    if "run_minutes" in data:
+        val = max(1, min(int(data["run_minutes"]), config.BHYVE_MAX_RUN_MINUTES))
+        config.BHYVE_RUN_MINUTES = val
+        _update_env_value("BHYVE_RUN_MINUTES", str(val))
+
+    # Recalculate schedule with new settings
+    if _watering_scheduler:
+        _watering_scheduler.recalculate()
+
+    logger.info("Watering schedule updated: enabled=%s interval=%dh offset=%dh run=%dm",
+                config.BHYVE_SCHEDULE_ENABLED, config.BHYVE_SCHEDULE_INTERVAL_HOURS,
+                config.BHYVE_SCHEDULE_OFFSET_HOURS, config.BHYVE_RUN_MINUTES)
+    return {
+        "ok": True,
+        "schedule_enabled": config.BHYVE_SCHEDULE_ENABLED,
+        "schedule_interval_hours": config.BHYVE_SCHEDULE_INTERVAL_HOURS,
+        "schedule_offset_hours": config.BHYVE_SCHEDULE_OFFSET_HOURS,
+        "run_minutes": config.BHYVE_RUN_MINUTES,
+    }
 
 
 @app.route("/api/memory", methods=["GET"])

@@ -154,6 +154,16 @@ BHYVE_ENABLED = bool(BHYVE_EMAIL and BHYVE_PASSWORD)
 _bhyve_station_raw = int(os.getenv("BHYVE_STATION", "1"))
 BHYVE_STATION: int | None = _bhyve_station_raw if _bhyve_station_raw > 0 else None
 
+# Mister control — how long each manual/scheduled watering runs (minutes)
+BHYVE_RUN_MINUTES = int(os.getenv("BHYVE_RUN_MINUTES", "5"))
+BHYVE_MAX_RUN_MINUTES = int(os.getenv("BHYVE_MAX_RUN_MINUTES", "30"))
+BHYVE_RUN_MINUTES = max(1, min(BHYVE_RUN_MINUTES, min(BHYVE_MAX_RUN_MINUTES, 60)))
+
+# Automated watering schedule — waters every N hours starting N hours after sunrise
+BHYVE_SCHEDULE_ENABLED = os.getenv("BHYVE_SCHEDULE_ENABLED", "true").lower() in ("true", "1", "yes")
+BHYVE_SCHEDULE_OFFSET_HOURS = int(os.getenv("BHYVE_SCHEDULE_OFFSET_HOURS", "3"))
+BHYVE_SCHEDULE_INTERVAL_HOURS = int(os.getenv("BHYVE_SCHEDULE_INTERVAL_HOURS", "3"))
+
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))

@@ -1,19 +1,19 @@
-"""B-Hyve sprinkler monitor — WebSocket-based, read-only.
+"""B-Hyve sprinkler monitor and controller.
 
-Connects to the Orbit b-Hyve cloud API and tracks when sprinkler zones are
-actively watering.  No commands are sent to the device; this is purely a
-listener so the hummingbird dashboard can show a "Sprinkler: SPRAYING / IDLE"
-indicator.
+Connects to the Orbit b-Hyve cloud API, tracks when sprinkler zones are
+actively watering, and can send commands to start/stop watering.
 
 API details (reverse-engineered, unofficial):
-  REST login : POST https://api.orbitbhyve.com/v1/session
-  WebSocket  : wss://api.orbitbhyve.com/v1/events
+  REST login  : POST https://api.orbitbhyve.com/v1/session
+  REST devices: GET  https://api.orbitbhyve.com/v1/devices
+  WebSocket   : wss://api.orbitbhyve.com/v1/events
 """
 
 import json
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.orbitbhyve.com"
 _LOGIN_PATH = "/v1/session"
+_DEVICES_PATH = "/v1/devices"
 _WS_URL = "wss://api.orbitbhyve.com/v1/events"
 
 _PING_INTERVAL = 25     # seconds — keep-alive ping to the WebSocket
@@ -64,6 +65,8 @@ class BHyveMonitor:
         # None means any active station counts.
         self._watch_station = watch_station
         self._token: str | None = None
+        self._user_id: str | None = None
+        self._device_id: str | None = None
         self._lock = threading.Lock()
         # device_id -> {"mode": str, "station": int|None, "started_at": float}
         self._active: dict[str, dict] = {}
@@ -102,6 +105,70 @@ class BHyveMonitor:
             for device_id, info in self._active.items():
                 result.append({"device_id": device_id, **info})
             return result
+
+    @property
+    def device_id(self) -> str | None:
+        """The discovered sprinkler device ID, or None if not yet discovered."""
+        return self._device_id
+
+    def start_watering(self, station: int | None = None,
+                       run_time_minutes: int = 5) -> dict:
+        """Send a manual watering command for the given station/duration.
+
+        Returns a dict with ``ok`` (bool) and optional ``error`` (str).
+        """
+        if not self.connected or self._ws is None:
+            return {"ok": False, "error": "Not connected to B-Hyve"}
+        if not self._device_id:
+            return {"ok": False, "error": "No device discovered"}
+
+        import config as _cfg
+        max_run = getattr(_cfg, "BHYVE_MAX_RUN_MINUTES", 30)
+        run_time_minutes = max(1, min(run_time_minutes, max_run))
+        station = station or self._watch_station or 1
+
+        payload = {
+            "event": "change_mode",
+            "mode": "manual",
+            "device_id": self._device_id,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "stations": [{"station": station, "run_time": run_time_minutes}],
+        }
+        try:
+            self._ws.send(json.dumps(payload))
+            logger.info(
+                "B-Hyve: start watering — device=%s station=%s run_time=%d min",
+                self._device_id, station, run_time_minutes,
+            )
+            return {"ok": True, "device_id": self._device_id,
+                    "station": station, "run_time": run_time_minutes}
+        except Exception as exc:
+            logger.error("B-Hyve: start watering failed: %s", exc)
+            return {"ok": False, "error": str(exc)}
+
+    def stop_watering(self) -> dict:
+        """Stop any manual watering by switching back to auto mode.
+
+        Returns a dict with ``ok`` (bool) and optional ``error`` (str).
+        """
+        if not self.connected or self._ws is None:
+            return {"ok": False, "error": "Not connected to B-Hyve"}
+        if not self._device_id:
+            return {"ok": False, "error": "No device discovered"}
+
+        payload = {
+            "event": "change_mode",
+            "mode": "auto",
+            "device_id": self._device_id,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        try:
+            self._ws.send(json.dumps(payload))
+            logger.info("B-Hyve: stop watering — device=%s", self._device_id)
+            return {"ok": True, "device_id": self._device_id}
+        except Exception as exc:
+            logger.error("B-Hyve: stop watering failed: %s", exc)
+            return {"ok": False, "error": str(exc)}
 
     def start(self):
         """Start the background monitor thread."""
@@ -144,7 +211,11 @@ class BHyveMonitor:
             )
             if token:
                 self._token = token
-                logger.info("B-Hyve: login successful")
+                self._user_id = (
+                    data.get("user_id")
+                    or data.get("user", {}).get("id")
+                )
+                logger.info("B-Hyve: login successful (user_id=%s)", self._user_id)
                 return True
             logger.error("B-Hyve: login response missing orbit_session_token")
             return False
@@ -153,6 +224,35 @@ class BHyveMonitor:
         except Exception:
             logger.exception("B-Hyve: login failed")
         return False
+
+    def _discover_devices(self):
+        """Fetch device list from REST API and store the sprinkler device ID."""
+        if not self._token:
+            return
+        try:
+            headers = {**_HEADERS, "orbit-session-token": self._token}
+            params = {}
+            if self._user_id:
+                params["user_id"] = self._user_id
+            resp = requests.get(
+                f"{_API_BASE}{_DEVICES_PATH}",
+                headers=headers,
+                params=params,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            devices = resp.json()
+            for dev in devices:
+                if dev.get("type") == "sprinkler_timer":
+                    self._device_id = dev["id"]
+                    logger.info(
+                        "B-Hyve: discovered device '%s' (id=%s)",
+                        dev.get("name", "unknown"), self._device_id,
+                    )
+                    return
+            logger.warning("B-Hyve: no sprinkler_timer device found in %d devices", len(devices))
+        except Exception:
+            logger.warning("B-Hyve: device discovery failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # Internal — WebSocket
@@ -170,6 +270,9 @@ class BHyveMonitor:
                     time.sleep(delay)
                     delay = min(delay * 2, _RECONNECT_MAX)
                     continue
+                # Discover devices after first successful login
+                if not self._device_id:
+                    self._discover_devices()
 
             was_connected = self.connected
             try:
