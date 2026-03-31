@@ -482,6 +482,16 @@ class HummingbirdMonitor:
                 from analytics.patterns import get_weather
                 weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
 
+            # Fetch season predictions for anticipation prompts
+            season_prediction = None
+            end_season_prediction = None
+            try:
+                from analytics.patterns import predict_season_arrival, predict_season_end
+                season_prediction = predict_season_arrival(self.sightings_db)
+                end_season_prediction = predict_season_end(self.sightings_db)
+            except Exception:
+                pass
+
             captions = generate_good_morning(
                 location=config.LOCATION_NAME,
                 sunrise=schedule_info["sunrise"],
@@ -491,6 +501,9 @@ class HummingbirdMonitor:
                 yesterday_detections=self._yesterday_detections or None,
                 lifetime_total=self._total_lifetime_detections,
                 weather=weather,
+                season_prediction=season_prediction,
+                end_season_prediction=end_season_prediction,
+                today_count=self.sightings_db.get_today_count(),
             )
             logger.info("Morning post: %s", captions)
 
@@ -535,6 +548,16 @@ class HummingbirdMonitor:
             # Check for new record
             is_record = det > self._all_time_record and det > 0
 
+            # Fetch season predictions for end-of-season awareness
+            season_prediction = None
+            end_season_prediction = None
+            try:
+                from analytics.patterns import predict_season_arrival, predict_season_end
+                season_prediction = predict_season_arrival(self.sightings_db)
+                end_season_prediction = predict_season_end(self.sightings_db)
+            except Exception:
+                pass
+
             captions = generate_good_night(
                 location=config.LOCATION_NAME,
                 sunset=schedule_info["sunset"],
@@ -546,6 +569,9 @@ class HummingbirdMonitor:
                 peak_hour=peak_hour,
                 is_record=is_record,
                 lifetime_total=self._total_lifetime_detections,
+                season_prediction=season_prediction,
+                end_season_prediction=end_season_prediction,
+                today_count=det,
             )
             logger.info("Goodnight post: %s", captions)
 

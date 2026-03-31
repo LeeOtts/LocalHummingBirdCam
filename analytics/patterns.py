@@ -81,6 +81,7 @@ def get_analytics_summary(db) -> dict:
         "prediction": predict_next_visit(db),
         "season_dates": _enrich_season_dates(db.get_season_dates()),
         "season_prediction": predict_season_arrival(db),
+        "end_season_prediction": predict_season_end(db),
     }
 
 
@@ -197,6 +198,50 @@ def predict_season_arrival(db) -> dict | None:
         "days_until": days_until,
         "avg_season_length_days": avg_season_length,
         "in_season": in_season,
+    }
+
+
+def predict_season_end(db) -> dict | None:
+    """Predict when the last hummingbird visit of the season will be.
+
+    Uses historical last-visit dates to compute average, earliest, and latest.
+    Returns days_until_last for end-of-season awareness in prompts.
+    """
+    from statistics import mean
+    now = datetime.now(tz=_local_tz)
+    seasons = db.get_season_dates()
+    if not seasons:
+        return None
+
+    last_doys = []
+    for s in seasons:
+        if s["last_visit"]:
+            dt = datetime.strptime(s["last_visit"], "%Y-%m-%d")
+            last_doys.append(dt.timetuple().tm_yday)
+
+    if not last_doys:
+        return None
+
+    mean_doy = round(mean(last_doys))
+    earliest_doy = min(last_doys)
+    latest_doy = max(last_doys)
+
+    target_year = now.year
+    predicted = datetime(target_year, 1, 1) + timedelta(days=mean_doy - 1)
+    earliest = datetime(target_year, 1, 1) + timedelta(days=earliest_doy - 1)
+    latest = datetime(target_year, 1, 1) + timedelta(days=latest_doy - 1)
+
+    days_until_last = (predicted.date() - now.date()).days
+
+    return {
+        "predicted_last_date": predicted.strftime("%Y-%m-%d"),
+        "predicted_last_display": f"{predicted.strftime('%B')} {predicted.day}",
+        "earliest_last_date": earliest.strftime("%Y-%m-%d"),
+        "earliest_last_display": f"{earliest.strftime('%B')} {earliest.day}",
+        "latest_last_date": latest.strftime("%Y-%m-%d"),
+        "latest_last_display": f"{latest.strftime('%B')} {latest.day}",
+        "based_on_years": len(last_doys),
+        "days_until_last": days_until_last,
     }
 
 

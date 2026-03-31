@@ -542,12 +542,100 @@ Style Targets for anticipation mode (do not copy):
 
 """
 
+_PRESEASON_MORNING = """\
+IMPORTANT — It's pre-season! No hummingbirds spotted yet this year.
+Based on {based_on_years} years of historical data, hummingbirds typically \
+arrive around {predicted_date} (earliest: {earliest_date}, latest: {latest_date}).
+That's about {days_until} days away. The feeder is out, the camera is ready, \
+and we're in countdown mode. Channel the excitement of waiting for opening day. \
+Every morning gets us one day closer.
 
-def _get_anticipation_block(lifetime_total: int, is_morning: bool) -> str:
-    """Return anticipation prompt block if no hummingbirds have ever been seen."""
-    if lifetime_total > 0:
+Style Targets for pre-season mode (do not copy):
+- "{days_until} days until the predicted arrival. The feeder is doing stretches."
+- "Historically they show up around {predicted_date}. We're watching."
+- "The countdown continues. {days_until} days to go if the hummers read the calendar."
+- "Camera's on. Feeder's full. {predicted_date} is circled on the calendar."
+
+"""
+
+_PRESEASON_NIGHT = """\
+IMPORTANT — It's pre-season! No hummingbirds spotted yet this year.
+Based on {based_on_years} years of data, hummingbirds typically arrive \
+around {predicted_date} (earliest: {earliest_date}, latest: {latest_date}).
+That's about {days_until} days away. Zero detections today, but that's expected — \
+we're still in the countdown. Channel patient anticipation, not disappointment. \
+The hummers are on their way.
+
+Style Targets for pre-season mode (do not copy):
+- "0 hummers today. But they're not due for another {days_until} days."
+- "No visitors yet. Predicted arrival: {predicted_date}. The wait continues."
+- "Still in pre-season mode. {days_until} days to go."
+- "The feeder is patient. {predicted_date} is getting closer."
+
+"""
+
+_ENDSEASON_BLOCK = """\
+SEASONAL NOTE — We're in the final stretch of hummingbird season. \
+Based on {based_on_years} years of data, the last hummingbird is usually \
+spotted around {predicted_last_date} (earliest: {earliest_last}, latest: {latest_last}).
+Every visit could be one of the last this year. Don't overdo it — just a subtle \
+touch of bittersweet "savoring the moment" energy mixed into the regular post. \
+A brief nod to the season winding down, not a eulogy.
+
+Style hints (do not copy, just capture the vibe):
+- "Could be one of the last visits of the year. Making it count."
+- "Season's winding down. Every visit hits a little different now."
+- "The fall visits always feel a little more special."
+
+"""
+
+
+def _get_anticipation_block(lifetime_total: int, is_morning: bool, **kwargs) -> str:
+    """Return anticipation/seasonal prompt block based on current season state.
+
+    Modes (in priority order):
+    1. First-ever anticipation: lifetime_total == 0
+    2. Pre-season countdown: season prediction available, no sightings this year yet
+    3. End-of-season: within ~2 weeks of predicted last visit date
+    4. Normal: empty string
+    """
+    season_prediction = kwargs.get("season_prediction")
+
+    # Mode 1: Never seen a hummingbird
+    if lifetime_total == 0 and not season_prediction:
+        return _ANTICIPATION_MORNING if is_morning else _ANTICIPATION_NIGHT
+
+    if not season_prediction:
         return ""
-    return _ANTICIPATION_MORNING if is_morning else _ANTICIPATION_NIGHT
+
+    today_count = kwargs.get("today_count", 0)
+    days_until = season_prediction.get("days_until")
+    in_season = season_prediction.get("in_season", False)
+
+    # Mode 2: Pre-season countdown (before predicted arrival, no sightings this year)
+    if not in_season and days_until is not None and days_until > 0 and today_count == 0:
+        template = _PRESEASON_MORNING if is_morning else _PRESEASON_NIGHT
+        return template.format(
+            predicted_date=season_prediction.get("predicted_display", "mid-April"),
+            earliest_date=season_prediction.get("earliest_display", "early April"),
+            latest_date=season_prediction.get("latest_display", "late April"),
+            days_until=days_until,
+            based_on_years=season_prediction.get("based_on_years", "several"),
+        )
+
+    # Mode 3: End of season (within ~2 weeks of predicted last visit)
+    end_season = kwargs.get("end_season_prediction")
+    if end_season and in_season:
+        days_until_end = end_season.get("days_until_last")
+        if days_until_end is not None and 0 <= days_until_end <= 14:
+            return _ENDSEASON_BLOCK.format(
+                predicted_last_date=end_season.get("predicted_last_display", "early October"),
+                earliest_last=end_season.get("earliest_last_display", "late September"),
+                latest_last=end_season.get("latest_last_display", "mid-October"),
+                based_on_years=end_season.get("based_on_years", "several"),
+            )
+
+    return ""
 
 
 def generate_good_morning(location: str, sunrise: str,
@@ -575,7 +663,12 @@ def generate_good_morning(location: str, sunrise: str,
         weather_line = ""
 
     platform_block = _build_platform_block(platforms) if multi else ""
-    anticipation_block = _get_anticipation_block(lifetime_total, is_morning=True)
+    anticipation_block = _get_anticipation_block(
+        lifetime_total, is_morning=True,
+        season_prediction=kwargs.get("season_prediction"),
+        end_season_prediction=kwargs.get("end_season_prediction"),
+        today_count=kwargs.get("today_count", 0),
+    )
 
     try:
         client = _get_client()
@@ -635,7 +728,12 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
     record_text = "New all-time record!" if is_record else ""
 
     platform_block = _build_platform_block(platforms) if multi else ""
-    anticipation_block = _get_anticipation_block(lifetime_total, is_morning=False)
+    anticipation_block = _get_anticipation_block(
+        lifetime_total, is_morning=False,
+        season_prediction=kwargs.get("season_prediction"),
+        end_season_prediction=kwargs.get("end_season_prediction"),
+        today_count=kwargs.get("today_count", 0),
+    )
 
     try:
         client = _get_client()
