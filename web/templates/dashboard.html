@@ -1414,7 +1414,7 @@
         }
 
         function toggleMister() {
-            const btn = el('btn-mister');
+            const btn = document.getElementById('btn-mister');
             const spraying = btn && btn.textContent.trim() === 'Stop Mister';
             const action = spraying ? 'stop' : 'start';
             if (btn) btn.disabled = true;
@@ -1440,7 +1440,7 @@
         }
 
         function toggleWateringSchedule() {
-            const btn = el('btn-sched-toggle');
+            const btn = document.getElementById('btn-sched-toggle');
             const enabled = btn && btn.textContent.trim() === 'Disable';
             if (btn) btn.disabled = true;
             fetch('/api/bhyve/schedule', {
@@ -1459,9 +1459,9 @@
         }
 
         function updateWateringSchedule() {
-            const interval = parseInt(el('sched-interval').value);
-            const runMin = parseInt(el('sched-runtime').value);
-            const offset = parseInt(el('sched-offset').value);
+            const interval = parseInt(document.getElementById('sched-interval').value);
+            const runMin = parseInt(document.getElementById('sched-runtime').value);
+            const offset = parseInt(document.getElementById('sched-offset').value);
             fetch('/api/bhyve/schedule', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
