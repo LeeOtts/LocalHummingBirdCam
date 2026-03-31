@@ -11,7 +11,6 @@ venv/
 .env
 
 # Secrets
-website/data/.guestbook_config.php
 website/data/.login_attempts.json
 
 # Runtime data (written by the running system, causes merge conflicts)
