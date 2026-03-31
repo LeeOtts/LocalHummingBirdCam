@@ -121,6 +121,10 @@ class HummingbirdMonitor:
         self.poster = FacebookPoster()  # Keep for backward compat (token verify, retry)
         self.poster_manager = PosterManager()  # Multi-platform posting
         self.sightings_db = SightingsDB()
+        try:
+            self.sightings_db.prune_old_data()
+        except Exception:
+            logger.warning("Failed to prune old data", exc_info=True)
         self.clip_queue: Queue[Path] = Queue()
         self._last_detection_time = 0.0
         self._detections_today = 0

@@ -19,6 +19,7 @@ except ImportError:
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
 DB_PATH = config.BASE_DIR / "data" / "sightings.db"
+SCHEMA_VERSION = 1
 
 
 class SightingsDB:
@@ -178,6 +179,10 @@ class SightingsDB:
                         ON position_heatmap(date);
                     CREATE INDEX IF NOT EXISTS idx_watering_events_start
                         ON watering_events(start_time);
+
+                    CREATE TABLE IF NOT EXISTS schema_version (
+                        version INTEGER NOT NULL DEFAULT 0
+                    );
                 """)
                 # Add new columns to sightings table (idempotent — ignore if already exist)
                 _new_columns = [
@@ -206,6 +211,29 @@ class SightingsDB:
                     conn.execute("ALTER TABLE feeders ADD COLUMN camera_feeder INTEGER DEFAULT 0")
                 except sqlite3.OperationalError:
                     pass  # Column already exists
+
+                # Indexes on columns added by ALTER TABLE above
+                for idx_sql in [
+                    "CREATE INDEX IF NOT EXISTS idx_sightings_behavior ON sightings(behavior)",
+                    "CREATE INDEX IF NOT EXISTS idx_sightings_species ON sightings(species)",
+                    "CREATE INDEX IF NOT EXISTS idx_guestbook_timestamp ON guestbook(timestamp)",
+                    "CREATE INDEX IF NOT EXISTS idx_follower_snapshots_ts ON follower_snapshots(timestamp)",
+                ]:
+                    conn.execute(idx_sql)
+
+                # Track schema version for future migrations
+                row = conn.execute("SELECT version FROM schema_version").fetchone()
+                if row is None:
+                    conn.execute("INSERT INTO schema_version (version) VALUES (?)",
+                                 (SCHEMA_VERSION,))
+                else:
+                    current_ver = row[0]
+                    # Future migrations go here:
+                    # if current_ver < 2:
+                    #     conn.execute("ALTER TABLE ...")
+                    if current_ver < SCHEMA_VERSION:
+                        conn.execute("UPDATE schema_version SET version = ?",
+                                     (SCHEMA_VERSION,))
 
                 # Seed historical season data if table is empty
                 row = conn.execute("SELECT COUNT(*) as cnt FROM season_dates").fetchone()
@@ -245,6 +273,10 @@ class SightingsDB:
                         moon_phase: float | None = None,
                         sunrise_offset_min: int | None = None) -> int:
         """Record a new hummingbird sighting. Returns the sighting ID."""
+        if position_x is not None:
+            position_x = max(0.0, min(1.0, position_x))
+        if position_y is not None:
+            position_y = max(0.0, min(1.0, position_y))
         now = datetime.now(tz=_local_tz).isoformat()
         with self._lock:
             conn = self._get_conn()
@@ -332,13 +364,14 @@ class SightingsDB:
 
     def get_today_count(self) -> int:
         """Get today's sighting count."""
-        today = datetime.now(tz=_local_tz).strftime("%Y-%m-%d")
+        today = datetime.now(tz=_local_tz).date()
+        tomorrow = today + timedelta(days=1)
         with self._lock:
             conn = self._get_conn()
             try:
                 row = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM sightings WHERE timestamp LIKE ?",
-                    (f"{today}%",),
+                    "SELECT COUNT(*) as cnt FROM sightings WHERE timestamp >= ? AND timestamp < ?",
+                    (f"{today}T00:00:00", f"{tomorrow}T00:00:00"),
                 ).fetchone()
                 return row["cnt"] if row else 0
             finally:
@@ -351,17 +384,13 @@ class SightingsDB:
             conn = self._get_conn()
             try:
                 rows = conn.execute(
-                    "SELECT timestamp FROM sightings WHERE timestamp >= ?",
+                    """SELECT CAST(SUBSTR(timestamp, 12, 2) AS INTEGER) as hour,
+                              COUNT(*) as cnt
+                       FROM sightings WHERE timestamp >= ?
+                       GROUP BY hour""",
                     (since,),
                 ).fetchall()
-                hours: dict[int, int] = {}
-                for r in rows:
-                    try:
-                        h = datetime.fromisoformat(r["timestamp"]).hour
-                        hours[h] = hours.get(h, 0) + 1
-                    except (ValueError, TypeError):
-                        pass
-                return hours
+                return {r["hour"]: r["cnt"] for r in rows}
             finally:
                 conn.close()
 
@@ -386,24 +415,16 @@ class SightingsDB:
         with self._lock:
             conn = self._get_conn()
             try:
-                rows = conn.execute(
-                    "SELECT timestamp FROM sightings WHERE timestamp >= ? ORDER BY timestamp",
+                row = conn.execute(
+                    """SELECT AVG(gap_min) as avg_gap FROM (
+                           SELECT (julianday(timestamp) -
+                                   julianday(LAG(timestamp) OVER (ORDER BY timestamp)))
+                                  * 1440.0 as gap_min
+                           FROM sightings WHERE timestamp >= ?
+                       ) WHERE gap_min IS NOT NULL AND gap_min > 0 AND gap_min < 240""",
                     (since,),
-                ).fetchall()
-                if len(rows) < 2:
-                    return None
-                gaps = []
-                for i in range(1, len(rows)):
-                    try:
-                        t1 = datetime.fromisoformat(rows[i - 1]["timestamp"])
-                        t2 = datetime.fromisoformat(rows[i]["timestamp"])
-                        gap = (t2 - t1).total_seconds() / 60
-                        # Only count gaps under 4 hours (skip overnight)
-                        if gap < 240:
-                            gaps.append(gap)
-                    except (ValueError, TypeError):
-                        pass
-                return sum(gaps) / len(gaps) if gaps else None
+                ).fetchone()
+                return row["avg_gap"] if row and row["avg_gap"] is not None else None
             finally:
                 conn.close()
 
@@ -414,6 +435,28 @@ class SightingsDB:
             try:
                 row = conn.execute("SELECT COUNT(*) as cnt FROM sightings").fetchone()
                 return row["cnt"] if row else 0
+            finally:
+                conn.close()
+
+    def prune_old_data(self, page_views_days: int = 90,
+                       predictions_days: int = 180,
+                       heatmap_days: int = 365):
+        """Delete old rows from high-volume tables to keep DB size bounded."""
+        cutoffs = {
+            "page_views": (datetime.now(tz=_local_tz) - timedelta(days=page_views_days)).isoformat(),
+            "predictions_log": (datetime.now(tz=_local_tz) - timedelta(days=predictions_days)).isoformat(),
+            "position_heatmap": str(date.today() - timedelta(days=heatmap_days)),
+        }
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                for table, cutoff in cutoffs.items():
+                    col = "date" if table == "position_heatmap" else "timestamp"
+                    cur = conn.execute(
+                        f"DELETE FROM {table} WHERE {col} < ?", (cutoff,))
+                    if cur.rowcount:
+                        logger.info("Pruned %d old rows from %s", cur.rowcount, table)
+                conn.commit()
             finally:
                 conn.close()
 
@@ -743,6 +786,8 @@ class SightingsDB:
 
     def record_heatmap_point(self, x: float, y: float, grid_size: int = 8):
         """Record a detection position to the heatmap grid (8x8 by default)."""
+        x = max(0.0, min(1.0, x))
+        y = max(0.0, min(1.0, y))
         today = date.today().isoformat()
         row = min(int(y * grid_size), grid_size - 1)
         col = min(int(x * grid_size), grid_size - 1)
