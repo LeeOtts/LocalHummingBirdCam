@@ -228,6 +228,242 @@ class TestCommentReplies:
         assert db.get_replies_last_hour() == 1
 
 
+class TestSeasonDates:
+    """Test season date CRUD operations."""
+
+    def test_upsert_and_retrieve(self, db):
+        # DB seeds 6 rows; upsert a new year
+        db.upsert_season_date(2099, "2099-03-15", "2099-10-20")
+        dates = db.get_season_dates()
+        newest = dates[0]
+        assert newest["year"] == 2099
+        assert newest["first_visit"] == "2099-03-15"
+
+    def test_upsert_replaces(self, db):
+        db.upsert_season_date(2099, "2099-03-15", "2099-10-20")
+        db.upsert_season_date(2099, "2099-03-10", "2099-10-25")
+        dates = db.get_season_dates()
+        match = [d for d in dates if d["year"] == 2099]
+        assert len(match) == 1
+        assert match[0]["first_visit"] == "2099-03-10"
+
+    def test_upsert_invalid_year_raises(self, db):
+        with pytest.raises(ValueError):
+            db.upsert_season_date(1999, "1999-03-15", None)
+
+    def test_upsert_with_none_dates(self, db):
+        db.upsert_season_date(2099, None, None)
+        match = [d for d in db.get_season_dates() if d["year"] == 2099]
+        assert match[0]["first_visit"] is None
+
+    def test_delete_existing(self, db):
+        db.upsert_season_date(2099, "2099-03-15", "2099-10-20")
+        assert db.delete_season_date(2099) is True
+        match = [d for d in db.get_season_dates() if d["year"] == 2099]
+        assert match == []
+
+    def test_delete_nonexistent(self, db):
+        assert db.delete_season_date(2098) is False
+
+
+class TestDeleteGuestbook:
+    """Test guestbook deletion."""
+
+    def test_delete_existing(self, db):
+        entry_id = db.add_guestbook_entry("Alice", "Hello!", "ip1")
+        assert db.delete_guestbook_entry(entry_id) is True
+        assert db.get_guestbook_entries() == []
+
+    def test_delete_nonexistent(self, db):
+        assert db.delete_guestbook_entry(999) is False
+
+
+class TestHeatmap:
+    """Test position heatmap."""
+
+    def test_record_and_retrieve(self, db):
+        db.record_heatmap_point(0.5, 0.5)
+        grid = db.get_heatmap(days=1)
+        assert grid[4][4] == 1  # 0.5 * 8 = 4
+
+    def test_multiple_points_accumulate(self, db):
+        db.record_heatmap_point(0.1, 0.1)
+        db.record_heatmap_point(0.1, 0.1)
+        grid = db.get_heatmap(days=1)
+        assert grid[0][0] == 2
+
+    def test_empty_heatmap(self, db):
+        grid = db.get_heatmap(days=1)
+        assert len(grid) == 8
+        assert all(all(c == 0 for c in row) for row in grid)
+
+    def test_edge_values_clamped(self, db):
+        db.record_heatmap_point(1.0, 1.0)  # Should clamp to grid_size-1
+        grid = db.get_heatmap(days=1)
+        assert grid[7][7] == 1
+
+
+class TestFeederStats:
+    """Test feeder management stats."""
+
+    def test_empty_feeder_stats(self, db):
+        stats = db.get_feeder_stats()
+        assert stats["feeder_count"] == 0
+        assert stats["days_since_refill"] is None
+        assert stats["nectar_produced_oz"] == 0
+        assert stats["estimated_consumption_oz"] == 0.0
+
+    def test_with_feeders(self, db):
+        db.add_feeder("Front Yard", port_count=4)
+        db.add_feeder("Back Yard", port_count=6)
+        stats = db.get_feeder_stats()
+        assert stats["feeder_count"] == 2
+
+
+class TestWateringEvents:
+    """Test watering event recording."""
+
+    def test_record_start_and_retrieve(self, db):
+        eid = db.record_watering_start(zone="1")
+        assert eid is not None
+        events = db.get_watering_events(days=1)
+        assert len(events) == 1
+        assert events[0]["zone"] == "1"
+
+    def test_record_end(self, db):
+        eid = db.record_watering_start(zone="1")
+        db.record_watering_end(eid)
+        events = db.get_watering_events(days=1)
+        assert events[0]["end_time"] is not None
+
+    def test_record_end_nonexistent(self, db):
+        db.record_watering_end(999)  # should not raise
+
+    def test_empty_events(self, db):
+        assert db.get_watering_events(days=1) == []
+
+
+class TestEngagementDB:
+    """Test social engagement DB operations."""
+
+    def test_record_and_summary(self, db):
+        db.record_engagement("facebook", "post1", likes=10, shares=2, comments=3)
+        summary = db.get_engagement_summary(days=1)
+        assert summary["total_likes"] == 10
+        assert summary["total_shares"] == 2
+        assert summary["total_comments"] == 3
+        assert summary["post_count"] == 1
+
+    def test_upsert_engagement(self, db):
+        db.record_engagement("facebook", "post1", likes=5)
+        db.record_engagement("facebook", "post1", likes=15)
+        summary = db.get_engagement_summary(days=1)
+        assert summary["total_likes"] == 15
+
+    def test_empty_summary(self, db):
+        summary = db.get_engagement_summary(days=1)
+        assert summary["total_likes"] == 0
+        assert summary["top_post"] is None
+
+    def test_top_post(self, db):
+        db.record_engagement("facebook", "post1", likes=5, shares=1, comments=1)
+        db.record_engagement("facebook", "post2", likes=20, shares=5, comments=10)
+        summary = db.get_engagement_summary(days=1)
+        assert summary["top_post"]["post_id"] == "post2"
+
+
+class TestFollowerSnapshots:
+    """Test follower tracking."""
+
+    def test_record_and_retrieve(self, db):
+        db.record_follower_snapshot("facebook", 500)
+        history = db.get_follower_history(days=1)
+        assert len(history) == 1
+        assert history[0]["follower_count"] == 500
+
+    def test_empty_history(self, db):
+        assert db.get_follower_history(days=1) == []
+
+
+class TestPredictions:
+    """Test prediction logging and accuracy."""
+
+    def test_log_and_get_accuracy(self, db):
+        db.log_prediction("next_visit", "10:00", "10:15", error_minutes=15.0)
+        db.log_prediction("next_visit", "14:00", "14:30", error_minutes=30.0)
+        acc = db.get_prediction_accuracy(days=1)
+        assert "next_visit" in acc
+        assert acc["next_visit"]["avg_error_minutes"] == 22.5
+        assert acc["next_visit"]["predictions_logged"] == 2
+
+    def test_empty_accuracy(self, db):
+        assert db.get_prediction_accuracy(days=1) == {}
+
+    def test_null_error_excluded(self, db):
+        db.log_prediction("next_visit", "10:00", None, error_minutes=None)
+        assert db.get_prediction_accuracy(days=1) == {}
+
+
+class TestAnalyticsQueries:
+    """Test behavior/species breakdowns and visit stats."""
+
+    def test_behavior_breakdown_empty(self, db):
+        assert db.get_behavior_breakdown(days=1) == {}
+
+    def _update_sighting(self, db, sid, **kwargs):
+        """Helper to update sighting fields without locking issues."""
+        conn = db._get_conn()
+        for key, val in kwargs.items():
+            conn.execute(f"UPDATE sightings SET {key} = ? WHERE id = ?", (val, sid))
+        conn.commit()
+        conn.close()
+
+    def test_behavior_breakdown_with_data(self, db):
+        sid = db.record_sighting("clip1.mp4", "feeding bird")
+        self._update_sighting(db, sid, behavior="feeding")
+        sid2 = db.record_sighting("clip2.mp4", "hovering bird")
+        self._update_sighting(db, sid2, behavior="hovering")
+        sid3 = db.record_sighting("clip3.mp4", "another feeder")
+        self._update_sighting(db, sid3, behavior="feeding")
+        result = db.get_behavior_breakdown(days=1)
+        assert result["feeding"] == 2
+        assert result["hovering"] == 1
+
+    def test_species_breakdown_empty(self, db):
+        assert db.get_species_breakdown(days=1) == {}
+
+    def test_species_breakdown_with_data(self, db):
+        sid = db.record_sighting("clip1.mp4", "ruby-throated")
+        self._update_sighting(db, sid, species="Ruby-throated")
+        result = db.get_species_breakdown(days=1)
+        assert result["Ruby-throated"] == 1
+
+    def test_visit_stats_empty(self, db):
+        stats = db.get_visit_stats(days=1)
+        assert stats["avg_birds_per_visit"] is None
+        assert stats["max_simultaneous"] == 0
+        assert stats["avg_visit_duration_sec"] is None
+
+    def test_visit_stats_with_data(self, db):
+        sid = db.record_sighting("clip1.mp4", "visit")
+        self._update_sighting(db, sid, bird_count=3, visit_duration_frames=150)
+        stats = db.get_visit_stats(days=1)
+        assert stats["avg_birds_per_visit"] == 3.0
+        assert stats["max_simultaneous"] == 3
+        assert stats["avg_visit_duration_sec"] == 10.0  # 150/15
+
+    def test_sunrise_offset_avg_empty(self, db):
+        assert db.get_sunrise_offset_avg(days=1) is None
+
+    def test_sunrise_offset_avg_with_data(self, db):
+        sid1 = db.record_sighting("clip1.mp4", "early")
+        self._update_sighting(db, sid1, sunrise_offset_min=30)
+        sid2 = db.record_sighting("clip2.mp4", "later")
+        self._update_sighting(db, sid2, sunrise_offset_min=60)
+        result = db.get_sunrise_offset_avg(days=1)
+        assert result == 45.0
+
+
 class TestWeeklySummary:
     """Test get_weekly_summary() for digest generation."""
 
