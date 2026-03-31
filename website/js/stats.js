@@ -236,6 +236,148 @@ function populateStats(data) {
 }
 
 /**
+ * Format a YYYY-MM-DD date string to a readable display
+ */
+function formatSeasonDate(dateStr) {
+    if (!dateStr) return '--';
+    try {
+        const d = new Date(dateStr + 'T00:00:00');
+        const months = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
+        return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    } catch {
+        return dateStr;
+    }
+}
+
+/**
+ * Calculate days between two YYYY-MM-DD date strings
+ */
+function seasonLength(first, last) {
+    if (!first || !last) return null;
+    try {
+        const d1 = new Date(first + 'T00:00:00');
+        const d2 = new Date(last + 'T00:00:00');
+        return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Render season prediction and history from site_data.json
+ */
+function renderSeasonData(data) {
+    const seasons = data.season_dates;
+    if (!seasons || !seasons.length) return;
+
+    // Season History Table
+    const section = document.getElementById('seasonHistorySection');
+    const tbody = document.getElementById('seasonTableBody');
+    if (section && tbody) {
+        section.style.display = '';
+        tbody.innerHTML = '';
+        for (const s of seasons) {
+            const len = seasonLength(s.first_visit, s.last_visit);
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--border)';
+            tr.innerHTML = `
+                <td style="padding:10px; font-weight:bold;">${s.year}</td>
+                <td style="padding:10px; color:#5cb84c;">${formatSeasonDate(s.first_visit)}</td>
+                <td style="padding:10px; color:#d4a017;">${formatSeasonDate(s.last_visit)}</td>
+                <td style="padding:10px; color:var(--text-muted);">${len !== null ? len + ' days' : '--'}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    // Season Arrival Prediction
+    // Compute from the season_dates: average first-visit day-of-year
+    const withFirst = seasons.filter(s => s.first_visit);
+    if (withFirst.length < 2) return;
+
+    const doys = withFirst.map(s => {
+        const d = new Date(s.first_visit + 'T00:00:00');
+        const start = new Date(d.getFullYear(), 0, 0);
+        return Math.floor((d - start) / (1000 * 60 * 60 * 24));
+    });
+
+    const meanDoy = Math.round(doys.reduce((a, b) => a + b, 0) / doys.length);
+    const minDoy = Math.min(...doys);
+    const maxDoy = Math.max(...doys);
+
+    const now = new Date();
+    let targetYear = now.getFullYear();
+    const predicted = new Date(targetYear, 0, meanDoy);
+    const earliest = new Date(targetYear, 0, minDoy);
+    const latest = new Date(targetYear, 0, maxDoy);
+
+    // If we're well past the latest date, show next year
+    const latestPlusBuffer = new Date(latest);
+    latestPlusBuffer.setDate(latestPlusBuffer.getDate() + 30);
+    if (now > latestPlusBuffer) {
+        targetYear++;
+        predicted.setFullYear(targetYear);
+        earliest.setFullYear(targetYear);
+        latest.setFullYear(targetYear);
+    }
+
+    const daysUntil = Math.ceil((predicted - now) / (1000 * 60 * 60 * 24));
+
+    // Check if currently in season
+    const currentYearSeason = seasons.find(s => s.year === now.getFullYear());
+    let inSeason = false;
+    if (currentYearSeason && currentYearSeason.first_visit) {
+        const firstDt = new Date(currentYearSeason.first_visit + 'T00:00:00');
+        const lastDt = currentYearSeason.last_visit ? new Date(currentYearSeason.last_visit + 'T00:00:00') : null;
+        if (now >= firstDt && (!lastDt || now <= lastDt)) inSeason = true;
+    }
+
+    // Avg season length
+    const withBoth = seasons.filter(s => s.first_visit && s.last_visit);
+    const avgLen = withBoth.length > 0
+        ? Math.round(withBoth.map(s => seasonLength(s.first_visit, s.last_visit)).reduce((a, b) => a + b, 0) / withBoth.length)
+        : null;
+
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const predDisplay = `${months[predicted.getMonth()]} ${predicted.getDate()}`;
+    const earlyDisplay = `${months[earliest.getMonth()]} ${earliest.getDate()}`;
+    const lateDisplay = `${months[latest.getMonth()]} ${latest.getDate()}`;
+
+    const predSection = document.getElementById('seasonPredictionSection');
+    const predContent = document.getElementById('seasonPredictionContent');
+    if (!predSection || !predContent) return;
+    predSection.style.display = '';
+
+    if (inSeason) {
+        predContent.innerHTML = `
+            <span class="metric-value" style="color:#5cb84c;">Season is Active!</span>
+            ${avgLen ? `<div style="color:var(--text-muted); margin-top:8px;">Average season length: ${avgLen} days</div>` : ''}
+        `;
+    } else if (daysUntil > 0) {
+        predContent.innerHTML = `
+            <div style="color:var(--text-muted); margin-bottom:8px;">Hummingbirds typically arrive around</div>
+            <span class="metric-value">${predDisplay}</span>
+            <div style="margin-top:10px;">
+                <span style="color:#d4a017; font-size:1.3em; font-weight:bold;">${daysUntil} days to go!</span>
+            </div>
+            <div style="color:var(--text-muted); margin-top:6px; font-size:0.85em;">
+                Based on ${withFirst.length} years of data (earliest: ${earlyDisplay}, latest: ${lateDisplay})
+            </div>
+        `;
+    } else {
+        predContent.innerHTML = `
+            <div style="color:var(--text-muted); margin-bottom:8px;">Hummingbirds typically arrive around</div>
+            <span class="metric-value">${predDisplay}</span>
+            <div style="color:var(--text-muted); margin-top:6px; font-size:0.85em;">
+                Based on ${withFirst.length} years of data (earliest: ${earlyDisplay}, latest: ${lateDisplay})
+            </div>
+        `;
+    }
+}
+
+/**
  * Initialize stats page
  */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -248,4 +390,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateStats(data);
     renderHourlyChart(data.hourly_pattern);
     renderDailyChart(data.daily_counts_30d);
+    renderSeasonData(data);
 });

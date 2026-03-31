@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Situation Room - Backyard Hummers</title>
+    <title>Analytics - Backyard Hummers</title>
     <meta name="description" content="Hummingbird surveillance analytics. Peak hours, daily trends, and next-visit predictions.">
     <link rel="icon" href="img/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
@@ -26,7 +26,7 @@
             <div class="nav-links">
                 <a href="/" class="nav-link">Home</a>
                 <a href="gallery.html" class="nav-link">The Highlight Reel</a>
-                <a href="stats.html" class="nav-link active">Bird Brain Stats</a>
+                <a href="stats.html" class="nav-link active">Analytics</a>
                 <a href="guestbook.html" class="nav-link">Guestbook</a>
             </div>
             <button class="nav-hamburger" aria-label="Menu">
@@ -36,8 +36,8 @@
     </nav>
 
     <section class="page-header">
-        <h1 class="page-title">BIRD BRAIN STATS</h1>
-        <p class="page-subtitle">All the numbers, none of the mystery</p>
+        <h1 class="page-title">ANALYTICS</h1>
+        <p class="page-subtitle">Feeding patterns, trends, and predictions</p>
     </section>
 
     <!-- Key Metrics -->
@@ -86,6 +86,36 @@
         </div>
         <div class="chart-container">
             <canvas id="dailyChart"></canvas>
+        </div>
+    </section>
+
+    <!-- Season Arrival Prediction -->
+    <section class="section" id="seasonPredictionSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">SEASON FORECAST</h2>
+        </div>
+        <div class="metric-card prediction-card" id="seasonPredictionCard" style="text-align:center; padding: 28px 20px;">
+            <div id="seasonPredictionContent"></div>
+        </div>
+    </section>
+
+    <!-- Season History -->
+    <section class="section" id="seasonHistorySection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">SEASON HISTORY</h2>
+        </div>
+        <div class="chart-container" style="height:auto; overflow-x:auto;">
+            <table id="seasonTable" style="width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:0.85rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border);">
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">YEAR</th>
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">FIRST SIGHTING</th>
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">LAST SIGHTING</th>
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">SEASON LENGTH</th>
+                    </tr>
+                </thead>
+                <tbody id="seasonTableBody"></tbody>
+            </table>
         </div>
     </section>
 
