@@ -278,7 +278,6 @@ function renderSeasonData(data) {
     const section = document.getElementById('seasonHistorySection');
     const tbody = document.getElementById('seasonTableBody');
     if (section && tbody) {
-        section.style.display = '';
         tbody.innerHTML = '';
         for (const s of seasons) {
             const len = seasonLength(s.first_visit, s.last_visit);
@@ -351,8 +350,6 @@ function renderSeasonData(data) {
     const predSection = document.getElementById('seasonPredictionSection');
     const predContent = document.getElementById('seasonPredictionContent');
     if (!predSection || !predContent) return;
-    predSection.style.display = '';
-
     if (inSeason) {
         predContent.innerHTML = `
             <span class="metric-value" style="color:#5cb84c;">Season is Active!</span>
@@ -387,8 +384,6 @@ function renderBehaviorChart(breakdown) {
     const ctx = document.getElementById('behaviorChart');
     if (!ctx || !breakdown || !Object.keys(breakdown).length) return;
 
-    document.getElementById('behaviorSection').style.display = '';
-
     const labels = Object.keys(breakdown).map(k => k.charAt(0).toUpperCase() + k.slice(1));
     const data = Object.values(breakdown);
     const colors = ['#5cb84c', '#d4a017', '#3498db', '#e74c3c', '#9b59b6'];
@@ -421,8 +416,6 @@ function renderSpeciesChart(breakdown) {
     const ctx = document.getElementById('speciesChart');
     if (!ctx || !breakdown || !Object.keys(breakdown).length) return;
 
-    document.getElementById('behaviorSection').style.display = '';
-
     const labels = Object.keys(breakdown);
     const data = Object.values(breakdown);
     const colors = ['#5cb84c', '#d4a017', '#3498db', '#e74c3c', '#9b59b6', '#1abc9c'];
@@ -454,8 +447,6 @@ function renderSpeciesChart(breakdown) {
 function renderHeatmapGrid(heatmap) {
     const canvas = document.getElementById('heatmapCanvas');
     if (!canvas || !heatmap || !heatmap.length) return;
-
-    document.getElementById('heatmapSection').style.display = '';
 
     const ctx = canvas.getContext('2d');
     const gridSize = heatmap.length;
@@ -496,8 +487,6 @@ function renderMonthlyChart(monthlyTotals) {
     const ctx = document.getElementById('monthlyChart');
     if (!ctx || !monthlyTotals || !monthlyTotals.length) return;
 
-    document.getElementById('monthlySection').style.display = '';
-
     const labels = monthlyTotals.map(m => m.month);
     const data = monthlyTotals.map(m => m.count);
 
@@ -531,8 +520,6 @@ function renderMonthlyChart(monthlyTotals) {
 function renderWeatherCorrelationChart(correlations) {
     const ctx = document.getElementById('weatherCorrelationChart');
     if (!ctx || !correlations || !Object.keys(correlations).length) return;
-
-    document.getElementById('weatherSection').style.display = '';
 
     const labels = Object.keys(correlations).map(k => k.charAt(0).toUpperCase() + k.slice(1));
     const data = Object.values(correlations).map(v => v || 0);
@@ -584,11 +571,6 @@ function populateVisitPatterns(data) {
     const stats = data.visit_stats;
     if (!stats) return;
 
-    const hasData = stats.avg_birds_per_visit || stats.max_simultaneous || stats.avg_visit_duration_sec;
-    if (!hasData) return;
-
-    document.getElementById('visitPatternsSection').style.display = '';
-
     const el = (id) => document.getElementById(id);
     if (stats.avg_birds_per_visit) el('avgBirds').textContent = stats.avg_birds_per_visit;
     if (stats.max_simultaneous) el('maxSimultaneous').textContent = stats.max_simultaneous;
@@ -602,9 +584,8 @@ function populateVisitPatterns(data) {
  * Populate activity streaks
  */
 function populateStreaks(streaks) {
-    if (!streaks || (!streaks.current_streak && !streaks.longest_streak)) return;
+    if (!streaks) return;
 
-    document.getElementById('streaksSection').style.display = '';
     const el = (id) => document.getElementById(id);
     el('currentStreak').textContent = streaks.current_streak || 0;
     el('longestStreak').textContent = streaks.longest_streak || 0;
@@ -619,7 +600,6 @@ function populateStreaks(streaks) {
 function populateYoY(yoy) {
     if (!yoy) return;
 
-    document.getElementById('yoySection').style.display = '';
     const el = (id) => document.getElementById(id);
     el('yoyThisWeek').textContent = yoy.this_week || 0;
     el('yoyLastYear').textContent = yoy.last_year_same_week || 0;
@@ -629,9 +609,7 @@ function populateYoY(yoy) {
  * Populate sprinkler effect stats
  */
 function populateSprinklerEffect(sprinkler) {
-    if (!sprinkler || !sprinkler.events) return;
-
-    document.getElementById('sprinklerSection').style.display = '';
+    if (!sprinkler) return;
     const el = (id) => document.getElementById(id);
     el('sprinklerEvents').textContent = sprinkler.events;
     el('sprinklerBefore').textContent = sprinkler.avg_before;
@@ -647,9 +625,6 @@ function populateSprinklerEffect(sprinkler) {
  */
 function populateFeederStats(feeder) {
     if (!feeder) return;
-    if (!feeder.feeder_count && feeder.days_since_refill == null) return;
-
-    document.getElementById('feederSection').style.display = '';
     const el = (id) => document.getElementById(id);
     el('feederCount').textContent = feeder.feeder_count || 0;
     el('daysSinceRefill').textContent = feeder.days_since_refill != null ? feeder.days_since_refill : '--';
@@ -661,9 +636,7 @@ function populateFeederStats(feeder) {
  * Populate social engagement stats
  */
 function populateSocialEngagement(engagement) {
-    if (!engagement || !engagement.post_count) return;
-
-    document.getElementById('socialSection').style.display = '';
+    if (!engagement) return;
     const el = (id) => document.getElementById(id);
     el('totalLikes').textContent = (engagement.total_likes || 0).toLocaleString();
     el('totalShares').textContent = (engagement.total_shares || 0).toLocaleString();
@@ -676,8 +649,6 @@ function populateSocialEngagement(engagement) {
  */
 function populatePredictionAccuracy(accuracy) {
     if (!accuracy || !Object.keys(accuracy).length) return;
-
-    document.getElementById('predictionSection').style.display = '';
     const grid = document.getElementById('predictionGrid');
     grid.innerHTML = '';
     for (const [type, stats] of Object.entries(accuracy)) {
@@ -697,8 +668,6 @@ function populatePredictionAccuracy(accuracy) {
  */
 function populateQuietPeriods(periods) {
     if (!periods || !periods.length) return;
-
-    document.getElementById('quietSection').style.display = '';
     const tbody = document.getElementById('quietTableBody');
     tbody.innerHTML = '';
     for (const p of periods) {
