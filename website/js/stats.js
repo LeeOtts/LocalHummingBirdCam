@@ -393,6 +393,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     setChartDefaults();
     populateStats(data);
     renderSeasonData(data);
-    renderHourlyChart(data.hourly_pattern);
-    renderDailyChart(data.daily_counts_30d);
+    try {
+        renderHourlyChart(data.hourly_pattern);
+        renderDailyChart(data.daily_counts_30d);
+    } catch (e) {
+        console.warn('Chart rendering failed (Chart.js may not be loaded):', e);
+    }
 });
