@@ -241,7 +241,8 @@ class BHyveMonitor:
         return False
 
     def _discover_devices(self):
-        """Fetch device list from REST API and store the sprinkler device ID."""
+        """Fetch device list from REST API, store the sprinkler device ID,
+        and seed watering state if the device is already running."""
         if not self._token:
             return
         try:
@@ -264,10 +265,48 @@ class BHyveMonitor:
                         "B-Hyve: discovered device '%s' (id=%s)",
                         dev.get("name", "unknown"), self._device_id,
                     )
+                    self._check_initial_state(dev)
                     return
             logger.warning("B-Hyve: no sprinkler_timer device found in %d devices", len(devices))
         except Exception:
             logger.warning("B-Hyve: device discovery failed", exc_info=True)
+
+    def _check_initial_state(self, dev: dict):
+        """Seed _active if the device is already watering at startup."""
+        status = dev.get("status", {})
+        watering_status = status.get("watering_status") or {}
+        # The device reports stations currently running
+        stations = watering_status.get("stations") or []
+        if not stations:
+            # Also check top-level "is_watering" flag
+            if not dev.get("is_watering"):
+                return
+
+        device_id = dev["id"]
+        current_station = None
+        if stations:
+            current_station = stations[0].get("station")
+            if current_station is not None:
+                try:
+                    current_station = int(current_station)
+                except (ValueError, TypeError):
+                    current_station = None
+
+        with self._lock:
+            self._active[device_id] = {
+                "mode": "manual",
+                "station": current_station,
+                "started_at": time.time(),
+            }
+        logger.info(
+            "B-Hyve: device already watering at startup -- station=%s",
+            current_station,
+        )
+        if self._on_spray_start:
+            try:
+                self._on_spray_start(str(current_station) if current_station else None)
+            except Exception:
+                logger.debug("Spray start callback failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # Internal — WebSocket

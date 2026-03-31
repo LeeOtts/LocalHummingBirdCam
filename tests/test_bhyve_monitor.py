@@ -373,6 +373,54 @@ class TestDiscoverDevices:
         m._discover_devices()
         assert m._device_id is None
 
+    def test_discover_seeds_active_when_already_watering(self):
+        m = _make_monitor(watch_station=1)
+        m._token = "tok"
+        m._user_id = "uid"
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {
+                "id": "dev1", "type": "sprinkler_timer", "name": "Mister",
+                "status": {"watering_status": {"stations": [{"station": 1}]}},
+            },
+        ]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        assert m._device_id == "dev1"
+        assert m.is_spraying is True
+        assert m._active["dev1"]["station"] == 1
+
+    def test_discover_no_active_when_not_watering(self):
+        m = _make_monitor(watch_station=1)
+        m._token = "tok"
+        m._user_id = "uid"
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {"id": "dev1", "type": "sprinkler_timer", "name": "Mister", "status": {}},
+        ]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        assert m._device_id == "dev1"
+        assert m.is_spraying is False
+
+    def test_discover_seeds_active_via_is_watering_flag(self):
+        m = _make_monitor(watch_station=1)
+        m._token = "tok"
+        m._user_id = "uid"
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [
+            {
+                "id": "dev1", "type": "sprinkler_timer", "name": "Mister",
+                "is_watering": True, "status": {},
+            },
+        ]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        assert m.is_spraying is True
+
 
 # ---------------------------------------------------------------------------
 # start_watering / stop_watering
