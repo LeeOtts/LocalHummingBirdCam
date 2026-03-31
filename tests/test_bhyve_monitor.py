@@ -442,18 +442,21 @@ class TestStartWatering:
 
 class TestStopWatering:
     def test_stop_success(self):
-        m = _make_monitor()
+        m = _make_monitor(watch_station=1)
         m._device_id = "dev1"
         m.connected = True
         m._ws = MagicMock()
         result = m.stop_watering()
         assert result["ok"] is True
-        m._ws.send.assert_called_once()
+        # Should send two messages: cancel (manual run_time 0) then auto
+        assert m._ws.send.call_count == 2
         import json
-        payload = json.loads(m._ws.send.call_args[0][0])
-        assert payload["event"] == "change_mode"
-        assert payload["mode"] == "auto"
-        assert payload["device_id"] == "dev1"
+        cancel = json.loads(m._ws.send.call_args_list[0][0][0])
+        assert cancel["mode"] == "manual"
+        assert cancel["stations"] == [{"station": 1, "run_time": 0}]
+        auto = json.loads(m._ws.send.call_args_list[1][0][0])
+        assert auto["mode"] == "auto"
+        assert auto["device_id"] == "dev1"
 
     def test_stop_not_connected(self):
         m = _make_monitor()
