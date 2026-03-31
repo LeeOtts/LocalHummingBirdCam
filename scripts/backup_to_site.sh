@@ -60,17 +60,19 @@ for file in .env retry_queue.json; do
 done
 [ -f "$PROJECT_DIR/logs/hummingbird.log" ] && cp "$PROJECT_DIR/logs/hummingbird.log" "$TEMP_DIR/"
 
-# Bundle into tarball
+# Bundle into tarball (write outside TEMP_DIR to avoid "file changed" warning)
 echo "[$(date)] Creating tarball..."
-tar -czf "$TEMP_DIR/$BACKUP_NAME" -C "$TEMP_DIR" \
-    --exclude="$BACKUP_NAME" \
-    .
+TARBALL="/tmp/$BACKUP_NAME"
+tar -czf "$TARBALL" -C "$TEMP_DIR" .
 
 # Ensure remote backup directory exists
 ssh ${SSH_OPTS} "${REMOTE}" "mkdir -p ${BACKUP_DIR}"
 
 # Upload
 echo "[$(date)] Uploading to ${REMOTE}:${BACKUP_DIR}/${BACKUP_NAME}..."
-scp ${SSH_OPTS} "$TEMP_DIR/$BACKUP_NAME" "${REMOTE}:${BACKUP_DIR}/${BACKUP_NAME}"
+scp ${SSH_OPTS} "$TARBALL" "${REMOTE}:${BACKUP_DIR}/${BACKUP_NAME}"
 
-echo "[$(date)] Backup complete! ($(du -h "$TEMP_DIR/$BACKUP_NAME" | cut -f1))"
+SIZE="$(du -h "$TARBALL" | cut -f1)"
+rm -f "$TARBALL"
+
+echo "[$(date)] Backup complete! (${SIZE})"
