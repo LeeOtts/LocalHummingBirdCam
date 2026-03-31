@@ -215,7 +215,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     background: rgba(30, 54, 37, 0.4);
     padding: 0.3rem 0.75rem;
     border-radius: var(--radius);
