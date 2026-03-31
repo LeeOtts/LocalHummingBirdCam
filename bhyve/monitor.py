@@ -24,7 +24,8 @@ _LOGIN_PATH = "/v1/session"
 _WS_URL = "wss://api.orbitbhyve.com/v1/events"
 
 _PING_INTERVAL = 25     # seconds — keep-alive ping to the WebSocket
-_RECONNECT_DELAY = 10   # seconds between reconnect attempts
+_RECONNECT_MIN = 10     # initial delay between reconnect attempts (seconds)
+_RECONNECT_MAX = 300    # cap backoff at 5 minutes
 
 # WebSocket event names that affect watering state
 _EV_WATERING_IN_PROGRESS = "watering_in_progress_notification"
@@ -156,15 +157,18 @@ class BHyveMonitor:
 
     def _run(self):
         """Main loop: authenticate then maintain the WebSocket connection."""
+        delay = _RECONNECT_MIN
         while self._running:
             if not self._token:
                 if not self._login():
                     logger.warning(
-                        "B-Hyve: login failed, retrying in %ds", _RECONNECT_DELAY
+                        "B-Hyve: login failed, retrying in %ds", delay
                     )
-                    time.sleep(_RECONNECT_DELAY)
+                    time.sleep(delay)
+                    delay = min(delay * 2, _RECONNECT_MAX)
                     continue
 
+            was_connected = self.connected
             try:
                 self._connect_ws()
             except Exception:
@@ -176,11 +180,16 @@ class BHyveMonitor:
                 self._active.clear()
 
             if self._running:
+                # Reset backoff after a successful session; increase on repeated failures
+                if was_connected:
+                    delay = _RECONNECT_MIN
                 logger.info(
                     "B-Hyve: WebSocket disconnected — reconnecting in %ds",
-                    _RECONNECT_DELAY,
+                    delay,
                 )
-                time.sleep(_RECONNECT_DELAY)
+                time.sleep(delay)
+                if not was_connected:
+                    delay = min(delay * 2, _RECONNECT_MAX)
 
     def _connect_ws(self):
         """Open WebSocket, authenticate, and block until disconnected."""
