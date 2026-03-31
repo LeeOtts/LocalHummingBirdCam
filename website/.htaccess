@@ -1,5 +1,14 @@
 ErrorDocument 404 /404.html
 
+# Prevent caching on data files so sprinkler/sleeping state updates promptly
+<FilesMatch "site_data\.json$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </IfModule>
+</FilesMatch>
+
 # Protect guestbook data files from direct HTTP access
 <Files "guestbook_entries.json">
     <IfModule mod_authz_core.c>
