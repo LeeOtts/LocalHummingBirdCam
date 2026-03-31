@@ -315,6 +315,14 @@ def _get_status():
             "zone_count": len(bm.active_zones),
             "watch_station": watch,
         }
+    elif config.BHYVE_ENABLED:
+        s.bhyve = {
+            "enabled": True,
+            "connected": False,
+            "spraying": False,
+            "zone_count": 0,
+            "watch_station": None,
+        }
     else:
         s.bhyve = None
 
