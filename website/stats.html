@@ -40,9 +40,34 @@
         <p class="page-subtitle">Feeding patterns, trends, and predictions</p>
     </section>
 
-    <!-- Key Metrics -->
+    <!-- At A Glance -->
     <section class="section">
-        <div class="metrics-grid">
+        <div class="section-header">
+            <h2 class="hud-title">AT A GLANCE</h2>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-icon">&#x1F525;</span>
+                <span class="summary-label">PEAK HOUR</span>
+                <span class="summary-value" id="peakHour">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-icon">&#x1F4C5;</span>
+                <span class="summary-label">BUSIEST DAY</span>
+                <span class="summary-value" id="busiestDay">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-icon">&#x1F4CA;</span>
+                <span class="summary-label">DAILY AVERAGE</span>
+                <span class="summary-value" id="dailyAvg">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-icon">&#x23F1;</span>
+                <span class="summary-label">AVG BETWEEN VISITS</span>
+                <span class="summary-value" id="avgGap">--</span>
+            </div>
+        </div>
+        <div class="metrics-grid" style="margin-top: 1rem;">
             <div class="metric-card">
                 <span class="metric-label">LIFETIME SIGHTINGS</span>
                 <span class="metric-value" id="statLifetime">--</span>
@@ -119,34 +144,6 @@
         </div>
     </section>
 
-    <!-- Summary Stats -->
-    <section class="section">
-        <div class="section-header">
-            <h2 class="hud-title">AT A GLANCE</h2>
-        </div>
-        <div class="summary-grid">
-            <div class="summary-card">
-                <span class="summary-icon">&#x1F525;</span>
-                <span class="summary-label">PEAK HOUR</span>
-                <span class="summary-value" id="peakHour">--</span>
-            </div>
-            <div class="summary-card">
-                <span class="summary-icon">&#x1F4C5;</span>
-                <span class="summary-label">BUSIEST DAY</span>
-                <span class="summary-value" id="busiestDay">--</span>
-            </div>
-            <div class="summary-card">
-                <span class="summary-icon">&#x1F4CA;</span>
-                <span class="summary-label">DAILY AVERAGE</span>
-                <span class="summary-value" id="dailyAvg">--</span>
-            </div>
-            <div class="summary-card">
-                <span class="summary-icon">&#x23F1;</span>
-                <span class="summary-label">AVG BETWEEN VISITS</span>
-                <span class="summary-value" id="avgGap">--</span>
-            </div>
-        </div>
-    </section>
 
     <!-- Visit Patterns -->
     <section class="section" id="visitPatternsSection" style="display:none;">
