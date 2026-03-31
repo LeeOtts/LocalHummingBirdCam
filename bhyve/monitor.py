@@ -134,6 +134,8 @@ class BHyveMonitor:
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "stations": [{"station": station, "run_time": run_time_minutes}],
         }
+        if self._token:
+            payload["orbit_session_token"] = self._token
         try:
             self._ws.send(json.dumps(payload))
             logger.info(
@@ -147,11 +149,11 @@ class BHyveMonitor:
             return {"ok": False, "error": str(exc)}
 
     def stop_watering(self) -> dict:
-        """Stop any active watering by switching device off then back to auto.
+        """Stop any active watering.
 
-        Hose tap timers ignore zero-length manual runs; sending mode "off"
-        is what the B-Hyve app uses to cancel an active run.  We follow up
-        with mode "auto" so normal schedules resume.
+        Sends change_mode -> manual with an empty stations list, which tells
+        the device to run zero stations (i.e. stop everything).  The session
+        token is included in the payload so the device accepts the command.
 
         Returns a dict with ``ok`` (bool) and optional ``error`` (str).
         """
@@ -162,23 +164,18 @@ class BHyveMonitor:
 
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # Turn device off to cancel the active watering
-        off_payload = {
+        # Manual mode with empty stations list = stop all active watering
+        stop_payload = {
             "event": "change_mode",
-            "mode": "off",
+            "mode": "manual",
             "device_id": self._device_id,
             "timestamp": ts,
+            "stations": [],
         }
-        # Switch back to auto so B-Hyve schedules still work
-        auto_payload = {
-            "event": "change_mode",
-            "mode": "auto",
-            "device_id": self._device_id,
-            "timestamp": ts,
-        }
+        if self._token:
+            stop_payload["orbit_session_token"] = self._token
         try:
-            self._ws.send(json.dumps(off_payload))
-            self._ws.send(json.dumps(auto_payload))
+            self._ws.send(json.dumps(stop_payload))
             logger.info("B-Hyve: stop watering -- device=%s", self._device_id)
             return {"ok": True, "device_id": self._device_id}
         except Exception as exc:
