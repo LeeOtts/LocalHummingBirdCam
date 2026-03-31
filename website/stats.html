@@ -148,6 +148,224 @@
         </div>
     </section>
 
+    <!-- Visit Patterns -->
+    <section class="section" id="visitPatternsSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">VISIT PATTERNS</h2>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-label">AVG BIRDS / VISIT</span>
+                <span class="summary-value" id="avgBirds">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">MAX SIMULTANEOUS</span>
+                <span class="summary-value" id="maxSimultaneous">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">AVG VISIT DURATION</span>
+                <span class="summary-value" id="avgDuration">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">AVG SUNRISE OFFSET</span>
+                <span class="summary-value" id="sunriseOffset">--</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bird Behavior & Species -->
+    <section class="section" id="behaviorSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">BIRD BEHAVIOR</h2>
+            <span class="hud-badge">30-DAY BREAKDOWN</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="chart-container" style="max-height:300px;">
+                <canvas id="behaviorChart"></canvas>
+            </div>
+            <div class="chart-container" style="max-height:300px;">
+                <canvas id="speciesChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- Position Heatmap -->
+    <section class="section" id="heatmapSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">FEEDER POSITION HEATMAP</h2>
+            <span class="hud-badge">WHERE BIRDS APPEAR IN FRAME</span>
+        </div>
+        <div class="chart-container" style="display:flex; justify-content:center; padding:20px;">
+            <canvas id="heatmapCanvas" width="320" height="320" style="border:1px solid var(--border); border-radius:8px;"></canvas>
+        </div>
+    </section>
+
+    <!-- Activity Streaks -->
+    <section class="section" id="streaksSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">ACTIVITY STREAKS</h2>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-label">CURRENT STREAK</span>
+                <span class="summary-value" id="currentStreak">--</span>
+                <span class="summary-label" style="font-size:0.75em;">consecutive days</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">LONGEST STREAK</span>
+                <span class="summary-value" id="longestStreak">--</span>
+                <span class="summary-label" style="font-size:0.75em;" id="longestStreakDates"></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Year-over-Year Comparison -->
+    <section class="section" id="yoySection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">YEAR OVER YEAR</h2>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-label">THIS WEEK</span>
+                <span class="summary-value" id="yoyThisWeek">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">SAME WEEK LAST YEAR</span>
+                <span class="summary-value" id="yoyLastYear">--</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Monthly Trends -->
+    <section class="section" id="monthlySection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">MONTHLY TRENDS</h2>
+            <span class="hud-badge">12-MONTH VIEW</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </section>
+
+    <!-- Weather Impact -->
+    <section class="section" id="weatherSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">WEATHER IMPACT</h2>
+            <span class="hud-badge">CORRELATION WITH ACTIVITY</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="weatherCorrelationChart"></canvas>
+        </div>
+    </section>
+
+    <!-- Sprinkler Effect -->
+    <section class="section" id="sprinklerSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">SPRINKLER EFFECT</h2>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-label">WATERING EVENTS</span>
+                <span class="summary-value" id="sprinklerEvents">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">AVG VISITS BEFORE</span>
+                <span class="summary-value" id="sprinklerBefore">--</span>
+                <span class="summary-label" style="font-size:0.75em;">30 min window</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">AVG VISITS AFTER</span>
+                <span class="summary-value" id="sprinklerAfter">--</span>
+                <span class="summary-label" style="font-size:0.75em;">30 min window</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">CHANGE</span>
+                <span class="summary-value" id="sprinklerChange">--</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Feeder Management -->
+    <section class="section" id="feederSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">FEEDER MANAGEMENT</h2>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-label">ACTIVE FEEDERS</span>
+                <span class="summary-value" id="feederCount">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">DAYS SINCE REFILL</span>
+                <span class="summary-value" id="daysSinceRefill">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">NECTAR PRODUCED</span>
+                <span class="summary-value" id="nectarProduced">--</span>
+                <span class="summary-label" style="font-size:0.75em;">oz (30 days)</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">EST. CONSUMPTION</span>
+                <span class="summary-value" id="estConsumption">--</span>
+                <span class="summary-label" style="font-size:0.75em;">oz (30 days)</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Social Performance -->
+    <section class="section" id="socialSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">SOCIAL PERFORMANCE</h2>
+            <span class="hud-badge">30-DAY ENGAGEMENT</span>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <span class="summary-label">TOTAL LIKES</span>
+                <span class="summary-value" id="totalLikes">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">TOTAL SHARES</span>
+                <span class="summary-value" id="totalShares">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">TOTAL COMMENTS</span>
+                <span class="summary-value" id="totalComments">--</span>
+            </div>
+            <div class="summary-card">
+                <span class="summary-label">POSTS TRACKED</span>
+                <span class="summary-value" id="postsTracked">--</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Prediction Accuracy -->
+    <section class="section" id="predictionSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">PREDICTION ACCURACY</h2>
+        </div>
+        <div class="summary-grid" id="predictionGrid"></div>
+    </section>
+
+    <!-- Quiet Periods -->
+    <section class="section" id="quietSection" style="display:none;">
+        <div class="section-header">
+            <h2 class="hud-title">LONGEST QUIET PERIODS</h2>
+            <span class="hud-badge">90-DAY HISTORY</span>
+        </div>
+        <div class="chart-container" style="height:auto; overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-family:var(--font-mono); font-size:0.85rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border);">
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">DURATION</th>
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">WEATHER</th>
+                        <th style="padding:10px; text-align:left; color:var(--text-muted);">PERIOD</th>
+                    </tr>
+                </thead>
+                <tbody id="quietTableBody"></tbody>
+            </table>
+        </div>
+    </section>
+
     <footer class="site-footer">
         <div class="footer-inner">
             <div class="footer-brand">
@@ -161,6 +379,6 @@
     </footer>
 
     <script src="js/app.js?v=2"></script>
-    <script src="js/stats.js?v=5"></script>
+    <script src="js/stats.js?v=6"></script>
 </body>
 </html>

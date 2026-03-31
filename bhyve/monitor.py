@@ -54,9 +54,12 @@ class BHyveMonitor:
         monitor.stop()
     """
 
-    def __init__(self, email: str, password: str, watch_station: int | None = None):
+    def __init__(self, email: str, password: str, watch_station: int | None = None,
+                 on_spray_start=None, on_spray_stop=None):
         self._email = email
         self._password = password
+        self._on_spray_start = on_spray_start  # callback(zone: str|None)
+        self._on_spray_stop = on_spray_stop    # callback(zone: str|None)
         # If set, only report is_spraying=True when this station number is active.
         # None means any active station counts.
         self._watch_station = watch_station
@@ -286,11 +289,24 @@ class BHyveMonitor:
                 "B-Hyve: watering started — device=%s mode=%s station=%s",
                 device_id, mode, station,
             )
+            if self._on_spray_start:
+                try:
+                    self._on_spray_start(str(station) if station else None)
+                except Exception:
+                    logger.debug("Spray start callback failed", exc_info=True)
 
         elif event in (_EV_WATERING_COMPLETE, _EV_DEVICE_IDLE):
+            zone = None
             with self._lock:
-                self._active.pop(device_id, None)
+                info = self._active.pop(device_id, None)
+                if info:
+                    zone = str(info.get("station")) if info.get("station") else None
             logger.info("B-Hyve: watering stopped — device=%s event=%s", device_id, event)
+            if self._on_spray_stop:
+                try:
+                    self._on_spray_stop(zone)
+                except Exception:
+                    logger.debug("Spray stop callback failed", exc_info=True)
 
         elif event == _EV_CHANGE_MODE:
             if data.get("mode") == "off":

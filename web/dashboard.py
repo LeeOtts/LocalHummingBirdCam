@@ -1561,6 +1561,112 @@ def api_status():
     }
 
 
+# ------------------------------------------------------------------
+# Feeder management API
+# ------------------------------------------------------------------
+
+@app.route("/api/feeder/config", methods=["GET"])
+def api_feeder_config_get():
+    """Get all feeders."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"feeders": []}
+    return {"feeders": _monitor.sightings_db.get_feeders()}
+
+
+@app.route("/api/feeder/config", methods=["POST"])
+def api_feeder_config_post():
+    """Add or update a feeder."""
+    data = request.get_json(force=True)
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "Not available"}, 503
+
+    feeder_id = data.get("id")
+    name = data.get("name", "").strip()
+    if not name:
+        return {"error": "Name is required"}, 400
+
+    if feeder_id:
+        _monitor.sightings_db.update_feeder(
+            feeder_id,
+            name=name,
+            location_description=data.get("location_description", ""),
+            port_count=data.get("port_count", 4),
+            active=data.get("active", True),
+        )
+        return {"ok": True, "id": feeder_id}
+    else:
+        new_id = _monitor.sightings_db.add_feeder(
+            name=name,
+            location_description=data.get("location_description", ""),
+            port_count=data.get("port_count", 4),
+        )
+        return {"ok": True, "id": new_id}
+
+
+@app.route("/api/feeder/refill", methods=["POST"])
+def api_feeder_refill():
+    """Record a feeder refill."""
+    data = request.get_json(force=True)
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "Not available"}, 503
+
+    amount = data.get("amount_oz")
+    if not amount or float(amount) <= 0:
+        return {"error": "Amount is required"}, 400
+
+    refill_id = _monitor.sightings_db.record_refill(
+        feeder_id=data.get("feeder_id"),
+        amount_oz=float(amount),
+        notes=data.get("notes", ""),
+        timestamp=data.get("timestamp"),
+    )
+    return {"ok": True, "id": refill_id}
+
+
+@app.route("/api/feeder/refills", methods=["GET"])
+def api_feeder_refills():
+    """Get recent feeder refills."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"refills": []}
+    return {"refills": _monitor.sightings_db.get_refills()}
+
+
+@app.route("/api/feeder/production", methods=["POST"])
+def api_feeder_production():
+    """Record nectar production."""
+    data = request.get_json(force=True)
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "Not available"}, 503
+
+    amount = data.get("amount_oz")
+    if not amount or float(amount) <= 0:
+        return {"error": "Amount is required"}, 400
+
+    prod_id = _monitor.sightings_db.record_production(
+        amount_oz=float(amount),
+        sugar_ratio=data.get("sugar_ratio", "1:4"),
+        notes=data.get("notes", ""),
+        timestamp=data.get("timestamp"),
+    )
+    return {"ok": True, "id": prod_id}
+
+
+@app.route("/api/feeder/production-log", methods=["GET"])
+def api_feeder_production_log():
+    """Get nectar production log."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"production": []}
+    return {"production": _monitor.sightings_db.get_production_log()}
+
+
+@app.route("/api/feeder/stats", methods=["GET"])
+def api_feeder_stats():
+    """Get feeder management statistics."""
+    if not _monitor or not _monitor.sightings_db:
+        return {}
+    return _monitor.sightings_db.get_feeder_stats()
+
+
 def start_web_server(monitor, host="0.0.0.0", port=8080):
     """Start the dashboard web server in a background thread."""
     set_monitor(monitor)

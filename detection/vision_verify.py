@@ -270,3 +270,65 @@ def verify_hummingbird(frame: np.ndarray) -> bool:
     except Exception:
         logger.exception("Bird classifier failed — allowing detection as fallback")
         return True
+
+
+def identify_species(frame: np.ndarray) -> tuple[str | None, float]:
+    """Identify the most likely hummingbird species from a frame.
+
+    Returns (species_name, confidence) or (None, 0.0) if identification fails.
+    Called from the post worker thread (not the detection loop).
+    """
+    _load_model()
+    if _interpreter is None or not _labels:
+        return None, 0.0
+
+    try:
+        input_details = _input_details
+        output_details = _output_details
+        input_shape = input_details[0]["shape"]
+        height, width = input_shape[1], input_shape[2]
+        input_dtype = input_details[0]["dtype"]
+
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        resized = cv2.resize(rgb, (width, height))
+
+        if input_dtype == np.uint8:
+            input_data = np.expand_dims(resized.astype(np.uint8), axis=0)
+        else:
+            input_data = np.expand_dims(resized.astype(np.float32) / 255.0, axis=0)
+
+        _interpreter.set_tensor(input_details[0]["index"], input_data)
+        _interpreter.invoke()
+        output = _interpreter.get_tensor(output_details[0]["index"])[0]
+
+        if output.dtype == np.uint8:
+            quant = output_details[0].get("quantization", (1.0, 0))
+            scale, zero_point = quant[0], quant[1]
+            if isinstance(scale, (list, tuple, np.ndarray)):
+                scale = float(scale[0])
+            if isinstance(zero_point, (list, tuple, np.ndarray)):
+                zero_point = int(zero_point[0])
+            scores = (output.astype(np.float32) - zero_point) * scale
+        else:
+            scores = output
+
+        top_indices = scores.argsort()[-5:][::-1]
+
+        # Find best hummingbird match
+        for idx in top_indices:
+            if idx < len(_labels):
+                label = _labels[idx]
+                score = float(scores[idx])
+                if _is_hummingbird_label(label) and score >= MIN_CONFIDENCE:
+                    # Clean up the label for display
+                    species_name = label.strip()
+                    return species_name, round(score, 3)
+
+        # Return top match even if not hummingbird (for logging)
+        if top_indices[0] < len(_labels):
+            return _labels[top_indices[0]].strip(), round(float(scores[top_indices[0]]), 3)
+
+        return None, 0.0
+    except Exception:
+        logger.debug("Species identification failed")
+        return None, 0.0

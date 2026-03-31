@@ -43,6 +43,12 @@ class MotionColorDetector(Detector):
         self._consecutive_detections = 0
         self._required_consecutive = 5  # bumped from 3 — need 5 consecutive frames
 
+        # Detection metadata (read by main.py after confirmation)
+        self.last_bird_count = 1
+        self.last_position_x: float | None = None
+        self.last_position_y: float | None = None
+        self.last_visit_duration_frames: int | None = None
+
     def detect(self, frame: np.ndarray) -> bool:
         """
         Analyze a YUV420 or BGR frame.
@@ -76,6 +82,7 @@ class MotionColorDetector(Detector):
         self.prev_gray = gray
 
         if self._consecutive_detections >= self._required_consecutive:
+            self.last_visit_duration_frames = self._consecutive_detections
             logger.info("Hummingbird detected! (%d consecutive frames)", self._consecutive_detections)
             return True
 
@@ -145,6 +152,21 @@ class MotionColorDetector(Detector):
         # (scattered pixels across the frame = not a bird)
         if area < self.color_min_area * 0.5:
             return False
+
+        # Count qualifying contours (potential simultaneous birds)
+        min_bird_area = self.color_min_area * 0.5
+        qualifying = [c for c in contours if cv2.contourArea(c) >= min_bird_area]
+        self.last_bird_count = max(len(qualifying), 1)
+
+        # Compute center of largest contour, normalized to 0-1
+        M = cv2.moments(largest)
+        if M["m00"] > 0:
+            h, w = bgr.shape[:2]
+            self.last_position_x = round(M["m10"] / M["m00"] / w, 4)
+            self.last_position_y = round(M["m01"] / M["m00"] / h, 4)
+        else:
+            self.last_position_x = None
+            self.last_position_y = None
 
         return True
 

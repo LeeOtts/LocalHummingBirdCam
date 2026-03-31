@@ -82,6 +82,22 @@ def get_analytics_summary(db) -> dict:
         "season_dates": _enrich_season_dates(db.get_season_dates()),
         "season_prediction": predict_season_arrival(db),
         "end_season_prediction": predict_season_end(db),
+        # New analytics
+        "behavior_breakdown": db.get_behavior_breakdown(days=30),
+        "species_breakdown": db.get_species_breakdown(days=30),
+        "visit_stats": db.get_visit_stats(days=30),
+        "position_heatmap": db.get_heatmap(days=30),
+        "weather_correlations": get_weather_correlations(db, days=30),
+        "sprinkler_effect": get_sprinkler_correlation(db, days=30),
+        "activity_streaks": get_activity_streaks(db),
+        "yoy_comparison": get_yoy_comparison(db),
+        "monthly_totals": get_monthly_totals(db),
+        "quiet_periods": get_quiet_periods(db),
+        "prediction_accuracy": db.get_prediction_accuracy(days=30),
+        "feeder_stats": db.get_feeder_stats(days=30),
+        "social_engagement": db.get_engagement_summary(days=30),
+        "follower_history": db.get_follower_history(days=90),
+        "sunrise_offset_avg_min": db.get_sunrise_offset_avg(days=30),
     }
 
 
@@ -324,7 +340,296 @@ def get_weather(lat: float, lng: float) -> dict | None:
             "condition": data["weather"][0]["main"] if data.get("weather") else "Unknown",
             "description": data["weather"][0]["description"] if data.get("weather") else "",
             "humidity": data["main"].get("humidity"),
+            "pressure": data["main"].get("pressure"),
+            "wind_speed": data.get("wind", {}).get("speed"),
+            "clouds": data.get("clouds", {}).get("all"),
         }
     except Exception:
         logger.debug("Weather fetch failed")
         return None
+
+
+def get_moon_phase() -> float:
+    """Get current moon phase as 0.0 to 1.0 (0=new, 0.5=full, 1=new).
+
+    Uses the astral library already installed for sunrise/sunset.
+    """
+    try:
+        from astral import moon
+        # astral moon.phase() returns 0-27.99 where 0=new, 14=full
+        phase = moon.phase(datetime.now(tz=_local_tz).date())
+        return round(phase / 27.99, 3)
+    except Exception:
+        logger.debug("Moon phase calculation failed")
+        return 0.0
+
+
+def get_sunrise_offset_minutes() -> int | None:
+    """Get minutes since sunrise for the current time.
+
+    Returns negative if before sunrise, positive if after.
+    """
+    try:
+        from schedule import _get_sun_times
+        from astral import LocationInfo
+        from astral.sun import sun
+
+        try:
+            import pytz
+            tz = pytz.timezone(config.LOCATION_TIMEZONE)
+        except ImportError:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(config.LOCATION_TIMEZONE)
+
+        location = LocationInfo(
+            name=config.LOCATION_NAME,
+            region="USA",
+            timezone=config.LOCATION_TIMEZONE,
+            latitude=config.LOCATION_LAT,
+            longitude=config.LOCATION_LNG,
+        )
+        s = sun(location.observer, date=datetime.now(tz=_local_tz).date(), tzinfo=tz)
+        now = datetime.now(tz=tz)
+        offset = (now - s["sunrise"]).total_seconds() / 60
+        return round(offset)
+    except Exception:
+        logger.debug("Sunrise offset calculation failed")
+        return None
+
+
+# ------------------------------------------------------------------
+# Weather-activity correlations
+# ------------------------------------------------------------------
+
+def get_weather_correlations(db, days: int = 30) -> dict[str, float | None]:
+    """Compute Pearson correlation between weather variables and daily sighting counts.
+
+    Returns dict like {"temperature": 0.72, "humidity": -0.31, ...}.
+    """
+    from statistics import correlation
+    since = (datetime.now(tz=_local_tz) - timedelta(days=days)).isoformat()
+
+    try:
+        with db._lock:
+            conn = db._get_conn()
+            try:
+                rows = conn.execute(
+                    """SELECT DATE(timestamp) as dt,
+                       AVG(weather_temp) as avg_temp,
+                       AVG(weather_humidity) as avg_humidity,
+                       AVG(weather_pressure) as avg_pressure,
+                       AVG(weather_wind_speed) as avg_wind,
+                       AVG(weather_clouds) as avg_clouds,
+                       COUNT(*) as sighting_count
+                       FROM sightings
+                       WHERE timestamp >= ?
+                       AND weather_temp IS NOT NULL
+                       GROUP BY DATE(timestamp)
+                       HAVING sighting_count >= 1""",
+                    (since,),
+                ).fetchall()
+            finally:
+                conn.close()
+
+        if len(rows) < 5:
+            return {}
+
+        counts = [r["sighting_count"] for r in rows]
+        result = {}
+        for field, key in [("avg_temp", "temperature"), ("avg_humidity", "humidity"),
+                           ("avg_pressure", "pressure"), ("avg_wind", "wind_speed"),
+                           ("avg_clouds", "clouds")]:
+            values = [r[field] for r in rows]
+            if all(v is not None for v in values) and len(set(values)) > 1:
+                try:
+                    result[key] = round(correlation(values, counts), 2)
+                except Exception:
+                    result[key] = None
+            else:
+                result[key] = None
+
+        return result
+    except Exception:
+        logger.debug("Weather correlation calculation failed")
+        return {}
+
+
+def get_sprinkler_correlation(db, days: int = 30) -> dict:
+    """Compare sighting activity before vs after watering events."""
+    events = db.get_watering_events(days=days)
+    if not events:
+        return {"events": 0, "avg_before": 0, "avg_after": 0, "change_pct": 0}
+
+    completed = [e for e in events if e.get("sightings_before_30min") is not None
+                 and e.get("sightings_after_30min") is not None]
+    if not completed:
+        return {"events": len(events), "avg_before": 0, "avg_after": 0, "change_pct": 0}
+
+    avg_before = sum(e["sightings_before_30min"] for e in completed) / len(completed)
+    avg_after = sum(e["sightings_after_30min"] for e in completed) / len(completed)
+    change_pct = round(((avg_after - avg_before) / max(avg_before, 0.1)) * 100, 1)
+
+    return {
+        "events": len(completed),
+        "avg_before": round(avg_before, 1),
+        "avg_after": round(avg_after, 1),
+        "change_pct": change_pct,
+    }
+
+
+# ------------------------------------------------------------------
+# Advanced analytics
+# ------------------------------------------------------------------
+
+def get_activity_streaks(db) -> dict:
+    """Calculate current and longest consecutive-day activity streaks."""
+    with db._lock:
+        conn = db._get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT DATE(timestamp) as dt FROM sightings ORDER BY dt"
+            ).fetchall()
+        finally:
+            conn.close()
+
+    if not rows:
+        return {"current_streak": 0, "longest_streak": 0,
+                "longest_start": None, "longest_end": None}
+
+    from datetime import date as _date
+    dates = []
+    for r in rows:
+        try:
+            dates.append(datetime.strptime(r["dt"], "%Y-%m-%d").date())
+        except (ValueError, TypeError):
+            pass
+
+    if not dates:
+        return {"current_streak": 0, "longest_streak": 0,
+                "longest_start": None, "longest_end": None}
+
+    dates.sort()
+
+    # Find streaks
+    longest = 1
+    longest_start = longest_end = dates[0]
+    current = 1
+    current_start = dates[0]
+
+    for i in range(1, len(dates)):
+        if (dates[i] - dates[i - 1]).days == 1:
+            current += 1
+        else:
+            if current > longest:
+                longest = current
+                longest_start = current_start
+                longest_end = dates[i - 1]
+            current = 1
+            current_start = dates[i]
+
+    if current > longest:
+        longest = current
+        longest_start = current_start
+        longest_end = dates[-1]
+
+    # Current streak (must include today or yesterday)
+    today = _date.today()
+    current_streak = 0
+    if dates[-1] >= today - timedelta(days=1):
+        current_streak = 1
+        for i in range(len(dates) - 2, -1, -1):
+            if (dates[i + 1] - dates[i]).days == 1:
+                current_streak += 1
+            else:
+                break
+
+    return {
+        "current_streak": current_streak,
+        "longest_streak": longest,
+        "longest_start": longest_start.isoformat() if longest_start else None,
+        "longest_end": longest_end.isoformat() if longest_end else None,
+    }
+
+
+def get_quiet_periods(db, min_gap_hours: float = 8, limit: int = 5) -> list[dict]:
+    """Find the longest gaps between sightings with weather context."""
+    since = (datetime.now(tz=_local_tz) - timedelta(days=90)).isoformat()
+    with db._lock:
+        conn = db._get_conn()
+        try:
+            rows = conn.execute(
+                """SELECT timestamp, weather_condition FROM sightings
+                   WHERE timestamp >= ? ORDER BY timestamp""",
+                (since,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+    if len(rows) < 2:
+        return []
+
+    gaps = []
+    for i in range(1, len(rows)):
+        try:
+            t1 = datetime.fromisoformat(rows[i - 1]["timestamp"])
+            t2 = datetime.fromisoformat(rows[i]["timestamp"])
+            hours = (t2 - t1).total_seconds() / 3600
+            if hours >= min_gap_hours:
+                gaps.append({
+                    "start": rows[i - 1]["timestamp"],
+                    "end": rows[i]["timestamp"],
+                    "hours": round(hours, 1),
+                    "weather": rows[i - 1]["weather_condition"] or "Unknown",
+                })
+        except (ValueError, TypeError):
+            pass
+
+    gaps.sort(key=lambda g: g["hours"], reverse=True)
+    return gaps[:limit]
+
+
+def get_yoy_comparison(db) -> dict:
+    """Compare this week's activity to the same week last year."""
+    now = datetime.now(tz=_local_tz)
+    week_start = now - timedelta(days=now.weekday())
+    week_end = week_start + timedelta(days=7)
+    last_year_start = week_start.replace(year=week_start.year - 1)
+    last_year_end = last_year_start + timedelta(days=7)
+
+    with db._lock:
+        conn = db._get_conn()
+        try:
+            this_week = conn.execute(
+                "SELECT COUNT(*) as cnt FROM sightings WHERE timestamp >= ? AND timestamp < ?",
+                (week_start.isoformat(), week_end.isoformat()),
+            ).fetchone()["cnt"]
+
+            last_year_week = conn.execute(
+                "SELECT COUNT(*) as cnt FROM sightings WHERE timestamp >= ? AND timestamp < ?",
+                (last_year_start.isoformat(), last_year_end.isoformat()),
+            ).fetchone()["cnt"]
+
+            return {
+                "this_week": this_week,
+                "last_year_same_week": last_year_week,
+                "week_label": f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d')}",
+            }
+        finally:
+            conn.close()
+
+
+def get_monthly_totals(db, months: int = 12) -> list[dict]:
+    """Get monthly sighting totals."""
+    since = (datetime.now(tz=_local_tz) - timedelta(days=months * 31)).isoformat()
+    with db._lock:
+        conn = db._get_conn()
+        try:
+            rows = conn.execute(
+                """SELECT STRFTIME('%Y-%m', timestamp) as month, COUNT(*) as count
+                   FROM sightings WHERE timestamp >= ?
+                   GROUP BY month ORDER BY month""",
+                (since,),
+            ).fetchall()
+            return [{"month": r["month"], "count": r["count"]} for r in rows]
+        finally:
+            conn.close()

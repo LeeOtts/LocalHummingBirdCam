@@ -381,6 +381,342 @@ function renderSeasonData(data) {
 }
 
 /**
+ * Render behavior breakdown doughnut chart
+ */
+function renderBehaviorChart(breakdown) {
+    const ctx = document.getElementById('behaviorChart');
+    if (!ctx || !breakdown || !Object.keys(breakdown).length) return;
+
+    document.getElementById('behaviorSection').style.display = '';
+
+    const labels = Object.keys(breakdown).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+    const data = Object.values(breakdown);
+    const colors = ['#5cb84c', '#d4a017', '#3498db', '#e74c3c', '#9b59b6'];
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#1e2a3a',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 12 } },
+                title: { display: true, text: 'Behavior', color: '#9098a8' }
+            }
+        }
+    });
+}
+
+/**
+ * Render species breakdown pie chart
+ */
+function renderSpeciesChart(breakdown) {
+    const ctx = document.getElementById('speciesChart');
+    if (!ctx || !breakdown || !Object.keys(breakdown).length) return;
+
+    document.getElementById('behaviorSection').style.display = '';
+
+    const labels = Object.keys(breakdown);
+    const data = Object.values(breakdown);
+    const colors = ['#5cb84c', '#d4a017', '#3498db', '#e74c3c', '#9b59b6', '#1abc9c'];
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#1e2a3a',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 12 } },
+                title: { display: true, text: 'Species', color: '#9098a8' }
+            }
+        }
+    });
+}
+
+/**
+ * Render position heatmap on canvas (8x8 grid)
+ */
+function renderHeatmapGrid(heatmap) {
+    const canvas = document.getElementById('heatmapCanvas');
+    if (!canvas || !heatmap || !heatmap.length) return;
+
+    document.getElementById('heatmapSection').style.display = '';
+
+    const ctx = canvas.getContext('2d');
+    const gridSize = heatmap.length;
+    const cellW = canvas.width / gridSize;
+    const cellH = canvas.height / gridSize;
+
+    // Find max for normalization
+    let maxVal = 0;
+    for (const row of heatmap) {
+        for (const v of row) {
+            if (v > maxVal) maxVal = v;
+        }
+    }
+    if (maxVal === 0) return;
+
+    for (let r = 0; r < gridSize; r++) {
+        for (let c = 0; c < gridSize; c++) {
+            const intensity = heatmap[r][c] / maxVal;
+            const alpha = Math.min(intensity * 0.9 + 0.05, 1);
+            ctx.fillStyle = `rgba(92, 184, 76, ${alpha})`;
+            ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
+
+            // Show count if > 0
+            if (heatmap[r][c] > 0) {
+                ctx.fillStyle = intensity > 0.5 ? '#fff' : '#9098a8';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(heatmap[r][c], c * cellW + cellW / 2, r * cellH + cellH / 2 + 4);
+            }
+        }
+    }
+}
+
+/**
+ * Render monthly trends bar chart
+ */
+function renderMonthlyChart(monthlyTotals) {
+    const ctx = document.getElementById('monthlyChart');
+    if (!ctx || !monthlyTotals || !monthlyTotals.length) return;
+
+    document.getElementById('monthlySection').style.display = '';
+
+    const labels = monthlyTotals.map(m => m.month);
+    const data = monthlyTotals.map(m => m.count);
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Monthly Detections',
+                data,
+                backgroundColor: '#5cb84c',
+                borderRadius: 3,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2.5,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(42, 54, 72, 0.5)' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+/**
+ * Render weather correlation horizontal bar chart
+ */
+function renderWeatherCorrelationChart(correlations) {
+    const ctx = document.getElementById('weatherCorrelationChart');
+    if (!ctx || !correlations || !Object.keys(correlations).length) return;
+
+    document.getElementById('weatherSection').style.display = '';
+
+    const labels = Object.keys(correlations).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+    const data = Object.values(correlations).map(v => v || 0);
+    const colors = data.map(v => v >= 0 ? '#5cb84c' : '#e74c3c');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Correlation',
+                data,
+                backgroundColor: colors,
+                borderRadius: 3,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => {
+                            const v = item.raw;
+                            return `${v > 0 ? '+' : ''}${v.toFixed(2)} correlation`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    min: -1, max: 1,
+                    grid: { color: 'rgba(42, 54, 72, 0.5)' },
+                    ticks: { callback: (v) => v.toFixed(1) }
+                },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+/**
+ * Populate visit pattern cards
+ */
+function populateVisitPatterns(data) {
+    const stats = data.visit_stats;
+    if (!stats) return;
+
+    const hasData = stats.avg_birds_per_visit || stats.max_simultaneous || stats.avg_visit_duration_sec;
+    if (!hasData) return;
+
+    document.getElementById('visitPatternsSection').style.display = '';
+
+    const el = (id) => document.getElementById(id);
+    if (stats.avg_birds_per_visit) el('avgBirds').textContent = stats.avg_birds_per_visit;
+    if (stats.max_simultaneous) el('maxSimultaneous').textContent = stats.max_simultaneous;
+    if (stats.avg_visit_duration_sec) el('avgDuration').textContent = stats.avg_visit_duration_sec + 's';
+    if (data.sunrise_offset_avg_min != null) {
+        el('sunriseOffset').textContent = data.sunrise_offset_avg_min + ' min';
+    }
+}
+
+/**
+ * Populate activity streaks
+ */
+function populateStreaks(streaks) {
+    if (!streaks || (!streaks.current_streak && !streaks.longest_streak)) return;
+
+    document.getElementById('streaksSection').style.display = '';
+    const el = (id) => document.getElementById(id);
+    el('currentStreak').textContent = streaks.current_streak || 0;
+    el('longestStreak').textContent = streaks.longest_streak || 0;
+    if (streaks.longest_start && streaks.longest_end) {
+        el('longestStreakDates').textContent = `${streaks.longest_start} to ${streaks.longest_end}`;
+    }
+}
+
+/**
+ * Populate year-over-year comparison
+ */
+function populateYoY(yoy) {
+    if (!yoy) return;
+
+    document.getElementById('yoySection').style.display = '';
+    const el = (id) => document.getElementById(id);
+    el('yoyThisWeek').textContent = yoy.this_week || 0;
+    el('yoyLastYear').textContent = yoy.last_year_same_week || 0;
+}
+
+/**
+ * Populate sprinkler effect stats
+ */
+function populateSprinklerEffect(sprinkler) {
+    if (!sprinkler || !sprinkler.events) return;
+
+    document.getElementById('sprinklerSection').style.display = '';
+    const el = (id) => document.getElementById(id);
+    el('sprinklerEvents').textContent = sprinkler.events;
+    el('sprinklerBefore').textContent = sprinkler.avg_before;
+    el('sprinklerAfter').textContent = sprinkler.avg_after;
+    const change = sprinkler.change_pct || 0;
+    const sign = change > 0 ? '+' : '';
+    el('sprinklerChange').textContent = `${sign}${change}%`;
+    el('sprinklerChange').style.color = change > 0 ? '#5cb84c' : change < 0 ? '#e74c3c' : '#9098a8';
+}
+
+/**
+ * Populate feeder management stats
+ */
+function populateFeederStats(feeder) {
+    if (!feeder) return;
+    if (!feeder.feeder_count && feeder.days_since_refill == null) return;
+
+    document.getElementById('feederSection').style.display = '';
+    const el = (id) => document.getElementById(id);
+    el('feederCount').textContent = feeder.feeder_count || 0;
+    el('daysSinceRefill').textContent = feeder.days_since_refill != null ? feeder.days_since_refill : '--';
+    el('nectarProduced').textContent = feeder.nectar_produced_oz || 0;
+    el('estConsumption').textContent = feeder.estimated_consumption_oz || 0;
+}
+
+/**
+ * Populate social engagement stats
+ */
+function populateSocialEngagement(engagement) {
+    if (!engagement || !engagement.post_count) return;
+
+    document.getElementById('socialSection').style.display = '';
+    const el = (id) => document.getElementById(id);
+    el('totalLikes').textContent = (engagement.total_likes || 0).toLocaleString();
+    el('totalShares').textContent = (engagement.total_shares || 0).toLocaleString();
+    el('totalComments').textContent = (engagement.total_comments || 0).toLocaleString();
+    el('postsTracked').textContent = engagement.post_count || 0;
+}
+
+/**
+ * Populate prediction accuracy
+ */
+function populatePredictionAccuracy(accuracy) {
+    if (!accuracy || !Object.keys(accuracy).length) return;
+
+    document.getElementById('predictionSection').style.display = '';
+    const grid = document.getElementById('predictionGrid');
+    grid.innerHTML = '';
+    for (const [type, stats] of Object.entries(accuracy)) {
+        const card = document.createElement('div');
+        card.className = 'summary-card';
+        card.innerHTML = `
+            <span class="summary-label">${type.toUpperCase().replace('_', ' ')}</span>
+            <span class="summary-value">${stats.avg_error_minutes != null ? stats.avg_error_minutes + ' min' : '--'}</span>
+            <span class="summary-label" style="font-size:0.75em;">${stats.predictions_logged} predictions</span>
+        `;
+        grid.appendChild(card);
+    }
+}
+
+/**
+ * Populate quiet periods table
+ */
+function populateQuietPeriods(periods) {
+    if (!periods || !periods.length) return;
+
+    document.getElementById('quietSection').style.display = '';
+    const tbody = document.getElementById('quietTableBody');
+    tbody.innerHTML = '';
+    for (const p of periods) {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        tr.innerHTML = `
+            <td style="padding:10px; font-weight:bold; color:#d4a017;">${p.hours}h</td>
+            <td style="padding:10px;">${p.weather || '--'}</td>
+            <td style="padding:10px; color:var(--text-muted); font-size:0.8em;">
+                ${p.start ? new Date(p.start).toLocaleDateString() : ''} -
+                ${p.end ? new Date(p.end).toLocaleDateString() : ''}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    }
+}
+
+/**
  * Initialize stats page
  */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -393,10 +729,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     setChartDefaults();
     populateStats(data);
     renderSeasonData(data);
+
     try {
         renderHourlyChart(data.hourly_pattern);
         renderDailyChart(data.daily_counts_30d);
     } catch (e) {
         console.warn('Chart rendering failed (Chart.js may not be loaded):', e);
+    }
+
+    // New analytics sections
+    try {
+        populateVisitPatterns(data);
+        renderBehaviorChart(data.behavior_breakdown);
+        renderSpeciesChart(data.species_breakdown);
+        renderHeatmapGrid(data.position_heatmap);
+        populateStreaks(data.activity_streaks);
+        populateYoY(data.yoy_comparison);
+        renderMonthlyChart(data.monthly_totals);
+        renderWeatherCorrelationChart(data.weather_correlations);
+        populateSprinklerEffect(data.sprinkler_effect);
+        populateFeederStats(data.feeder_stats);
+        populateSocialEngagement(data.social_engagement);
+        populatePredictionAccuracy(data.prediction_accuracy);
+        populateQuietPeriods(data.quiet_periods);
+    } catch (e) {
+        console.warn('Extended analytics rendering failed:', e);
     }
 });

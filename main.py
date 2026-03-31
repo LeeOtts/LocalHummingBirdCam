@@ -146,6 +146,9 @@ class HummingbirdMonitor:
         self._sse_subscribers: list[Queue] = []
         self._sse_lock = threading.Lock()
 
+        # Detection metadata for the most recent clip (passed to post worker)
+        self._last_clip_meta: dict | None = None
+
         self._morning_posted, self._night_posted, self._digest_posted = self._load_post_state()
 
     def _load_post_state(self) -> tuple:
@@ -252,15 +255,40 @@ class HummingbirdMonitor:
         # Start B-Hyve sprinkler monitor if credentials are configured
         if config.BHYVE_ENABLED:
             from bhyve.monitor import BHyveMonitor
+            self._watering_event_id = None  # track current watering event for DB
+
+            def _on_spray_start(zone):
+                if self.sightings_db:
+                    self._watering_event_id = self.sightings_db.record_watering_start(zone)
+                    logger.info("Recorded watering start (event #%s, zone %s)",
+                                self._watering_event_id, zone)
+
+            def _on_spray_stop(zone):
+                if self.sightings_db and self._watering_event_id:
+                    self.sightings_db.record_watering_end(self._watering_event_id)
+                    logger.info("Recorded watering end (event #%s)", self._watering_event_id)
+                    self._watering_event_id = None
+
             self.bhyve_monitor = BHyveMonitor(
                 config.BHYVE_EMAIL, config.BHYVE_PASSWORD,
                 watch_station=config.BHYVE_STATION,
+                on_spray_start=_on_spray_start,
+                on_spray_stop=_on_spray_stop,
             )
             self.bhyve_monitor.start()
             logger.info(
                 "B-Hyve sprinkler monitor enabled (watching station %s)",
                 config.BHYVE_STATION or "any",
             )
+
+        # Start social engagement tracker
+        if config.FACEBOOK_PAGE_ACCESS_TOKEN:
+            try:
+                from social.engagement import EngagementTracker
+                self._engagement_tracker = EngagementTracker(self.sightings_db)
+                self._engagement_tracker.start()
+            except Exception:
+                logger.debug("Engagement tracker failed to start", exc_info=True)
 
         # Start AI comment responder if enabled
         if config.AUTO_REPLY_ENABLED:
@@ -390,6 +418,23 @@ class HummingbirdMonitor:
                     self._total_lifetime_detections += 1
                     self._detection_hours.append(datetime.now(tz=_local_tz).hour)
                     det_count = self._detections_today
+
+                # Capture detection metadata for the post worker
+                self._last_clip_meta = {
+                    "bird_count": getattr(self.detector, 'last_bird_count', 1),
+                    "visit_duration_frames": getattr(self.detector, 'last_visit_duration_frames', None),
+                    "position_x": getattr(self.detector, 'last_position_x', None),
+                    "position_y": getattr(self.detector, 'last_position_y', None),
+                }
+                # Record heatmap point
+                px = self._last_clip_meta.get("position_x")
+                py = self._last_clip_meta.get("position_y")
+                if px is not None and py is not None and self.sightings_db:
+                    try:
+                        self.sightings_db.record_heatmap_point(px, py)
+                    except Exception:
+                        pass
+
                 logger.info("Hummingbird confirmed! Starting recording...")
 
                 # Notify SSE subscribers
@@ -759,14 +804,59 @@ class HummingbirdMonitor:
                 caption_path.write_text(caption)
                 logger.info("Caption saved: %s", caption_path.name)
 
-                # Record sighting in database
+                # Record sighting in database with enriched data
                 if self.sightings_db:
-                    self.sightings_db.record_sighting(
-                        clip_filename=clip_path.name,
-                        caption=caption,
-                        frame_path=str(frame_path) if frame_path else None,
-                        confidence=None,
-                    )
+                    from analytics.patterns import get_moon_phase, get_sunrise_offset_minutes
+                    sighting_kwargs = {
+                        "clip_filename": clip_path.name,
+                        "caption": caption,
+                        "frame_path": str(frame_path) if frame_path else None,
+                        "confidence": None,
+                    }
+                    # Weather data
+                    if weather:
+                        sighting_kwargs.update({
+                            "weather_temp": weather.get("temp_f"),
+                            "weather_condition": weather.get("condition"),
+                            "weather_humidity": weather.get("humidity"),
+                            "weather_pressure": weather.get("pressure"),
+                            "weather_wind_speed": weather.get("wind_speed"),
+                            "weather_clouds": weather.get("clouds"),
+                        })
+                    # Environmental context
+                    sighting_kwargs["moon_phase"] = get_moon_phase()
+                    sighting_kwargs["sunrise_offset_min"] = get_sunrise_offset_minutes()
+                    # Detection enrichment (set by detection loop via clip metadata)
+                    clip_meta = getattr(clip_path, '_hummer_meta', None) or self._last_clip_meta
+                    if clip_meta:
+                        sighting_kwargs.update({
+                            "bird_count": clip_meta.get("bird_count"),
+                            "visit_duration_frames": clip_meta.get("visit_duration_frames"),
+                            "position_x": clip_meta.get("position_x"),
+                            "position_y": clip_meta.get("position_y"),
+                        })
+                    # Species identification (reuses MobileNetV2, runs in post worker)
+                    if frame_path:
+                        try:
+                            from detection.vision_verify import identify_species
+                            species_frame = cv2.imread(str(frame_path))
+                            if species_frame is not None:
+                                sp_name, sp_conf = identify_species(species_frame)
+                                if sp_name:
+                                    sighting_kwargs["species"] = sp_name
+                                    sighting_kwargs["species_confidence"] = sp_conf
+                        except Exception:
+                            pass
+                    # Behavior classification (GPT-4o vision, runs in post worker)
+                    if frame_path:
+                        try:
+                            from analytics.behavior import classify_behavior
+                            behavior = classify_behavior(str(frame_path))
+                            if behavior:
+                                sighting_kwargs["behavior"] = behavior
+                        except Exception:
+                            pass
+                    self.sightings_db.record_sighting(**sighting_kwargs)
 
                 if self.test_mode:
                     logger.info("TEST MODE — skipping posting for %s", clip_path.name)
