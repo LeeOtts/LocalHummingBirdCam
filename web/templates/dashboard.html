@@ -1426,12 +1426,14 @@
             .then(r => r.json())
             .then(data => {
                 if (data.ok) {
-                    showToast(action === 'start' ? 'Mister started' : 'Mister stopped');
-                    // Immediately update watering overlay on camera feed
+                    const msg = action === 'start' ? 'Mister started' : 'Mister stopped';
+                    showToast(data.warning ? msg + ' (unverified)' : msg);
+                    // Update watering overlay on camera feed
                     window._bhyveSpraying = (action === 'start');
                     pollDetectionState();
                 } else {
                     showToast('Failed: ' + (data.error || 'unknown'));
+                    // Don't change overlay — command didn't work
                 }
                 pollStatus();
             })

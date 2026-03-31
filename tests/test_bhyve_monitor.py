@@ -427,12 +427,15 @@ class TestDiscoverDevices:
 # ---------------------------------------------------------------------------
 
 class TestStartWatering:
-    def test_start_success(self):
+    @patch("time.sleep")  # skip the 3s verification delay
+    def test_start_success(self, _sleep):
         m = _make_monitor(watch_station=1)
         m._device_id = "dev1"
+        m._token = "tok"
         m.connected = True
         m._ws = MagicMock()
-        result = m.start_watering(run_time_minutes=5)
+        with patch.object(m, "_query_device_watering", return_value=True):
+            result = m.start_watering(run_time_minutes=5)
         assert result["ok"] is True
         assert result["station"] == 1
         assert result["run_time"] == 5
@@ -443,6 +446,7 @@ class TestStartWatering:
         assert payload["mode"] == "manual"
         assert payload["device_id"] == "dev1"
         assert payload["stations"] == [{"station": 1, "run_time": 5}]
+        assert payload["orbit_session_token"] == "tok"
 
     def test_start_not_connected(self):
         m = _make_monitor()
@@ -460,12 +464,14 @@ class TestStartWatering:
         assert result["ok"] is False
         assert "No device" in result["error"]
 
-    def test_start_clamps_run_time(self):
+    @patch("time.sleep")
+    def test_start_clamps_run_time(self, _sleep):
         m = _make_monitor(watch_station=1)
         m._device_id = "dev1"
         m.connected = True
         m._ws = MagicMock()
-        result = m.start_watering(run_time_minutes=999)
+        with patch.object(m, "_query_device_watering", return_value=True):
+            result = m.start_watering(run_time_minutes=999)
         assert result["ok"] is True
         assert result["run_time"] <= 30  # BHYVE_MAX_RUN_MINUTES default
 
@@ -479,23 +485,51 @@ class TestStartWatering:
         assert result["ok"] is False
         assert "connection lost" in result["error"]
 
-    def test_start_default_station(self):
+    @patch("time.sleep")
+    def test_start_default_station(self, _sleep):
         m = _make_monitor(watch_station=2)
         m._device_id = "dev1"
         m.connected = True
         m._ws = MagicMock()
-        result = m.start_watering()
+        with patch.object(m, "_query_device_watering", return_value=True):
+            result = m.start_watering()
         assert result["station"] == 2
+
+    @patch("time.sleep")
+    def test_start_verification_fails(self, _sleep):
+        """Device didn't actually start — report failure honestly."""
+        m = _make_monitor(watch_station=1)
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        with patch.object(m, "_query_device_watering", return_value=False):
+            result = m.start_watering()
+        assert result["ok"] is False
+        assert "did not start" in result["error"]
+
+    @patch("time.sleep")
+    def test_start_verification_unavailable(self, _sleep):
+        """REST query failed — report ok with warning."""
+        m = _make_monitor(watch_station=1)
+        m._device_id = "dev1"
+        m.connected = True
+        m._ws = MagicMock()
+        with patch.object(m, "_query_device_watering", return_value=None):
+            result = m.start_watering()
+        assert result["ok"] is True
+        assert "warning" in result
 
 
 class TestStopWatering:
-    def test_stop_success(self):
+    @patch("time.sleep")
+    def test_stop_success(self, _sleep):
         m = _make_monitor(watch_station=1)
         m._device_id = "dev1"
         m._token = "tok123"
         m.connected = True
         m._ws = MagicMock()
-        result = m.stop_watering()
+        with patch.object(m, "_query_device_watering", return_value=False):
+            result = m.stop_watering()
         assert result["ok"] is True
         m._ws.send.assert_called_once()
         import json
@@ -518,6 +552,19 @@ class TestStopWatering:
         m._ws = MagicMock()
         result = m.stop_watering()
         assert result["ok"] is False
+
+    @patch("time.sleep")
+    def test_stop_verification_fails(self, _sleep):
+        """Device didn't actually stop — report failure."""
+        m = _make_monitor(watch_station=1)
+        m._device_id = "dev1"
+        m._token = "tok"
+        m.connected = True
+        m._ws = MagicMock()
+        with patch.object(m, "_query_device_watering", return_value=True):
+            result = m.stop_watering()
+        assert result["ok"] is False
+        assert "still watering" in result["error"]
 
 
 # ---------------------------------------------------------------------------

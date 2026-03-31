@@ -111,11 +111,39 @@ class BHyveMonitor:
         """The discovered sprinkler device ID, or None if not yet discovered."""
         return self._device_id
 
+    def _query_device_watering(self) -> bool | None:
+        """Ask the REST API whether the device is currently watering.
+
+        Returns True/False, or None if the query fails.
+        """
+        if not self._token or not self._device_id:
+            return None
+        try:
+            headers = {**_HEADERS, "orbit-session-token": self._token}
+            resp = requests.get(
+                f"{_API_BASE}{_DEVICES_PATH}/{self._device_id}",
+                headers=headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            dev = resp.json()
+            status = dev.get("status", {})
+            watering_status = status.get("watering_status") or {}
+            stations = watering_status.get("stations") or []
+            if stations:
+                return True
+            return bool(dev.get("is_watering"))
+        except Exception:
+            logger.debug("B-Hyve: device state query failed", exc_info=True)
+            return None
+
     def start_watering(self, station: int | None = None,
                        run_time_minutes: int = 5) -> dict:
         """Send a manual watering command for the given station/duration.
 
-        Returns a dict with ``ok`` (bool) and optional ``error`` (str).
+        After sending the command, verifies via the REST API that the device
+        actually started.  Returns a dict with ``ok`` (bool) and optional
+        ``error`` (str).
         """
         if not self.connected or self._ws is None:
             return {"ok": False, "error": "Not connected to B-Hyve"}
@@ -138,22 +166,38 @@ class BHyveMonitor:
             payload["orbit_session_token"] = self._token
         try:
             self._ws.send(json.dumps(payload))
-            logger.info(
-                "B-Hyve: start watering — device=%s station=%s run_time=%d min",
-                self._device_id, station, run_time_minutes,
-            )
+        except Exception as exc:
+            logger.error("B-Hyve: start watering send failed: %s", exc)
+            return {"ok": False, "error": str(exc)}
+
+        logger.info(
+            "B-Hyve: start command sent -- device=%s station=%s run_time=%d min",
+            self._device_id, station, run_time_minutes,
+        )
+
+        # Verify the device actually started (give it a moment to respond)
+        time.sleep(3)
+        is_watering = self._query_device_watering()
+        if is_watering is True:
+            logger.info("B-Hyve: start VERIFIED -- device is watering")
             return {"ok": True, "device_id": self._device_id,
                     "station": station, "run_time": run_time_minutes}
-        except Exception as exc:
-            logger.error("B-Hyve: start watering failed: %s", exc)
-            return {"ok": False, "error": str(exc)}
+        elif is_watering is False:
+            logger.warning("B-Hyve: start FAILED -- device did not start watering")
+            return {"ok": False, "error": "Command sent but device did not start watering"}
+        else:
+            # Query failed — command was sent, but we can't confirm
+            logger.warning("B-Hyve: start sent but could not verify device state")
+            return {"ok": True, "device_id": self._device_id,
+                    "station": station, "run_time": run_time_minutes,
+                    "warning": "Command sent but could not verify"}
 
     def stop_watering(self) -> dict:
         """Stop any active watering.
 
         Sends change_mode -> manual with an empty stations list, which tells
-        the device to run zero stations (i.e. stop everything).  The session
-        token is included in the payload so the device accepts the command.
+        the device to run zero stations (i.e. stop everything).  After sending,
+        verifies the device actually stopped via the REST API.
 
         Returns a dict with ``ok`` (bool) and optional ``error`` (str).
         """
@@ -176,11 +220,25 @@ class BHyveMonitor:
             stop_payload["orbit_session_token"] = self._token
         try:
             self._ws.send(json.dumps(stop_payload))
-            logger.info("B-Hyve: stop watering -- device=%s", self._device_id)
-            return {"ok": True, "device_id": self._device_id}
         except Exception as exc:
-            logger.error("B-Hyve: stop watering failed: %s", exc)
+            logger.error("B-Hyve: stop watering send failed: %s", exc)
             return {"ok": False, "error": str(exc)}
+
+        logger.info("B-Hyve: stop command sent -- device=%s", self._device_id)
+
+        # Verify the device actually stopped
+        time.sleep(3)
+        is_watering = self._query_device_watering()
+        if is_watering is False:
+            logger.info("B-Hyve: stop VERIFIED -- device is idle")
+            return {"ok": True, "device_id": self._device_id}
+        elif is_watering is True:
+            logger.warning("B-Hyve: stop FAILED -- device is still watering")
+            return {"ok": False, "error": "Command sent but device is still watering"}
+        else:
+            logger.warning("B-Hyve: stop sent but could not verify device state")
+            return {"ok": True, "device_id": self._device_id,
+                    "warning": "Command sent but could not verify"}
 
     def start(self):
         """Start the background monitor thread."""
