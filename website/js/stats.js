@@ -287,7 +287,7 @@ function renderSeasonData(data) {
             tr.innerHTML = `
                 <td style="padding:10px; font-weight:bold;">${s.year}</td>
                 <td style="padding:10px; color:#5cb84c;">${formatSeasonDate(s.first_visit)}</td>
-                <td style="padding:10px; color:#d4a017;">${formatSeasonDate(s.last_visit)}</td>
+                <td style="padding:10px; color:#fff;">${formatSeasonDate(s.last_visit)}</td>
                 <td style="padding:10px; color:var(--text-muted);">${len !== null ? len + ' days' : '--'}</td>
             `;
             tbody.appendChild(tr);
