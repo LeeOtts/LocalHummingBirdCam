@@ -32,7 +32,6 @@ class TestInitAndConnection:
         assert "sightings" in table_names
         assert "daily_stats" in table_names
         assert "page_views" in table_names
-        assert "guestbook" in table_names
         assert "comment_replies" in table_names
 
 
@@ -178,37 +177,6 @@ class TestPageViews:
         assert db.get_total_page_views() == 2  # 2 unique IPs
 
 
-class TestGuestbook:
-    """Test guestbook entries."""
-
-    def test_add_and_retrieve(self, db):
-        entry_id = db.add_guestbook_entry("Alice", "Love the hummers!", "ip1")
-        assert entry_id is not None
-        entries = db.get_guestbook_entries()
-        assert len(entries) == 1
-        assert entries[0]["name"] == "Alice"
-
-    def test_rate_limiting(self, db):
-        for i in range(3):
-            db.add_guestbook_entry(f"User{i}", f"Message {i}", "same_ip")
-        # 4th should be rate-limited
-        result = db.add_guestbook_entry("User3", "Spam", "same_ip")
-        assert result is None
-
-    def test_different_ips_not_limited(self, db):
-        for i in range(5):
-            result = db.add_guestbook_entry(f"User{i}", f"Message {i}", f"ip_{i}")
-            assert result is not None
-
-    def test_name_and_message_truncated(self, db):
-        long_name = "A" * 100
-        long_msg = "B" * 1000
-        db.add_guestbook_entry(long_name, long_msg, "ip1")
-        entries = db.get_guestbook_entries()
-        assert len(entries[0]["name"]) == 50
-        assert len(entries[0]["message"]) == 500
-
-
 class TestCommentReplies:
     """Test comment reply tracking."""
 
@@ -264,18 +232,6 @@ class TestSeasonDates:
 
     def test_delete_nonexistent(self, db):
         assert db.delete_season_date(2098) is False
-
-
-class TestDeleteGuestbook:
-    """Test guestbook deletion."""
-
-    def test_delete_existing(self, db):
-        entry_id = db.add_guestbook_entry("Alice", "Hello!", "ip1")
-        assert db.delete_guestbook_entry(entry_id) is True
-        assert db.get_guestbook_entries() == []
-
-    def test_delete_nonexistent(self, db):
-        assert db.delete_guestbook_entry(999) is False
 
 
 class TestHeatmap:

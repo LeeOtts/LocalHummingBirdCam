@@ -27,7 +27,7 @@ def _atomic_write(path: Path, data: dict) -> None:
 
 
 def generate_site_data(db: SightingsDB | None = None, *, sprinkler_active: bool = False) -> Path | None:
-    """Generate site_data.json and guestbook.json from the sightings database.
+    """Generate site_data.json from the sightings database.
 
     Args:
         db: Optional SightingsDB instance. Creates one if not provided.
@@ -49,18 +49,6 @@ def generate_site_data(db: SightingsDB | None = None, *, sprinkler_active: bool 
         _atomic_write(output_path, data)
         logger.info("Generated site_data.json (%d clips, %d lifetime detections)",
                     len(data.get("clips", [])), data.get("lifetime_detections", 0))
-
-        # --- guestbook.json ---
-        entries = db.get_guestbook_entries(limit=200)
-        total = db.get_total_page_views()
-        guestbook_data = {
-            "last_updated": data.get("last_updated", ""),
-            "total_visitors": total,
-            "entries": entries,
-        }
-        gb_path = output_dir / "guestbook.json"
-        _atomic_write(gb_path, guestbook_data)
-        logger.info("Generated guestbook.json (%d entries)", len(entries))
 
         return output_path
 

@@ -70,14 +70,6 @@ class SightingsDB:
                         page TEXT
                     );
 
-                    CREATE TABLE IF NOT EXISTS guestbook (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        timestamp TEXT NOT NULL,
-                        name TEXT NOT NULL,
-                        message TEXT NOT NULL,
-                        ip_hash TEXT
-                    );
-
                     CREATE TABLE IF NOT EXISTS comment_replies (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         timestamp TEXT NOT NULL,
@@ -216,7 +208,6 @@ class SightingsDB:
                 for idx_sql in [
                     "CREATE INDEX IF NOT EXISTS idx_sightings_behavior ON sightings(behavior)",
                     "CREATE INDEX IF NOT EXISTS idx_sightings_species ON sightings(species)",
-                    "CREATE INDEX IF NOT EXISTS idx_guestbook_timestamp ON guestbook(timestamp)",
                     "CREATE INDEX IF NOT EXISTS idx_follower_snapshots_ts ON follower_snapshots(timestamp)",
                 ]:
                     conn.execute(idx_sql)
@@ -483,53 +474,6 @@ class SightingsDB:
                     "SELECT COUNT(DISTINCT ip_hash) as cnt FROM page_views"
                 ).fetchone()
                 return row["cnt"] if row else 0
-            finally:
-                conn.close()
-
-    def add_guestbook_entry(self, name: str, message: str, ip_hash: str) -> int | None:
-        """Add a guestbook entry. Returns entry ID or None if rate-limited."""
-        now = datetime.now(tz=_local_tz)
-        # Rate limit: max 3 entries per IP per hour
-        one_hour_ago = (now - timedelta(hours=1)).isoformat()
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                row = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM guestbook WHERE ip_hash = ? AND timestamp >= ?",
-                    (ip_hash, one_hour_ago),
-                ).fetchone()
-                if row and row["cnt"] >= 3:
-                    return None
-                cur = conn.execute(
-                    "INSERT INTO guestbook (timestamp, name, message, ip_hash) VALUES (?, ?, ?, ?)",
-                    (now.isoformat(), name[:50], message[:500], ip_hash),
-                )
-                conn.commit()
-                return cur.lastrowid
-            finally:
-                conn.close()
-
-    def get_guestbook_entries(self, limit: int = 50) -> list[dict]:
-        """Get recent guestbook entries."""
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                rows = conn.execute(
-                    "SELECT id, timestamp, name, message FROM guestbook ORDER BY id DESC LIMIT ?",
-                    (limit,),
-                ).fetchall()
-                return [dict(r) for r in rows]
-            finally:
-                conn.close()
-
-    def delete_guestbook_entry(self, entry_id: int) -> bool:
-        """Delete a guestbook entry by ID. Returns True if deleted."""
-        with self._lock:
-            conn = self._get_conn()
-            try:
-                cur = conn.execute("DELETE FROM guestbook WHERE id = ?", (entry_id,))
-                conn.commit()
-                return cur.rowcount > 0
             finally:
                 conn.close()
 
