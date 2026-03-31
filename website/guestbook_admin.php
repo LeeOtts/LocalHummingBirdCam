@@ -7,6 +7,7 @@ session_start();
 
 $config_file = __DIR__ . '/data/.guestbook_config.php';
 $entries_file = __DIR__ . '/data/guestbook_entries.json';
+$attempts_file = __DIR__ . '/data/.login_attempts.json';
 
 // Load config
 if (!file_exists($config_file)) {
@@ -39,6 +40,74 @@ function h(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 }
 
+// --------------------------------------------------------- rate limiting
+
+define('MAX_ATTEMPTS', 5);
+define('LOCKOUT_SECONDS', 900); // 15 minutes
+define('DELAY_AFTER', 3);      // sleep(2) after this many failures
+
+function load_attempts(string $file): array {
+    if (!file_exists($file)) return [];
+    $raw = file_get_contents($file);
+    $data = json_decode($raw, true);
+    return is_array($data) ? $data : [];
+}
+
+function save_attempts(string $file, array $data): void {
+    $dir = dirname($file);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT));
+}
+
+function get_client_ip(): string {
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+function check_lockout(string $file): array {
+    $attempts = load_attempts($file);
+    $ip = get_client_ip();
+    $now = time();
+
+    // Purge expired entries
+    foreach ($attempts as $k => $v) {
+        if ($now - ($v['last'] ?? 0) > LOCKOUT_SECONDS) {
+            unset($attempts[$k]);
+        }
+    }
+    save_attempts($file, $attempts);
+
+    $record = $attempts[$ip] ?? null;
+    if ($record && ($record['count'] ?? 0) >= MAX_ATTEMPTS) {
+        $remaining = LOCKOUT_SECONDS - ($now - $record['last']);
+        if ($remaining > 0) {
+            return ['locked' => true, 'minutes' => (int)ceil($remaining / 60), 'count' => $record['count']];
+        }
+    }
+    return ['locked' => false, 'count' => $record['count'] ?? 0];
+}
+
+function record_failure(string $file): void {
+    $attempts = load_attempts($file);
+    $ip = get_client_ip();
+    if (!isset($attempts[$ip])) {
+        $attempts[$ip] = ['count' => 0, 'last' => 0];
+    }
+    $attempts[$ip]['count']++;
+    $attempts[$ip]['last'] = time();
+    save_attempts($file, $attempts);
+
+    if ($attempts[$ip]['count'] >= DELAY_AFTER) {
+        sleep(2);
+    }
+}
+
+function clear_attempts(string $file): void {
+    $attempts = load_attempts($file);
+    $ip = get_client_ip();
+    unset($attempts[$ip]);
+    save_attempts($file, $attempts);
+}
+
 // ------------------------------------------------------------------ actions
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
@@ -46,13 +115,25 @@ $flash = '';
 
 // Login
 if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $password = $_POST['password'] ?? '';
-    if (password_verify($password, $GUESTBOOK_ADMIN_HASH)) {
-        $_SESSION['gb_admin_auth'] = true;
-        header('Location: guestbook_admin.php');
-        exit;
+    $lockout = check_lockout($attempts_file);
+    if ($lockout['locked']) {
+        $flash = 'Too many attempts. Try again in ' . $lockout['minutes'] . ' minute' . ($lockout['minutes'] === 1 ? '' : 's') . '.';
     } else {
-        $flash = 'Invalid password.';
+        $password = $_POST['password'] ?? '';
+        if (password_verify($password, $GUESTBOOK_ADMIN_HASH)) {
+            clear_attempts($attempts_file);
+            $_SESSION['gb_admin_auth'] = true;
+            header('Location: guestbook_admin.php');
+            exit;
+        } else {
+            record_failure($attempts_file);
+            $lockout = check_lockout($attempts_file);
+            if ($lockout['locked']) {
+                $flash = 'Too many attempts. Try again in ' . $lockout['minutes'] . ' minute' . ($lockout['minutes'] === 1 ? '' : 's') . '.';
+            } else {
+                $flash = 'Invalid password.';
+            }
+        }
     }
 }
 
