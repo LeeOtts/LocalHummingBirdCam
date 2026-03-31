@@ -23,6 +23,8 @@ def _make_monitor(email="test@example.com", password="secret", watch_station=1):
     m.connected = False
     m.last_event = None
     m.last_event_time = 0.0
+    m._on_spray_start = None
+    m._on_spray_stop = None
     return m
 
 
