@@ -3,11 +3,14 @@
  * Renders Chart.js charts and stat cards from site_data.json
  */
 
-// Chart.js global defaults for the surveillance theme
-Chart.defaults.color = '#9098a8';
-Chart.defaults.borderColor = '#2a3648';
-Chart.defaults.font.family = "'JetBrains Mono', monospace";
-Chart.defaults.font.size = 11;
+// Chart.js global defaults for the surveillance theme (set before first chart render)
+function setChartDefaults() {
+    if (typeof Chart === 'undefined') return;
+    Chart.defaults.color = '#9098a8';
+    Chart.defaults.borderColor = '#2a3648';
+    Chart.defaults.font.family = "'JetBrains Mono', monospace";
+    Chart.defaults.font.size = 11;
+}
 
 /**
  * Render the hourly distribution bar chart
@@ -387,8 +390,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = siteData;
     if (!data) return;
 
+    setChartDefaults();
     populateStats(data);
+    renderSeasonData(data);
     renderHourlyChart(data.hourly_pattern);
     renderDailyChart(data.daily_counts_30d);
-    renderSeasonData(data);
 });
