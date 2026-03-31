@@ -1,7 +1,10 @@
 """Post to Bluesky via the AT Protocol."""
 
+import io
 import logging
 from pathlib import Path
+
+from PIL import Image
 
 import config
 from social.base_poster import SocialPoster
@@ -43,6 +46,40 @@ class BlueskyPoster(SocialPoster):
         if len(text) <= max_len:
             return text
         return text[:max_len - 3].rsplit(" ", 1)[0] + "..."
+
+    @staticmethod
+    def _compress_image(img_data: bytes, max_bytes: int = 975_000) -> bytes:
+        """Compress image to fit under Bluesky's 1MB blob limit."""
+        if len(img_data) <= max_bytes:
+            return img_data
+
+        img = Image.open(io.BytesIO(img_data))
+        if img.mode == "RGBA":
+            img = img.convert("RGB")
+
+        # Try reducing JPEG quality first
+        for quality in (85, 70, 55, 40):
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality)
+            if buf.tell() <= max_bytes:
+                logger.info("Compressed image to %d bytes (quality=%d)", buf.tell(), quality)
+                return buf.getvalue()
+
+        # Quality alone wasn't enough — resize and retry
+        img.thumbnail((2048, 2048), Image.LANCZOS)
+        for quality in (75, 55, 40):
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality)
+            if buf.tell() <= max_bytes:
+                logger.info("Compressed+resized image to %d bytes (quality=%d)", buf.tell(), quality)
+                return buf.getvalue()
+
+        # Last resort: aggressive resize
+        img.thumbnail((1024, 1024), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=40)
+        logger.info("Aggressively compressed image to %d bytes", buf.tell())
+        return buf.getvalue()
 
     def post_video(self, mp4_path: Path, caption: str) -> bool:
         """Post a video to Bluesky."""
@@ -91,7 +128,7 @@ class BlueskyPoster(SocialPoster):
             return False
 
         try:
-            img_data = image_path.read_bytes()
+            img_data = self._compress_image(image_path.read_bytes())
             upload = client.upload_blob(img_data)
             del img_data  # Free image bytes
 
