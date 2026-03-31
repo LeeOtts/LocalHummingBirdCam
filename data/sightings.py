@@ -86,11 +86,31 @@ class SightingsDB:
                         post_id TEXT
                     );
 
+                    CREATE TABLE IF NOT EXISTS season_dates (
+                        year INTEGER PRIMARY KEY,
+                        first_visit TEXT,
+                        last_visit TEXT
+                    );
+
                     CREATE INDEX IF NOT EXISTS idx_sightings_timestamp
                         ON sightings(timestamp);
                     CREATE INDEX IF NOT EXISTS idx_daily_stats_date
                         ON daily_stats(date);
                 """)
+                # Seed historical season data if table is empty
+                row = conn.execute("SELECT COUNT(*) as cnt FROM season_dates").fetchone()
+                if row[0] == 0:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO season_dates (year, first_visit, last_visit) VALUES (?, ?, ?)",
+                        [
+                            (2020, None, "2020-10-07"),
+                            (2021, "2021-04-13", "2021-10-11"),
+                            (2022, "2022-04-05", "2022-09-26"),
+                            (2023, "2023-04-05", "2023-10-08"),
+                            (2024, "2024-04-12", "2024-09-30"),
+                            (2025, "2025-04-21", "2025-09-28"),
+                        ],
+                    )
                 conn.commit()
                 logger.info("Sightings database initialized at %s", self._db_path)
             finally:
@@ -369,6 +389,48 @@ class SightingsDB:
             finally:
                 conn.close()
 
+    def get_season_dates(self) -> list[dict]:
+        """Get all season date records ordered by year descending."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT year, first_visit, last_visit FROM season_dates ORDER BY year DESC"
+                ).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    def upsert_season_date(self, year: int, first_visit: str | None, last_visit: str | None):
+        """Insert or update a season date record."""
+        if not (2000 <= year <= 2099):
+            raise ValueError(f"Year must be 2000-2099, got {year}")
+        # Validate date formats if provided
+        for val in (first_visit, last_visit):
+            if val:
+                datetime.strptime(val, "%Y-%m-%d")
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO season_dates (year, first_visit, last_visit) VALUES (?, ?, ?)",
+                    (year, first_visit or None, last_visit or None),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def delete_season_date(self, year: int) -> bool:
+        """Delete a season date record. Returns True if deleted."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cur = conn.execute("DELETE FROM season_dates WHERE year = ?", (year,))
+                conn.commit()
+                return cur.rowcount > 0
+            finally:
+                conn.close()
+
     def export_for_website(self, sprinkler_active: bool = False) -> dict:
         """Export all data needed for the public website's site_data.json."""
         import json as _json
@@ -453,6 +515,7 @@ class SightingsDB:
             "sleeping": not is_daytime(),
             "sprinkler_active": sprinkler_active,
             "clips": clips,
+            "season_dates": self.get_season_dates(),
             "socials": {
                 "facebook": getattr(config, 'WEBSITE_SOCIAL_FACEBOOK', ''),
                 "instagram": getattr(config, 'WEBSITE_SOCIAL_INSTAGRAM', ''),

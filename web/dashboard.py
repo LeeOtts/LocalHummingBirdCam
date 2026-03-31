@@ -1238,7 +1238,40 @@ def analytics_page():
     from analytics.patterns import get_analytics_summary, generate_ai_insight
     summary = get_analytics_summary(_monitor.sightings_db)
     summary["ai_insight"] = generate_ai_insight(summary)
-    return render_template("analytics.html", analytics=summary)
+    # Admin flag: True when no password set (local use) or auth passes
+    is_admin = not config.WEB_PASSWORD or (
+        request.authorization and request.authorization.password == config.WEB_PASSWORD
+    )
+    return render_template("analytics.html", analytics=summary, is_admin=is_admin)
+
+
+@app.route("/api/season", methods=["POST"])
+def api_season_upsert():
+    """Add or update a season date record."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "No database available"}, 503
+    data = request.get_json(force=True)
+    year = data.get("year")
+    if not year:
+        return {"error": "year is required"}, 400
+    try:
+        _monitor.sightings_db.upsert_season_date(
+            int(year),
+            data.get("first_visit") or None,
+            data.get("last_visit") or None,
+        )
+        return {"ok": True}
+    except (ValueError, TypeError) as e:
+        return {"error": str(e)}, 400
+
+
+@app.route("/api/season/<int:year>", methods=["DELETE"])
+def api_season_delete(year):
+    """Delete a season date record."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "No database available"}, 503
+    deleted = _monitor.sightings_db.delete_season_date(year)
+    return {"ok": deleted}
 
 
 @app.route("/api/analytics")

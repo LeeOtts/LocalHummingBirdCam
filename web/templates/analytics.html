@@ -133,6 +133,93 @@
         </div>
         {% endif %}
 
+        {% if analytics.season_prediction %}
+        <div class="prediction-card" style="border-color: #c4392a;">
+            <h3 style="color: #c4392a;">Season Arrival Prediction</h3>
+            {% if analytics.season_prediction.in_season %}
+            <div class="estimate" style="color: #4caf50;">Season is Active!</div>
+            <div class="confidence">
+                {% if analytics.season_prediction.avg_season_length_days %}
+                Average season length: {{ analytics.season_prediction.avg_season_length_days }} days
+                {% endif %}
+            </div>
+            {% elif analytics.season_prediction.days_until > 0 %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-bottom: 8px;">Hummingbirds typically arrive around</div>
+            <div class="estimate">{{ analytics.season_prediction.predicted_display }}</div>
+            <div class="confidence" style="margin-top: 8px;">
+                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">{{ analytics.season_prediction.days_until }} days to go!</span><br>
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% else %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-bottom: 8px;">Hummingbirds typically arrive around</div>
+            <div class="estimate">{{ analytics.season_prediction.predicted_display }}</div>
+            <div class="confidence">
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if analytics.season_dates %}
+        <div class="chart-section">
+            <h2>Season History</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.95em;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #1e3625;">
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Year</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">First Sighting</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Last Sighting</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Season Length</th>
+                        {% if is_admin %}<th style="padding: 10px; width: 40px;"></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in analytics.season_dates %}
+                    <tr style="border-bottom: 1px solid #1e3625;">
+                        <td style="padding: 10px; font-weight: bold; color: #e8f0ea;">{{ s.year }}</td>
+                        <td style="padding: 10px; color: #4caf50;">{{ s.first_display or '--' }}</td>
+                        <td style="padding: 10px; color: #d4a017;">{{ s.last_display or '--' }}</td>
+                        <td style="padding: 10px; color: #a3b8a6;">
+                            {{ (s.season_length ~ ' days') if s.season_length else '--' }}
+                        </td>
+                        {% if is_admin %}
+                        <td style="padding: 10px;">
+                            <button onclick="deleteSeason({{ s.year }})" style="background: none; border: none; color: #c4392a; cursor: pointer; font-size: 1.1em;" title="Delete">&times;</button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if is_admin %}
+        <div class="chart-section" style="border-color: #d4a017;">
+            <h2>Add / Update Season Record</h2>
+            <form id="seasonForm" style="display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">Year</label>
+                    <input type="number" name="year" min="2000" max="2099" required
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; width: 90px; font-size: 1em;">
+                </div>
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">First Visit</label>
+                    <input type="date" name="first_visit"
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; font-size: 1em;">
+                </div>
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">Last Visit</label>
+                    <input type="date" name="last_visit"
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; font-size: 1em;">
+                </div>
+                <button type="submit" style="background: #4caf50; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold;">Save</button>
+            </form>
+        </div>
+        {% endif %}
+
         <div class="chart-section">
             <h2>Activity by Hour (Last 14 Days)</h2>
             <div class="chart-container">
@@ -211,6 +298,39 @@
                     }
                 });
             }
+
+            // Season form and delete handlers
+            const seasonForm = document.getElementById('seasonForm');
+            if (seasonForm) {
+                seasonForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(seasonForm);
+                    const body = {
+                        year: parseInt(fd.get('year')),
+                        first_visit: fd.get('first_visit') || null,
+                        last_visit: fd.get('last_visit') || null,
+                    };
+                    const resp = await fetch('/api/season', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(body),
+                    });
+                    if (resp.ok) {
+                        location.reload();
+                    } else {
+                        const err = await resp.json();
+                        alert(err.error || 'Failed to save');
+                    }
+                });
+            }
+
+            function deleteSeason(year) {
+                if (!confirm('Delete season record for ' + year + '?')) return;
+                fetch('/api/season/' + year, { method: 'DELETE' }).then(r => {
+                    if (r.ok) location.reload();
+                });
+            }
+            window.deleteSeason = deleteSeason;
         </script>
 
         {% else %}

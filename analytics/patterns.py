@@ -16,6 +16,31 @@ except ImportError:
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
 
+def _enrich_season_dates(seasons: list[dict]) -> list[dict]:
+    """Add formatted display dates and season length to season records."""
+    enriched = []
+    for s in seasons:
+        row = dict(s)
+        if s["first_visit"]:
+            dt = datetime.strptime(s["first_visit"], "%Y-%m-%d")
+            row["first_display"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+        else:
+            row["first_display"] = None
+        if s["last_visit"]:
+            dt = datetime.strptime(s["last_visit"], "%Y-%m-%d")
+            row["last_display"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+        else:
+            row["last_display"] = None
+        if s["first_visit"] and s["last_visit"]:
+            f = datetime.strptime(s["first_visit"], "%Y-%m-%d")
+            l = datetime.strptime(s["last_visit"], "%Y-%m-%d")
+            row["season_length"] = (l - f).days
+        else:
+            row["season_length"] = None
+        enriched.append(row)
+    return enriched
+
+
 def get_analytics_summary(db) -> dict:
     """Get a comprehensive analytics summary for the dashboard."""
     now = datetime.now(tz=_local_tz)
@@ -54,6 +79,8 @@ def get_analytics_summary(db) -> dict:
         "peak_hour": peak_hour_label,
         "busiest_day_of_week": busiest_dow,
         "prediction": predict_next_visit(db),
+        "season_dates": _enrich_season_dates(db.get_season_dates()),
+        "season_prediction": predict_season_arrival(db),
     }
 
 
@@ -99,6 +126,77 @@ def predict_next_visit(db) -> dict | None:
         "confidence": "high" if visits_this_hour > 10 else "medium" if visits_this_hour > 5 else "low",
         "based_on_days": 14,
         "visits_this_hour_slot": visits_this_hour,
+    }
+
+
+def predict_season_arrival(db) -> dict | None:
+    """Predict when hummingbirds will arrive based on historical first-visit dates.
+
+    Returns a dict with predicted arrival date, range, countdown, and season stats.
+    """
+    from statistics import mean
+    now = datetime.now(tz=_local_tz)
+    seasons = db.get_season_dates()
+    if not seasons:
+        return None
+
+    # Collect day-of-year for each year with a first_visit
+    first_doys = []
+    season_lengths = []
+    for s in seasons:
+        if s["first_visit"]:
+            dt = datetime.strptime(s["first_visit"], "%Y-%m-%d")
+            first_doys.append(dt.timetuple().tm_yday)
+        if s["first_visit"] and s["last_visit"]:
+            f = datetime.strptime(s["first_visit"], "%Y-%m-%d")
+            l = datetime.strptime(s["last_visit"], "%Y-%m-%d")
+            season_lengths.append((l - f).days)
+
+    if not first_doys:
+        return None
+
+    mean_doy = round(mean(first_doys))
+    earliest_doy = min(first_doys)
+    latest_doy = max(first_doys)
+
+    # Determine the target year for prediction
+    target_year = now.year
+    predicted = datetime(target_year, 1, 1) + timedelta(days=mean_doy - 1)
+    earliest = datetime(target_year, 1, 1) + timedelta(days=earliest_doy - 1)
+    latest = datetime(target_year, 1, 1) + timedelta(days=latest_doy - 1)
+
+    # If we're past the latest arrival and past last-visit season, use next year
+    if now.date() > latest.date() + timedelta(days=30):
+        target_year = now.year + 1
+        predicted = datetime(target_year, 1, 1) + timedelta(days=mean_doy - 1)
+        earliest = datetime(target_year, 1, 1) + timedelta(days=earliest_doy - 1)
+        latest = datetime(target_year, 1, 1) + timedelta(days=latest_doy - 1)
+
+    days_until = (predicted.date() - now.date()).days
+    avg_season_length = round(mean(season_lengths)) if season_lengths else None
+
+    # Determine if we're currently in season
+    current_year_season = next((s for s in seasons if s["year"] == now.year), None)
+    in_season = False
+    if current_year_season and current_year_season["first_visit"]:
+        first_dt = datetime.strptime(current_year_season["first_visit"], "%Y-%m-%d").date()
+        last_dt = None
+        if current_year_season["last_visit"]:
+            last_dt = datetime.strptime(current_year_season["last_visit"], "%Y-%m-%d").date()
+        if now.date() >= first_dt and (last_dt is None or now.date() <= last_dt):
+            in_season = True
+
+    return {
+        "predicted_date": predicted.strftime("%Y-%m-%d"),
+        "predicted_display": f"{predicted.strftime('%B')} {predicted.day}",
+        "earliest_date": earliest.strftime("%Y-%m-%d"),
+        "earliest_display": f"{earliest.strftime('%B')} {earliest.day}",
+        "latest_date": latest.strftime("%Y-%m-%d"),
+        "latest_display": f"{latest.strftime('%B')} {latest.day}",
+        "based_on_years": len(first_doys),
+        "days_until": days_until,
+        "avg_season_length_days": avg_season_length,
+        "in_season": in_season,
     }
 
 
