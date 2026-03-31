@@ -291,6 +291,7 @@ function renderSeasonData(data) {
             `;
             tbody.appendChild(tr);
         }
+        section.style.display = '';
     }
 
     // Season Arrival Prediction
@@ -375,6 +376,8 @@ function renderSeasonData(data) {
             </div>
         `;
     }
+
+    predSection.style.display = '';
 }
 
 /**

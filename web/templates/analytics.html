@@ -90,6 +90,35 @@
     <div class="container">
         {% if analytics %}
 
+        {% if analytics.season_prediction %}
+        <div class="prediction-card" style="border-color: #c4392a;">
+            <h3 style="color: #c4392a;">Season Arrival Prediction</h3>
+            {% if analytics.season_prediction.in_season %}
+            <div class="estimate" style="color: #4caf50;">Season is Active!</div>
+            <div class="confidence">
+                {% if analytics.season_prediction.avg_season_length_days %}
+                Average season length: {{ analytics.season_prediction.avg_season_length_days }} days
+                {% endif %}
+            </div>
+            {% elif analytics.season_prediction.days_until > 0 %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-bottom: 8px;">Hummingbirds typically arrive around</div>
+            <div class="estimate">{{ analytics.season_prediction.predicted_display }}</div>
+            <div class="confidence" style="margin-top: 8px;">
+                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">{{ analytics.season_prediction.days_until }} days to go!</span><br>
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% else %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-bottom: 8px;">Hummingbirds typically arrive around</div>
+            <div class="estimate">{{ analytics.season_prediction.predicted_display }}</div>
+            <div class="confidence">
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="label">All-Time Sightings</div>
@@ -130,35 +159,6 @@
                 (based on {{ analytics.prediction.based_on_days }} days of data,
                 {{ analytics.prediction.visits_this_hour_slot }} visits in this time slot)
             </div>
-        </div>
-        {% endif %}
-
-        {% if analytics.season_prediction %}
-        <div class="prediction-card" style="border-color: #c4392a;">
-            <h3 style="color: #c4392a;">Season Arrival Prediction</h3>
-            {% if analytics.season_prediction.in_season %}
-            <div class="estimate" style="color: #4caf50;">Season is Active!</div>
-            <div class="confidence">
-                {% if analytics.season_prediction.avg_season_length_days %}
-                Average season length: {{ analytics.season_prediction.avg_season_length_days }} days
-                {% endif %}
-            </div>
-            {% elif analytics.season_prediction.days_until > 0 %}
-            <div style="font-size: 1.1em; color: #a3b8a6; margin-bottom: 8px;">Hummingbirds typically arrive around</div>
-            <div class="estimate">{{ analytics.season_prediction.predicted_display }}</div>
-            <div class="confidence" style="margin-top: 8px;">
-                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">{{ analytics.season_prediction.days_until }} days to go!</span><br>
-                Based on {{ analytics.season_prediction.based_on_years }} years of data
-                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
-            </div>
-            {% else %}
-            <div style="font-size: 1.1em; color: #a3b8a6; margin-bottom: 8px;">Hummingbirds typically arrive around</div>
-            <div class="estimate">{{ analytics.season_prediction.predicted_display }}</div>
-            <div class="confidence">
-                Based on {{ analytics.season_prediction.based_on_years }} years of data
-                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
-            </div>
-            {% endif %}
         </div>
         {% endif %}
 
