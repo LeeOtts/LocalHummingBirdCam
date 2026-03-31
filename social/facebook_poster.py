@@ -27,7 +27,8 @@ class FacebookPoster(SocialPoster):
         self._posts_today = 0
         self._today = self._date_in_local_tz()
         self._retry_in_progress = False
-        
+        self._session = requests.Session()  # reuse connections + SSL contexts
+
         # Prune retry queue on startup (remove entries with missing clip files)
         self._prune_retry_queue_on_startup()
 
@@ -85,7 +86,7 @@ class FacebookPoster(SocialPoster):
 
         try:
             # Use debug_token endpoint — requires an app token or the token itself
-            resp = requests.get(
+            resp = self._session.get(
                 f"{GRAPH_API_BASE}/debug_token",
                 params={
                     "input_token": self.access_token,
@@ -118,7 +119,7 @@ class FacebookPoster(SocialPoster):
             # Try to get app name
             if result["app_id"]:
                 try:
-                    app_resp = requests.get(
+                    app_resp = self._session.get(
                         f"{GRAPH_API_BASE}/{result['app_id']}",
                         params={"access_token": self.access_token,
                                 "fields": "name,mode"},
@@ -148,7 +149,7 @@ class FacebookPoster(SocialPoster):
     def verify_post_exists(self, post_id: str) -> dict:
         """Read back a post to check if Facebook considers it published."""
         try:
-            resp = requests.get(
+            resp = self._session.get(
                 f"{GRAPH_API_BASE}/{post_id}",
                 params={
                     "fields": "id,message,created_time,is_published",
@@ -217,7 +218,7 @@ class FacebookPoster(SocialPoster):
                 return False  # Don't retry; file is too large and will never upload
 
             # Step 1: Initialize upload session
-            init_resp = requests.post(
+            init_resp = self._session.post(
                 f"{GRAPH_API_BASE}/{self.page_id}/videos",
                 data={
                     "upload_phase": "start",
@@ -232,7 +233,7 @@ class FacebookPoster(SocialPoster):
 
             # Step 2: Transfer the video file
             with open(mp4_path, "rb") as f:
-                transfer_resp = requests.post(
+                transfer_resp = self._session.post(
                     f"{GRAPH_API_BASE}/{self.page_id}/videos",
                     data={
                         "upload_phase": "transfer",
@@ -247,7 +248,7 @@ class FacebookPoster(SocialPoster):
             logger.info("Video transferred successfully")
 
             # Step 3: Finish upload and publish
-            finish_resp = requests.post(
+            finish_resp = self._session.post(
                 f"{GRAPH_API_BASE}/{self.page_id}/videos",
                 data={
                     "upload_phase": "finish",
@@ -291,7 +292,7 @@ class FacebookPoster(SocialPoster):
             return False
 
         try:
-            resp = requests.post(
+            resp = self._session.post(
                 f"{GRAPH_API_BASE}/{self.page_id}/feed",
                 data={
                     "message": message,
@@ -332,7 +333,7 @@ class FacebookPoster(SocialPoster):
 
         try:
             with open(image_path, "rb") as f:
-                resp = requests.post(
+                resp = self._session.post(
                     f"{GRAPH_API_BASE}/{self.page_id}/photos",
                     data={
                         "message": caption,

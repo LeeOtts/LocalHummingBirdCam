@@ -9,7 +9,10 @@ def _make_responder():
     from social.comment_responder import CommentResponder
     mock_poster = MagicMock()
     mock_db = MagicMock()
-    return CommentResponder(mock_poster, mock_db)
+    r = CommentResponder(mock_poster, mock_db)
+    # Pre-create a mock session so tests can control it
+    r._session = MagicMock()
+    return r
 
 
 class TestInit:
@@ -47,11 +50,11 @@ class TestCheckAndReply:
                 "comments": {"data": [{"id": "c1", "message": "Cool!", "from": {"id": "user1"}}]},
             }]
         }
+        r._session.get.return_value = mock_resp
 
         with patch("config.AUTO_REPLY_MAX_PER_HOUR", 10), \
              patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", return_value=mock_resp):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             r._check_and_reply()
             r._db.has_replied_to.assert_called_with("c1")
 
@@ -70,11 +73,11 @@ class TestCheckAndReply:
                 "comments": {"data": [{"id": "c1", "message": "Our reply", "from": {"id": "page1"}}]},
             }]
         }
+        r._session.get.return_value = mock_resp
 
         with patch("config.AUTO_REPLY_MAX_PER_HOUR", 10), \
              patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", return_value=mock_resp):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             r._check_and_reply()
 
     def test_handles_request_error(self):
@@ -82,11 +85,11 @@ class TestCheckAndReply:
         r = _make_responder()
         r._poster.is_configured.return_value = True
         r._db.get_replies_last_hour.return_value = 0
+        r._session.get.side_effect = req.RequestException("fail")
 
         with patch("config.AUTO_REPLY_MAX_PER_HOUR", 10), \
              patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", side_effect=req.RequestException("fail")):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             r._check_and_reply()  # should not raise
 
 
@@ -121,13 +124,13 @@ class TestPostReply:
         r = _make_responder()
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("requests.post", return_value=mock_resp):
+        r._session.post.return_value = mock_resp
+        with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"):
             assert r._post_reply("c1", "Nice!") is True
 
     def test_failure(self):
         import requests as req
         r = _make_responder()
-        with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("requests.post", side_effect=req.RequestException("fail")):
+        r._session.post.side_effect = req.RequestException("fail")
+        with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"):
             assert r._post_reply("c1", "Nice!") is False

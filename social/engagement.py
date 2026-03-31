@@ -19,6 +19,7 @@ class EngagementTracker:
         self._interval = interval_hours * 3600
         self._running = False
         self._thread = None
+        self._session = None  # lazy-init requests.Session to reuse connections
 
     def start(self):
         """Start the background engagement tracking thread."""
@@ -48,12 +49,19 @@ class EngagementTracker:
             while self._running and time.time() < end_time:
                 time.sleep(30)
 
+    def _get_session(self):
+        """Return a reusable requests.Session (lazy-initialized)."""
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+        return self._session
+
     def _fetch_facebook_engagement(self):
         """Fetch engagement metrics for recent Facebook posts."""
         if not config.FACEBOOK_PAGE_ACCESS_TOKEN or not config.FACEBOOK_PAGE_ID:
             return
 
-        import requests
+        session = self._get_session()
 
         # Get recent sightings that were posted to Facebook
         sightings = self._db.get_sightings(days=7, limit=50)
@@ -64,7 +72,7 @@ class EngagementTracker:
                 continue
 
             try:
-                resp = requests.get(
+                resp = session.get(
                     f"{_GRAPH_API_BASE}/{fb_post_id}",
                     params={
                         "fields": "likes.summary(true),shares,comments.summary(true)",
@@ -99,9 +107,9 @@ class EngagementTracker:
         if not config.FACEBOOK_PAGE_ACCESS_TOKEN or not config.FACEBOOK_PAGE_ID:
             return
 
-        import requests
+        session = self._get_session()
         try:
-            resp = requests.get(
+            resp = session.get(
                 f"{_GRAPH_API_BASE}/{config.FACEBOOK_PAGE_ID}",
                 params={
                     "fields": "followers_count",

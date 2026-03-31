@@ -1,8 +1,10 @@
 """Clip recorder supporting both Pi Camera (CircularOutput) and USB camera."""
 
+import ctypes
 import gc
 import logging
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +22,20 @@ import config
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
 logger = logging.getLogger(__name__)
+
+
+def force_gc():
+    """Run garbage collection and release freed memory back to the OS.
+
+    On Linux (glibc), malloc_trim() returns freed heap pages to the OS,
+    countering Python's arena allocator which otherwise holds onto memory.
+    """
+    gc.collect()
+    if sys.platform == "linux":
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
 
 
 class ClipRecorder:
@@ -74,9 +90,9 @@ class ClipRecorder:
         """
         Record using frames from the existing USB capture thread.
 
-        Grabs pre-detection frames from the rolling buffer, then captures
-        post-detection frames from the live thread. No second camera handle
-        needed — uses the frames already being captured.
+        Streams frames directly to a VideoWriter to minimize memory usage —
+        only one decoded frame is in memory at a time (~6MB) instead of
+        accumulating all frames in a list (~30-50MB).
 
         Audio is captured separately via ffmpeg from the ALSA device and
         muxed into the final MP4.
@@ -87,6 +103,7 @@ class ClipRecorder:
         audio_path = config.CLIPS_DIR / f"_audio_{timestamp}.wav"
 
         audio_proc = None
+        writer = None
         try:
             # --- Step 1: Get pre-detection frames from buffer (compressed) ---
             pre_jpegs = self.camera.frame_buffer.get_all_compressed()
@@ -118,8 +135,28 @@ class ClipRecorder:
                     logger.warning("Failed to start audio recording — continuing without audio")
                     audio_proc = None
 
-            # --- Step 3: Capture post-detection frames from live thread ---
-            post_frames = []
+            # --- Step 3: Open VideoWriter and stream pre-detection frames ---
+            total_frames = 0
+
+            if pre_jpegs:
+                first = cv2.imdecode(pre_jpegs[0], cv2.IMREAD_COLOR)
+                if first is not None:
+                    h, w = first.shape[:2]
+                    writer = self._open_writer(video_path, w, h)
+                    if writer:
+                        writer.write(first)
+                        total_frames += 1
+                    del first
+
+                # Write remaining pre-detection frames one at a time
+                for jpeg in pre_jpegs[1:]:
+                    frame = cv2.imdecode(jpeg, cv2.IMREAD_COLOR)
+                    if frame is not None and writer:
+                        writer.write(frame)
+                        total_frames += 1
+                del pre_jpegs  # Free buffer copies immediately
+
+            # --- Step 4: Capture post-detection frames and write directly ---
             fps = config.VIDEO_FPS
             total_post_frames = int(config.CLIP_POST_SECONDS * fps)
             interval = 1.0 / fps
@@ -130,11 +167,19 @@ class ClipRecorder:
             for _ in range(total_post_frames):
                 full_frame = self.camera.get_full_res_frame()
                 if full_frame is not None:
-                    _, jpeg = cv2.imencode(
-                        '.jpg', full_frame,
-                        [cv2.IMWRITE_JPEG_QUALITY, 80])
-                    post_frames.append(jpeg)
+                    # Open writer on first frame if pre-buffer was empty
+                    if writer is None:
+                        h, w = full_frame.shape[:2]
+                        writer = self._open_writer(video_path, w, h)
+                    if writer:
+                        writer.write(full_frame)
+                        total_frames += 1
                 time.sleep(interval)
+
+            # Release writer before muxing
+            if writer:
+                writer.release()
+                writer = None
 
             # Wait for audio to finish
             if audio_proc is not None:
@@ -151,16 +196,10 @@ class ClipRecorder:
                     audio_proc.kill()
                     audio_proc.wait()
 
-            # --- Step 4: Write frames to video file (decompress one at a time to save RAM) ---
-            all_jpegs = pre_jpegs + post_frames
-            del pre_jpegs, post_frames  # Free originals, all_jpegs has the data now
-            total_frames = len(all_jpegs)
             if total_frames == 0:
                 logger.warning("No frames captured — skipping clip")
                 self._cleanup_temp_files(video_path, audio_path)
                 return None
-
-            self._write_compressed_frames_to_mp4(all_jpegs, video_path)
 
             # --- Step 5: Mux video + audio if we have audio ---
             if audio_proc is not None and audio_path.exists() and audio_path.stat().st_size > 0:
@@ -183,16 +222,12 @@ class ClipRecorder:
                     # Fall back to video only — rename temp video to final path
                     if video_path.exists():
                         video_path.rename(mp4_path)
-                    else:
-                        self._write_compressed_frames_to_mp4(all_jpegs, mp4_path)
 
                 self._cleanup_temp_files(video_path, audio_path)
             else:
                 # No audio — just rename video
                 video_path.rename(mp4_path)
                 self._cleanup_temp_files(audio_path)
-
-            del all_jpegs  # Free frame memory before returning
 
             if mp4_path.exists():
                 size_mb = mp4_path.stat().st_size / 1_048_576
@@ -207,6 +242,11 @@ class ClipRecorder:
             self._cleanup_temp_files(video_path, audio_path)
             return None
         finally:
+            if writer is not None:
+                try:
+                    writer.release()
+                except Exception:
+                    pass
             # Always kill audio subprocess to prevent zombie processes
             if audio_proc is not None and audio_proc.poll() is None:
                 try:
@@ -215,44 +255,22 @@ class ClipRecorder:
                 except Exception:
                     pass
             # Force GC to return frame memory to OS
-            gc.collect()
+            force_gc()
 
-    def _write_compressed_frames_to_mp4(self, jpeg_frames: list, mp4_path: Path) -> Path | None:
-        """Write JPEG-compressed frames to MP4, decompressing one at a time to save RAM."""
-        try:
-            if not jpeg_frames:
-                return None
-
-            first = cv2.imdecode(jpeg_frames[0], cv2.IMREAD_COLOR)
-            h, w = first.shape[:2]
-
-            fourcc = cv2.VideoWriter_fourcc(*"avc1")
-            writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
-
-            if not writer.isOpened():
-                writer.release()
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
-
-            # Write first frame (already decoded above)
-            writer.write(first)
-
-            # Decompress and write remaining frames one at a time
-            for jpeg in jpeg_frames[1:]:
-                frame = cv2.imdecode(jpeg, cv2.IMREAD_COLOR)
-                if frame is not None:
-                    writer.write(frame)
-
+    @staticmethod
+    def _open_writer(mp4_path: Path, w: int, h: int) -> cv2.VideoWriter | None:
+        """Open a VideoWriter, trying avc1 first then falling back to mp4v."""
+        fourcc = cv2.VideoWriter_fourcc(*"avc1")
+        writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
+        if not writer.isOpened():
             writer.release()
-
-            size_mb = mp4_path.stat().st_size / 1_048_576
-            logger.info("Wrote clip: %s (%.1f MB, %d frames)",
-                         mp4_path.name, size_mb, len(jpeg_frames))
-            return mp4_path
-
-        except Exception:
-            logger.exception("Failed to write MP4")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(str(mp4_path), fourcc, config.VIDEO_FPS, (w, h))
+        if not writer.isOpened():
+            writer.release()
+            logger.error("Failed to open VideoWriter for %s", mp4_path.name)
             return None
+        return writer
 
 
     def _remux_h264_to_mp4(self, h264_path: Path, mp4_path: Path) -> Path | None:

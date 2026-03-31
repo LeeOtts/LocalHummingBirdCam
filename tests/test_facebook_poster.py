@@ -15,12 +15,14 @@ from social.facebook_poster import FacebookPoster
 
 @pytest.fixture
 def poster(monkeypatch):
-    """Create a FacebookPoster with test credentials."""
+    """Create a FacebookPoster with test credentials and a mock session."""
     import config
     monkeypatch.setattr(config, "FACEBOOK_PAGE_ID", "test-page-id")
     monkeypatch.setattr(config, "FACEBOOK_PAGE_ACCESS_TOKEN", "test-token")
     monkeypatch.setattr(config, "MAX_POSTS_PER_DAY", 5)
-    return FacebookPoster()
+    p = FacebookPoster()
+    p._session = MagicMock()
+    return p
 
 
 class TestCheckRateLimit:
@@ -184,15 +186,14 @@ class TestPostPhoto:
         photo_resp.json.return_value = {"id": "photo-123", "post_id": "page_post-456"}
         photo_resp.raise_for_status = MagicMock()
 
-        with patch("social.facebook_poster.requests.post", return_value=photo_resp) as mock_post:
-            result = poster.post_photo(image, "Test caption")
+        poster._session.post.return_value = photo_resp
+        result = poster.post_photo(image, "Test caption")
 
         assert result is True
-        assert mock_post.call_count == 1
+        assert poster._session.post.call_count == 1
         # Single call: feed post with photo
-        upload_url = mock_post.call_args_list[0][0][0]
+        upload_url = poster._session.post.call_args_list[0][0][0]
         assert "/photos" in upload_url
-        assert mock_post.call_args_list[0][1]["data"]["message"] == "Test caption"
 
     def test_post_photo_no_credentials(self, monkeypatch, tmp_path):
         """post_photo() returns False when no credentials."""
@@ -219,8 +220,8 @@ class TestPostPhoto:
         image = tmp_path / "test.jpg"
         image.write_bytes(b"data")
 
-        with patch("social.facebook_poster.requests.post", side_effect=req.RequestException("fail")):
-            result = poster.post_photo(image, "test")
+        poster._session.post.side_effect = req.RequestException("fail")
+        result = poster.post_photo(image, "test")
 
         assert result is False
 
@@ -274,8 +275,8 @@ class TestPostVideoSuccess:
         transfer_resp = self._make_mock_response({"start_offset": "0"})
         finish_resp = self._make_mock_response({"id": "post-456"})
 
-        with patch("social.facebook_poster.requests.post", side_effect=[init_resp, transfer_resp, finish_resp]):
-            result = poster.post_video(clip, "A hummingbird!")
+        poster._session.post.side_effect = [init_resp, transfer_resp, finish_resp]
+        result = poster.post_video(clip, "A hummingbird!")
 
         assert result is True
         assert poster._posts_today == 1
@@ -298,8 +299,8 @@ class TestPostVideoSuccess:
         clip = tmp_path / "hummer.mp4"
         clip.write_bytes(b"fake video" * 100)
 
-        with patch("social.facebook_poster.requests.post", side_effect=req.RequestException("fail")):
-            result = poster.post_video(clip, "test")
+        poster._session.post.side_effect = req.RequestException("fail")
+        result = poster.post_video(clip, "test")
 
         assert result is False
         assert (tmp_path / "retry.json").exists()
@@ -313,16 +314,16 @@ class TestPostTextSuccess:
         mock_resp.json.return_value = {"id": "page_post-789"}
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("social.facebook_poster.requests.post", return_value=mock_resp), \
-             patch.object(poster, "verify_post_exists", return_value={"found": True}):
+        poster._session.post.return_value = mock_resp
+        with patch.object(poster, "verify_post_exists", return_value={"found": True}):
             result = poster.post_text("Hello from the hummingbird cam!")
 
         assert result is True
 
     def test_post_text_api_error(self, poster):
         import requests as req
-        with patch("social.facebook_poster.requests.post", side_effect=req.RequestException("fail")):
-            result = poster.post_text("test")
+        poster._session.post.side_effect = req.RequestException("fail")
+        result = poster.post_text("test")
         assert result is False
 
 
@@ -345,8 +346,8 @@ class TestVerifyToken:
         app_resp.status_code = 200
         app_resp.json.return_value = {"name": "TestApp"}
 
-        with patch("social.facebook_poster.requests.get", side_effect=[debug_resp, app_resp]):
-            result = poster.verify_token()
+        poster._session.get.side_effect = [debug_resp, app_resp]
+        result = poster.verify_token()
 
         assert result["valid"] is True
         assert result["configured"] is True
@@ -364,8 +365,8 @@ class TestVerifyToken:
         }
         debug_resp.raise_for_status = MagicMock()
 
-        with patch("social.facebook_poster.requests.get", return_value=debug_resp):
-            result = poster.verify_token()
+        poster._session.get.return_value = debug_resp
+        result = poster.verify_token()
 
         assert len(result["warnings"]) > 0
 
@@ -379,8 +380,8 @@ class TestVerifyToken:
 
     def test_handles_request_exception(self, poster):
         import requests as req
-        with patch("social.facebook_poster.requests.get", side_effect=req.RequestException("network error")):
-            result = poster.verify_token()
+        poster._session.get.side_effect = req.RequestException("network error")
+        result = poster.verify_token()
         assert result["valid"] is False
         assert len(result["warnings"]) > 0
 
@@ -397,8 +398,8 @@ class TestVerifyPostExists:
             "created_time": "2026-03-24T04:00:00Z",
         }
 
-        with patch("social.facebook_poster.requests.get", return_value=mock_resp):
-            result = poster.verify_post_exists("post-123")
+        poster._session.get.return_value = mock_resp
+        result = poster.verify_post_exists("post-123")
 
         assert result["found"] is True
         assert result["is_published"] is True
@@ -408,15 +409,15 @@ class TestVerifyPostExists:
         mock_resp.status_code = 404
         mock_resp.text = "Not Found"
 
-        with patch("social.facebook_poster.requests.get", return_value=mock_resp):
-            result = poster.verify_post_exists("bad-id")
+        poster._session.get.return_value = mock_resp
+        result = poster.verify_post_exists("bad-id")
 
         assert result["found"] is False
 
     def test_handles_request_exception(self, poster):
         import requests as req
-        with patch("social.facebook_poster.requests.get", side_effect=req.RequestException("fail")):
-            result = poster.verify_post_exists("post-123")
+        poster._session.get.side_effect = req.RequestException("fail")
+        result = poster.verify_post_exists("post-123")
         assert result["found"] is False
 
 

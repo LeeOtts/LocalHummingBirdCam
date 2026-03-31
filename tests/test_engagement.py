@@ -7,7 +7,10 @@ import pytest
 
 def _make_tracker(db=None, interval_hours=1.0):
     from social.engagement import EngagementTracker
-    return EngagementTracker(db=db or MagicMock(), interval_hours=interval_hours)
+    t = EngagementTracker(db=db or MagicMock(), interval_hours=interval_hours)
+    # Pre-create a mock session so tests can control it
+    t._session = MagicMock()
+    return t
 
 
 class TestInit:
@@ -63,10 +66,10 @@ class TestFetchFacebookEngagement:
             "shares": {"count": 2},
             "comments": {"summary": {"total_count": 3}},
         }
+        t._session.get.return_value = mock_resp
 
         with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", return_value=mock_resp):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             t._fetch_facebook_engagement()
             mock_db.record_engagement.assert_called_once()
             call_kwargs = mock_db.record_engagement.call_args
@@ -82,10 +85,10 @@ class TestFetchFacebookEngagement:
 
         mock_resp = MagicMock()
         mock_resp.status_code = 500
+        t._session.get.return_value = mock_resp
 
         with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", return_value=mock_resp):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             t._fetch_facebook_engagement()
             mock_db.record_engagement.assert_not_called()
 
@@ -104,10 +107,10 @@ class TestSnapshotFollowers:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"followers_count": 500}
+        t._session.get.return_value = mock_resp
 
         with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", return_value=mock_resp):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             t._snapshot_followers()
             mock_db.record_follower_snapshot.assert_called_once_with("facebook", 500)
 
@@ -118,19 +121,19 @@ class TestSnapshotFollowers:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"followers_count": 0}
+        t._session.get.return_value = mock_resp
 
         with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", return_value=mock_resp):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             t._snapshot_followers()
             mock_db.record_follower_snapshot.assert_not_called()
 
     def test_handles_api_error(self):
         mock_db = MagicMock()
         t = _make_tracker(db=mock_db)
+        t._session.get.side_effect = Exception("timeout")
 
         with patch("config.FACEBOOK_PAGE_ACCESS_TOKEN", "token"), \
-             patch("config.FACEBOOK_PAGE_ID", "page1"), \
-             patch("requests.get", side_effect=Exception("timeout")):
+             patch("config.FACEBOOK_PAGE_ID", "page1"):
             t._snapshot_followers()  # should not raise
             mock_db.record_follower_snapshot.assert_not_called()

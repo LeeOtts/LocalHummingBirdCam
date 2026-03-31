@@ -78,9 +78,11 @@ def _enforce_auth():
     now = _time.time()
     with _auth_failures_lock:
         if ip in _auth_failures:
-            # Prune old entries
+            # Prune old entries and remove empty keys to prevent unbounded growth
             _auth_failures[ip] = [t for t in _auth_failures[ip] if now - t < _AUTH_FAIL_WINDOW]
-            if len(_auth_failures[ip]) >= _AUTH_FAIL_MAX:
+            if not _auth_failures[ip]:
+                del _auth_failures[ip]
+            elif len(_auth_failures[ip]) >= _AUTH_FAIL_MAX:
                 return Response("Too many failed login attempts. Try again later.", 429)
 
     auth = request.authorization
@@ -762,6 +764,38 @@ def toggle_test_mode():
     state = "TEST MODE" if _monitor.test_mode else "LIVE"
     logger.info("Facebook posting toggled to: %s (saved to .env)", state)
     return {"ok": True, "test_mode": _monitor.test_mode}
+
+
+@app.route("/api/memory", methods=["GET"])
+def api_memory():
+    """Return process memory usage for diagnostics."""
+    import os
+    try:
+        # /proc/self/status is the most reliable source on Linux
+        rss_kb = 0
+        vms_kb = 0
+        status_path = "/proc/self/status"
+        if os.path.exists(status_path):
+            with open(status_path) as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        rss_kb = int(line.split()[1])
+                    elif line.startswith("VmSize:"):
+                        vms_kb = int(line.split()[1])
+            return {
+                "rss_mb": round(rss_kb / 1024, 1),
+                "vms_mb": round(vms_kb / 1024, 1),
+            }
+
+        # Fallback for non-Linux (e.g., macOS, Windows dev)
+        try:
+            import resource
+            rusage = resource.getrusage(resource.RUSAGE_SELF)
+            return {"rss_mb": round(rusage.ru_maxrss / 1024, 1)}
+        except ImportError:
+            return {"error": "Memory stats not available on this platform"}, 501
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 
 @app.route("/api/facebook/debug", methods=["GET"])

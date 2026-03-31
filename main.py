@@ -7,7 +7,6 @@ records 30-second clips, generates funny comments via ChatGPT, and posts
 to the "Backyard Hummers" Facebook page.
 """
 
-import gc
 import json
 import logging
 import signal
@@ -32,7 +31,7 @@ from utils import safe_read_json, safe_write_json
 
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
-from camera.recorder import ClipRecorder
+from camera.recorder import ClipRecorder, force_gc
 from camera.stream import CameraStream
 from data.sightings import SightingsDB
 from detection.motion_color import MotionColorDetector
@@ -456,8 +455,8 @@ class HummingbirdMonitor:
                 # Clean up old clips if disk is getting full
                 self._cleanup_old_clips()
 
-                # Force GC to return recording memory to OS
-                gc.collect()
+                # Force GC + malloc_trim to return recording memory to OS
+                force_gc()
 
             elif self.detector._consecutive_detections > 0 and self.detection_state == "idle":
                 self.detection_state = "motion"

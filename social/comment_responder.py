@@ -39,6 +39,7 @@ class CommentResponder:
         self._poster = facebook_poster
         self._db = sightings_db
         self._poll_interval = 300  # 5 minutes
+        self._session = None  # lazy-init requests.Session to reuse connections
 
     def run(self):
         """Main loop — polls for comments and replies. Runs as daemon thread."""
@@ -49,6 +50,12 @@ class CommentResponder:
             except Exception:
                 logger.exception("Comment responder error")
             time.sleep(self._poll_interval)
+
+    def _get_session(self):
+        """Return a reusable requests.Session (lazy-initialized)."""
+        if self._session is None:
+            self._session = requests.Session()
+        return self._session
 
     def _check_and_reply(self):
         """Fetch recent post comments and reply to new ones."""
@@ -64,7 +71,7 @@ class CommentResponder:
 
         try:
             # Get recent posts
-            resp = requests.get(
+            resp = self._get_session().get(
                 f"{GRAPH_API_BASE}/{config.FACEBOOK_PAGE_ID}/feed",
                 params={
                     "fields": "id,message,comments{id,message,from,created_time}",
@@ -143,7 +150,7 @@ class CommentResponder:
     def _post_reply(self, comment_id: str, reply: str) -> bool:
         """Post a reply to a Facebook comment."""
         try:
-            resp = requests.post(
+            resp = self._get_session().post(
                 f"{GRAPH_API_BASE}/{comment_id}/comments",
                 data={
                     "message": reply,

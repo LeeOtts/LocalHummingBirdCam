@@ -126,48 +126,24 @@ class TestDetectAudioDevice:
         assert result == "default"
 
 
-class TestWriteCompressedFramesToMp4:
-    """Test _write_compressed_frames_to_mp4() frame writing with codec fallback."""
+class TestOpenWriter:
+    """Test _open_writer() VideoWriter creation with codec fallback."""
 
-    def _make_jpeg_frame(self):
-        """Create a real JPEG-encoded numpy array."""
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        import cv2
-        _, jpeg = cv2.imencode(".jpg", frame)
-        return jpeg
-
-    def test_returns_none_for_empty_frame_list(self, tmp_path):
+    def test_returns_writer_on_success(self, tmp_path):
         mp4_path = tmp_path / "out.mp4"
-        r = _make_recorder()
-        result = r._write_compressed_frames_to_mp4([], mp4_path)
-        assert result is None
-
-    def test_writes_frames_successfully(self, tmp_path):
-        mp4_path = tmp_path / "out.mp4"
-        # Create a placeholder so .stat() works
-        mp4_path.write_bytes(b"\x00" * 100)
-
-        jpegs = [self._make_jpeg_frame(), self._make_jpeg_frame()]
 
         mock_writer = MagicMock()
         mock_writer.isOpened.return_value = True
 
-        r = _make_recorder()
+        from camera.recorder import ClipRecorder
         with patch("camera.recorder.cv2.VideoWriter", return_value=mock_writer), \
-             patch("camera.recorder.cv2.VideoWriter_fourcc", return_value=0), \
-             patch("camera.recorder.cv2.imdecode",
-                   return_value=np.zeros((480, 640, 3), dtype=np.uint8)):
-            result = r._write_compressed_frames_to_mp4(jpegs, mp4_path)
+             patch("camera.recorder.cv2.VideoWriter_fourcc", return_value=0):
+            result = ClipRecorder._open_writer(mp4_path, 640, 480)
 
-        assert result == mp4_path
-        mock_writer.write.assert_called()
-        mock_writer.release.assert_called_once()
+        assert result is mock_writer
 
     def test_codec_fallback_to_mp4v(self, tmp_path):
         mp4_path = tmp_path / "out.mp4"
-        mp4_path.write_bytes(b"\x00" * 100)
-
-        jpegs = [self._make_jpeg_frame()]
 
         # First writer (avc1) fails to open; second (mp4v) succeeds
         mock_writer_fail = MagicMock()
@@ -178,23 +154,24 @@ class TestWriteCompressedFramesToMp4:
 
         writer_instances = [mock_writer_fail, mock_writer_ok]
 
-        r = _make_recorder()
+        from camera.recorder import ClipRecorder
         with patch("camera.recorder.cv2.VideoWriter", side_effect=writer_instances), \
-             patch("camera.recorder.cv2.VideoWriter_fourcc", return_value=0), \
-             patch("camera.recorder.cv2.imdecode",
-                   return_value=np.zeros((480, 640, 3), dtype=np.uint8)):
-            result = r._write_compressed_frames_to_mp4(jpegs, mp4_path)
+             patch("camera.recorder.cv2.VideoWriter_fourcc", return_value=0):
+            result = ClipRecorder._open_writer(mp4_path, 640, 480)
 
-        # VideoWriter was called twice (once for avc1 attempt, once for mp4v fallback)
-        assert result == mp4_path
+        assert result is mock_writer_ok
+        mock_writer_fail.release.assert_called_once()
 
-    def test_returns_none_on_exception(self, tmp_path):
+    def test_returns_none_when_both_codecs_fail(self, tmp_path):
         mp4_path = tmp_path / "out.mp4"
-        jpegs = [self._make_jpeg_frame()]
 
-        r = _make_recorder()
-        with patch("camera.recorder.cv2.imdecode", side_effect=RuntimeError("decode error")):
-            result = r._write_compressed_frames_to_mp4(jpegs, mp4_path)
+        mock_writer = MagicMock()
+        mock_writer.isOpened.return_value = False
+
+        from camera.recorder import ClipRecorder
+        with patch("camera.recorder.cv2.VideoWriter", return_value=mock_writer), \
+             patch("camera.recorder.cv2.VideoWriter_fourcc", return_value=0):
+            result = ClipRecorder._open_writer(mp4_path, 640, 480)
 
         assert result is None
 
