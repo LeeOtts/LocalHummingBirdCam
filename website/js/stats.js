@@ -360,12 +360,12 @@ function renderSeasonData(data) {
         `;
     } else if (daysUntil > 0) {
         predContent.innerHTML = `
-            <div style="color:var(--text-muted); margin-bottom:8px;">Hummingbirds typically arrive around</div>
+            <div style="color:var(--text-muted); margin-bottom:8px; font-size:0.95em; text-transform:uppercase; letter-spacing:1px;">Hummingbirds typically arrive around</div>
             <span class="metric-value">${predDisplay}</span>
-            <div style="margin-top:10px;">
-                <span style="color:#d4a017; font-size:1.3em; font-weight:bold;">${daysUntil} days to go!</span>
+            <div style="margin-top:12px;">
+                <span style="color:#e74c3c; font-size:1.5em; font-weight:700;">${daysUntil} days to go!</span>
             </div>
-            <div style="color:var(--text-muted); margin-top:6px; font-size:0.85em;">
+            <div style="color:var(--text-muted); margin-top:8px; font-size:0.85em;">
                 Based on ${withFirst.length} years of data (earliest: ${earlyDisplay}, latest: ${lateDisplay})
             </div>
         `;
