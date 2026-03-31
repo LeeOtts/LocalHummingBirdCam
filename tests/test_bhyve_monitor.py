@@ -448,12 +448,12 @@ class TestStopWatering:
         m._ws = MagicMock()
         result = m.stop_watering()
         assert result["ok"] is True
-        # Should send two messages: cancel (manual run_time 0) then auto
+        # Should send two messages: off then auto
         assert m._ws.send.call_count == 2
         import json
-        cancel = json.loads(m._ws.send.call_args_list[0][0][0])
-        assert cancel["mode"] == "manual"
-        assert cancel["stations"] == [{"station": 1, "run_time": 0}]
+        off = json.loads(m._ws.send.call_args_list[0][0][0])
+        assert off["mode"] == "off"
+        assert off["device_id"] == "dev1"
         auto = json.loads(m._ws.send.call_args_list[1][0][0])
         assert auto["mode"] == "auto"
         assert auto["device_id"] == "dev1"

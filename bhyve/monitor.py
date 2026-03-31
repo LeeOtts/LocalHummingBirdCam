@@ -147,11 +147,11 @@ class BHyveMonitor:
             return {"ok": False, "error": str(exc)}
 
     def stop_watering(self) -> dict:
-        """Stop any active watering by sending a zero-length manual run.
+        """Stop any active watering by switching device off then back to auto.
 
-        Sends change_mode → manual with run_time 0 for the watched station,
-        which cancels the active watering.  Then switches back to auto mode
-        so scheduled programs resume normally.
+        Hose tap timers ignore zero-length manual runs; sending mode "off"
+        is what the B-Hyve app uses to cancel an active run.  We follow up
+        with mode "auto" so normal schedules resume.
 
         Returns a dict with ``ok`` (bool) and optional ``error`` (str).
         """
@@ -160,18 +160,16 @@ class BHyveMonitor:
         if not self._device_id:
             return {"ok": False, "error": "No device discovered"}
 
-        station = self._watch_station or 1
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # First: cancel the active run with a zero-length manual command
-        cancel_payload = {
+        # Turn device off to cancel the active watering
+        off_payload = {
             "event": "change_mode",
-            "mode": "manual",
+            "mode": "off",
             "device_id": self._device_id,
             "timestamp": ts,
-            "stations": [{"station": station, "run_time": 0}],
         }
-        # Second: switch back to auto so normal schedules still work
+        # Switch back to auto so B-Hyve schedules still work
         auto_payload = {
             "event": "change_mode",
             "mode": "auto",
@@ -179,9 +177,9 @@ class BHyveMonitor:
             "timestamp": ts,
         }
         try:
-            self._ws.send(json.dumps(cancel_payload))
+            self._ws.send(json.dumps(off_payload))
             self._ws.send(json.dumps(auto_payload))
-            logger.info("B-Hyve: stop watering �� device=%s station=%s", self._device_id, station)
+            logger.info("B-Hyve: stop watering -- device=%s", self._device_id)
             return {"ok": True, "device_id": self._device_id}
         except Exception as exc:
             logger.error("B-Hyve: stop watering failed: %s", exc)
