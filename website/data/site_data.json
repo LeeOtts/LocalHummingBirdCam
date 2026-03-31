@@ -93,6 +93,14 @@
             "thumbnail": ""
         }
     ],
+    "season_dates": [
+        {"year": 2025, "first_visit": "2025-04-21", "last_visit": "2025-09-28"},
+        {"year": 2024, "first_visit": "2024-04-12", "last_visit": "2024-09-30"},
+        {"year": 2023, "first_visit": "2023-04-05", "last_visit": "2023-10-08"},
+        {"year": 2022, "first_visit": "2022-04-05", "last_visit": "2022-09-26"},
+        {"year": 2021, "first_visit": "2021-04-13", "last_visit": "2021-10-11"},
+        {"year": 2020, "first_visit": null, "last_visit": "2020-10-07"}
+    ],
     "socials": {
         "facebook": "https://facebook.com/backyardhummers",
         "instagram": "https://instagram.com/backyardhummers",
