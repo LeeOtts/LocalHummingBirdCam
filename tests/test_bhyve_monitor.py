@@ -50,11 +50,11 @@ class TestIsSpraying:
         m._active["dev1"] = {"mode": "auto", "station": 3, "started_at": time.time()}
         assert m.is_spraying is True
 
-    def test_false_station_none_value_does_not_match_watch(self):
-        """If the event had no current_station, station=None; should not match watch=1."""
+    def test_true_station_none_assumes_match(self):
+        """If the event had no current_station, station=None; assume it matches."""
         m = _make_monitor(watch_station=1)
         m._active["dev1"] = {"mode": "auto", "station": None, "started_at": time.time()}
-        assert m.is_spraying is False
+        assert m.is_spraying is True
 
     def test_multiple_devices_one_matches(self):
         m = _make_monitor(watch_station=2)
@@ -144,6 +144,44 @@ class TestHandleEvent:
         m = _make_monitor()
         m._handle_event({"event": "some_new_event_type", "device_id": "dev1"})
         assert m._active == {}
+
+    def test_watering_in_progress_top_level_current_station(self):
+        """Station number at top level (not nested in program)."""
+        m = _make_monitor(watch_station=1)
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 1,
+        })
+        assert m._active["dev1"]["station"] == 1
+
+    def test_watering_in_progress_station_as_string(self):
+        """Station number as string should be coerced to int."""
+        m = _make_monitor(watch_station=1)
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": "1",
+        })
+        assert m._active["dev1"]["station"] == 1
+
+    def test_duplicate_watering_event_updates_silently(self):
+        """Second watering_in_progress for same device should not re-add."""
+        m = _make_monitor(watch_station=1)
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 1,
+        })
+        started = m._active["dev1"]["started_at"]
+        # Second event — should update station but not started_at
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 2,
+        })
+        assert m._active["dev1"]["station"] == 2
+        assert m._active["dev1"]["started_at"] == started
 
     def test_missing_device_id_uses_unknown(self):
         m = _make_monitor()

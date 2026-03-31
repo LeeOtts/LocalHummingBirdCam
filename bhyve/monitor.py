@@ -82,8 +82,11 @@ class BHyveMonitor:
                 return False
             if self._watch_station is None:
                 return True
+            # If station is None (API didn't tell us which zone), assume it
+            # matches — better to show the overlay than silently miss it.
             return any(
-                info.get("station") == self._watch_station
+                info.get("station") is None
+                or info.get("station") == self._watch_station
                 for info in self._active.values()
             )
 
@@ -247,8 +250,19 @@ class BHyveMonitor:
 
         if event == _EV_WATERING_IN_PROGRESS:
             mode = data.get("mode", "auto")
+            # Station number can appear in multiple places depending on firmware/event
             program = data.get("program") or {}
-            station = program.get("current_station") if isinstance(program, dict) else None
+            station = (
+                data.get("current_station")
+                or (program.get("current_station") if isinstance(program, dict) else None)
+            )
+            # Coerce to int if it came back as a string
+            if station is not None:
+                try:
+                    station = int(station)
+                except (ValueError, TypeError):
+                    station = None
+            logger.debug("B-Hyve: raw event payload keys=%s station=%s", list(data.keys()), station)
             with self._lock:
                 if device_id in self._active:
                     # Already tracking — update silently to avoid duplicate logs
