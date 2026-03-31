@@ -6,6 +6,7 @@ Uses the astral library to calculate sunrise/sunset times locally
 """
 
 import logging
+import threading
 from datetime import datetime, timedelta, date
 
 from astral import LocationInfo
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 _cached_date = None
 _cached_sunrise = None
 _cached_sunset = None
+_cache_lock = threading.Lock()
 
 
 def _get_sun_times(for_date=None):
@@ -27,46 +29,47 @@ def _get_sun_times(for_date=None):
 
     today = for_date or date.today()
 
-    # Return cached if same day
-    if _cached_date == today:
-        return _cached_sunrise, _cached_sunset
+    with _cache_lock:
+        # Return cached if same day
+        if _cached_date == today:
+            return _cached_sunrise, _cached_sunset
 
-    try:
-        import pytz
-        tz = pytz.timezone(config.LOCATION_TIMEZONE)
-    except ImportError:
-        from zoneinfo import ZoneInfo
-        tz = ZoneInfo(config.LOCATION_TIMEZONE)
+        try:
+            import pytz
+            tz = pytz.timezone(config.LOCATION_TIMEZONE)
+        except ImportError:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
-    location = LocationInfo(
-        name=config.LOCATION_NAME,
-        region="USA",
-        timezone=config.LOCATION_TIMEZONE,
-        latitude=config.LOCATION_LAT,
-        longitude=config.LOCATION_LNG,
-    )
+        location = LocationInfo(
+            name=config.LOCATION_NAME,
+            region="USA",
+            timezone=config.LOCATION_TIMEZONE,
+            latitude=config.LOCATION_LAT,
+            longitude=config.LOCATION_LNG,
+        )
 
-    s = sun(location.observer, date=today, tzinfo=tz)
+        s = sun(location.observer, date=today, tzinfo=tz)
 
-    # Apply wake/sleep offsets
-    wake_time = s["sunrise"] - timedelta(minutes=config.WAKE_BEFORE_SUNRISE_MIN)
-    sleep_time = s["sunset"] + timedelta(minutes=config.SLEEP_AFTER_SUNSET_MIN)
+        # Apply wake/sleep offsets
+        wake_time = s["sunrise"] - timedelta(minutes=config.WAKE_BEFORE_SUNRISE_MIN)
+        sleep_time = s["sunset"] + timedelta(minutes=config.SLEEP_AFTER_SUNSET_MIN)
 
-    _cached_date = today
-    _cached_sunrise = wake_time
-    _cached_sunset = sleep_time
+        _cached_date = today
+        _cached_sunrise = wake_time
+        _cached_sunset = sleep_time
 
-    logger.info(
-        "Sun times for %s (%s): wake at %s, sleep at %s (sunrise %s, sunset %s)",
-        today.isoformat(),
-        config.LOCATION_NAME,
-        wake_time.strftime("%H:%M"),
-        sleep_time.strftime("%H:%M"),
-        s["sunrise"].strftime("%H:%M"),
-        s["sunset"].strftime("%H:%M"),
-    )
+        logger.info(
+            "Sun times for %s (%s): wake at %s, sleep at %s (sunrise %s, sunset %s)",
+            today.isoformat(),
+            config.LOCATION_NAME,
+            wake_time.strftime("%H:%M"),
+            sleep_time.strftime("%H:%M"),
+            s["sunrise"].strftime("%H:%M"),
+            s["sunset"].strftime("%H:%M"),
+        )
 
-    return wake_time, sleep_time
+        return wake_time, sleep_time
 
 
 def is_daytime():
