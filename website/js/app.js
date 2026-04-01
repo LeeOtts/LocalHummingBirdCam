@@ -289,5 +289,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(async () => {
         const fresh = await loadSiteData();
         if (fresh) updateHudStatus(fresh);
-    }, 30000);
+    }, 15000);
 });
