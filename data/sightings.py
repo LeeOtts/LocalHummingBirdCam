@@ -552,7 +552,7 @@ class SightingsDB:
     def export_for_website(self, sprinkler_active: bool = False) -> dict:
         """Export all data needed for the public website's site_data.json."""
         import json as _json
-        from analytics.patterns import predict_next_visit
+        from analytics.patterns import predict_next_visit, predict_season_arrival
         from schedule import is_daytime
 
         lifetime = self.get_total_sightings()
@@ -608,6 +608,13 @@ class SightingsDB:
         except Exception:
             pass
 
+        # Season arrival prediction (authoritative, shared with analytics page)
+        season_prediction = None
+        try:
+            season_prediction = predict_season_arrival(self)
+        except Exception:
+            pass
+
         # Milestones
         milestone_thresholds = [100, 250, 500, 1000, 1500, 2000, 2500, 3000, 5000, 10000]
         latest_milestone = 0
@@ -641,6 +648,7 @@ class SightingsDB:
             "sprinkler_active": sprinkler_active,
             "clips": clips,
             "season_dates": self.get_season_dates(),
+            "season_prediction": season_prediction,
             "socials": {
                 "facebook": getattr(config, 'WEBSITE_SOCIAL_FACEBOOK', ''),
                 "instagram": getattr(config, 'WEBSITE_SOCIAL_INSTAGRAM', ''),

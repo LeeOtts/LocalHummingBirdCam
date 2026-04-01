@@ -294,85 +294,36 @@ function renderSeasonData(data) {
         section.style.display = '';
     }
 
-    // Season Arrival Prediction
-    // Compute from the season_dates: average first-visit day-of-year
-    const withFirst = seasons.filter(s => s.first_visit);
-    if (withFirst.length < 2) return;
-
-    const doys = withFirst.map(s => {
-        const d = new Date(s.first_visit + 'T00:00:00');
-        const start = new Date(d.getFullYear(), 0, 0);
-        return Math.floor((d - start) / (1000 * 60 * 60 * 24));
-    });
-
-    const meanDoy = Math.round(doys.reduce((a, b) => a + b, 0) / doys.length);
-    const minDoy = Math.min(...doys);
-    const maxDoy = Math.max(...doys);
-
-    const now = new Date();
-    let targetYear = now.getFullYear();
-    const predicted = new Date(targetYear, 0, meanDoy);
-    const earliest = new Date(targetYear, 0, minDoy);
-    const latest = new Date(targetYear, 0, maxDoy);
-
-    // If we're well past the latest date, show next year
-    const latestPlusBuffer = new Date(latest);
-    latestPlusBuffer.setDate(latestPlusBuffer.getDate() + 30);
-    if (now > latestPlusBuffer) {
-        targetYear++;
-        predicted.setFullYear(targetYear);
-        earliest.setFullYear(targetYear);
-        latest.setFullYear(targetYear);
-    }
-
-    const daysUntil = Math.ceil((predicted - now) / (1000 * 60 * 60 * 24));
-
-    // Check if currently in season
-    const currentYearSeason = seasons.find(s => s.year === now.getFullYear());
-    let inSeason = false;
-    if (currentYearSeason && currentYearSeason.first_visit) {
-        const firstDt = new Date(currentYearSeason.first_visit + 'T00:00:00');
-        const lastDt = currentYearSeason.last_visit ? new Date(currentYearSeason.last_visit + 'T00:00:00') : null;
-        if (now >= firstDt && (!lastDt || now <= lastDt)) inSeason = true;
-    }
-
-    // Avg season length
-    const withBoth = seasons.filter(s => s.first_visit && s.last_visit);
-    const avgLen = withBoth.length > 0
-        ? Math.round(withBoth.map(s => seasonLength(s.first_visit, s.last_visit)).reduce((a, b) => a + b, 0) / withBoth.length)
-        : null;
-
-    const months = ['January','February','March','April','May','June',
-                    'July','August','September','October','November','December'];
-    const predDisplay = `${months[predicted.getMonth()]} ${predicted.getDate()}`;
-    const earlyDisplay = `${months[earliest.getMonth()]} ${earliest.getDate()}`;
-    const lateDisplay = `${months[latest.getMonth()]} ${latest.getDate()}`;
+    // Season Arrival Prediction (pre-computed server-side)
+    const pred = data.season_prediction;
+    if (!pred) return;
 
     const predSection = document.getElementById('seasonPredictionSection');
     const predContent = document.getElementById('seasonPredictionContent');
     if (!predSection || !predContent) return;
-    if (inSeason) {
+
+    if (pred.in_season) {
         predContent.innerHTML = `
             <span class="metric-value" style="color:#5cb84c;">Season is Active!</span>
-            ${avgLen ? `<div style="color:var(--text-muted); margin-top:8px;">Average season length: ${avgLen} days</div>` : ''}
+            ${pred.avg_season_length_days ? `<div style="color:var(--text-muted); margin-top:8px;">Average season length: ${pred.avg_season_length_days} days</div>` : ''}
         `;
-    } else if (daysUntil > 0) {
+    } else if (pred.days_until > 0) {
         predContent.innerHTML = `
             <div style="color:var(--text-muted); margin-bottom:8px; font-size:0.95em; text-transform:uppercase; letter-spacing:1px;">Hummingbirds typically arrive around</div>
-            <span class="metric-value" style="color: var(--green-bright);">${predDisplay}</span>
+            <span class="metric-value" style="color: var(--green-bright);">${pred.predicted_display}</span>
             <div style="margin-top:12px;">
-                <span style="color:#e74c3c; font-size:1.5em; font-weight:700;">${daysUntil} days to go!</span>
+                <span style="color:#e74c3c; font-size:1.5em; font-weight:700;">${pred.days_until} days to go!</span>
             </div>
             <div style="color:var(--text-muted); margin-top:8px; font-size:0.85em;">
-                Based on ${withFirst.length} years of data (earliest: ${earlyDisplay}, latest: ${lateDisplay})
+                Based on ${pred.based_on_years} years of data (earliest: ${pred.earliest_display}, latest: ${pred.latest_display})
             </div>
         `;
     } else {
         predContent.innerHTML = `
             <div style="color:var(--text-muted); margin-bottom:8px;">Hummingbirds typically arrive around</div>
-            <span class="metric-value" style="color: var(--green-bright);">${predDisplay}</span>
+            <span class="metric-value" style="color: var(--green-bright);">${pred.predicted_display}</span>
             <div style="color:var(--text-muted); margin-top:6px; font-size:0.85em;">
-                Based on ${withFirst.length} years of data (earliest: ${earlyDisplay}, latest: ${lateDisplay})
+                Based on ${pred.based_on_years} years of data (earliest: ${pred.earliest_display}, latest: ${pred.latest_display})
             </div>
         `;
     }
