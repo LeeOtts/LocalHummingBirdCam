@@ -11,9 +11,9 @@ When a Ruby-throated Hummingbird hits the feeder, the system:
 - records a 25-second clip with audio — because the wing buzz is evidence
 - GPT-4o analyzes the actual video frames and writes a caption about what the bird is doing
 - checks the weather so it can work that into the commentary
-- and posts it to **Facebook**, **Twitter/X**, and **Bluesky** simultaneously before the bird even leaves
+- and posts it to **Facebook**, **Twitter/X**, **Bluesky**, **Instagram**, and **TikTok** simultaneously before the bird even leaves
 
-Follow the operation: [Facebook](https://www.facebook.com/backyard.hummers) | [Bluesky](https://bsky.app/profile/backyardhummers.bsky.social) | [X](https://x.com/backyardhummers) | [Instagram](https://www.instagram.com/backyard.hummers)
+Follow the operation: [Facebook](https://www.facebook.com/backyard.hummers) | [Bluesky](https://bsky.app/profile/backyardhummers.bsky.social) | [X](https://x.com/backyardhummers) | [Instagram](https://www.instagram.com/backyard.hummers) | [Website](https://backyardhummers.com)
 
 My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi collecting dust on my desk and said:
 
@@ -28,7 +28,7 @@ My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi col
 - **GPT-4o writes the captions** — unhinged, slightly suggestive, occasionally better than anything a human would write. Never explains its own jokes.
 - **Vision-based captions** — GPT-4o actually looks at the video frames and describes what the bird is doing. Hovering, feeding, fighting, flexing — it sees it all.
 - **Weather-aware commentary** — pulls real-time weather from OpenWeatherMap so captions can reference the 97-degree heat or the surprise rain. Context matters.
-- **Multi-platform posting** — auto-posts to Facebook, Twitter/X, and Bluesky simultaneously. Configure whichever platforms you want — the system auto-discovers what's enabled and posts everywhere at once.
+- **Multi-platform posting** — auto-posts to Facebook, Twitter/X, Bluesky, Instagram, and TikTok simultaneously. Configure whichever platforms you want — the system auto-discovers what's enabled and posts everywhere at once.
 - **AI comment replies** — GPT-4o monitors Facebook comments and fires back witty replies autonomously. Rate-limited so it doesn't go feral.
 - **Morning briefings** — sunrise check-in with yesterday's tally. Posted with a live camera snapshot. The feeders are full. The operation is active.
 - **Goodnight recaps** — daily stats, peak activity hour, and whether we broke the all-time record. Celebrates milestones at 100, 250, 500, and 1000+ lifetime detections.
@@ -39,6 +39,10 @@ My wife showed me an AI hummingbird cam online. I looked at the Raspberry Pi col
 - **Trains itself** — label frames as "bird" or "not bird" from the dashboard. Teach it to stop falling for leaves.
 - **Self-healing** — camera unplugged? It retries every 10 seconds. Failed Facebook post? Queued for retry. App restart? Picks up where it left off.
 - **Night mode** — auto sleep at sunset, auto wake before sunrise. Even surveillance operations need rest.
+- **B-Hyve mister control** — connects to an Orbit B-Hyve sprinkler system via cloud API and WebSocket. Automated sunrise-relative watering schedule keeps feeders misted on interval. Start/stop from the dashboard. Watering events are logged and correlated with bird sightings.
+- **Comprehensive analytics** — weather-activity correlations, multi-bird counting, behavior classification (hovering, feeding, fighting, flexing), position heatmaps, activity streaks, year-over-year comparisons, and monthly trend analysis.
+- **Feeder management** — track refills, nectar production, days since last refill, and active feeder count. Log entries with optional backdated timestamps.
+- **Public website** — [backyardhummers.com](https://backyardhummers.com) with live camera feed, interactive Chart.js stats, gallery, and analytics synced from the Pi to SiteGround via SSH.
 - **One-button updates** — git pull, reinstall deps, restart service. From the dashboard. Because manual deployments are beneath us.
 
 ## Hardware
@@ -117,6 +121,10 @@ Grab your **App ID**, **App Secret**, and **short-lived token**. The script conv
 
 **Bluesky** (optional): Generate an app password at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords), add your handle and password to `.env`.
 
+**Instagram** (optional): Requires a Meta Business Suite account. Get your `INSTAGRAM_BUSINESS_ACCOUNT_ID` and `INSTAGRAM_USER_ID` from Meta Business Suite, add them to `.env`. Uses the same Facebook Page Access Token.
+
+**TikTok** (optional): Create a TikTok Developer app, complete OAuth to get your access and refresh tokens, add them to `.env`. Use `scripts/tiktok_auth.py` to help with the OAuth flow.
+
 The system auto-discovers which platforms are configured and posts to all of them.
 
 ### 7. Fire It Up
@@ -141,7 +149,7 @@ The detection pipeline — four layers of increasingly paranoid verification:
 
 2. **Bird Species Classifier** *(~1-2 sec on Pi)* — MobileNetV2 trained on 964 bird species. Runs fully local on the Pi, no cloud needed. The "prove you're actually a hummingbird" checkpoint.
 
-3. **Record + Post** — 25 seconds of evidence. GPT-4o analyzes the frames, checks the weather, writes the caption, and blasts it to Facebook, Twitter/X, and Bluesky. The bird has no idea it's internet famous on three platforms.
+3. **Record + Post** — 25 seconds of evidence. GPT-4o analyzes the frames, checks the weather, writes the caption, and blasts it to Facebook, Twitter/X, Bluesky, Instagram, and TikTok. The bird has no idea it's internet famous on five platforms.
 
 ## The Dashboard
 
@@ -158,7 +166,10 @@ Hit `http://hummingbirdcam.local:8080` — welcome to mission control:
 - **Camera controls** — rotation, test recording, mic test
 - **Training interface** — label frames to make the classifier smarter
 - **Clip browser** — review, play, delete, or admire your regulars
-- **Analytics panel** — feeding patterns, hourly distribution, next-visit predictions, AI-generated insights
+- **Analytics panel** — feeding patterns, hourly distribution, next-visit predictions, weather correlations, behavior breakdown, position heatmaps, AI-generated insights
+- **Feeder management** — log refills and nectar production, track days since last refill, active feeder count
+- **B-Hyve mister controls** — start/stop watering, connection status, schedule configuration (interval, run time, offset), today's watering times
+- **Social engagement** — likes, shares, comments, follower trends across platforms
 - **System stats** — uptime, detections today, posts today, cooldowns, schedule, git version
 - **Hardware vitals** — CPU temp, RAM usage, disk space
 - **Live logs** — because something always breaks eventually
@@ -182,6 +193,15 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `TWITTER_ACCESS_SECRET` | | Twitter/X access secret |
 | `BLUESKY_HANDLE` | | Bluesky handle (e.g. `you.bsky.social`) |
 | `BLUESKY_APP_PASSWORD` | | Bluesky app password |
+| `INSTAGRAM_BUSINESS_ACCOUNT_ID` | | Instagram Business account ID |
+| `INSTAGRAM_USER_ID` | | Instagram user ID |
+| `INSTAGRAM_MAX_POSTS_PER_DAY` | `10` | Daily Instagram post limit |
+| `TIKTOK_CLIENT_KEY` | | TikTok Developer app client key |
+| `TIKTOK_CLIENT_SECRET` | | TikTok Developer app client secret |
+| `TIKTOK_ACCESS_TOKEN` | | TikTok OAuth access token |
+| `TIKTOK_REFRESH_TOKEN` | | TikTok OAuth refresh token |
+| `TIKTOK_MAX_POSTS_PER_DAY` | `10` | Daily TikTok post limit |
+| `TIKTOK_PRIVACY_LEVEL` | `PUBLIC_TO_EVERYONE` | TikTok video privacy setting |
 | `OPENWEATHERMAP_API_KEY` | | OpenWeatherMap API key (free tier) |
 | `AUTO_REPLY_ENABLED` | `false` | GPT-4o auto-replies to Facebook comments |
 | `AUTO_REPLY_MAX_PER_HOUR` | `10` | Rate limit for AI comment replies |
@@ -215,6 +235,18 @@ Everything lives in `.env`. See `.env.example` for full details.
 | `WAKE_BEFORE_SUNRISE_MIN` | `30` | Minutes before sunrise to wake up |
 | `SLEEP_AFTER_SUNSET_MIN` | `30` | Minutes after sunset to sleep |
 | `WEB_PORT` | `8080` | Dashboard port |
+| `BHYVE_EMAIL` | | Orbit B-Hyve account email |
+| `BHYVE_PASSWORD` | | Orbit B-Hyve account password |
+| `BHYVE_STATION` | `1` | Which zone to monitor (1-based, 0 = any) |
+| `BHYVE_RUN_MINUTES` | `5` | Duration per watering cycle |
+| `BHYVE_MAX_RUN_MINUTES` | `30` | Safety cap on watering duration |
+| `BHYVE_SCHEDULE_ENABLED` | `true` | Automated sunrise-relative watering |
+| `BHYVE_SCHEDULE_OFFSET_HOURS` | `3` | Hours after sunrise to start watering |
+| `BHYVE_SCHEDULE_INTERVAL_HOURS` | `3` | Hours between watering cycles |
+| `WEBSITE_REMOTE_HOST` | | SiteGround SSH hostname for website sync |
+| `WEBSITE_REMOTE_USER` | | SiteGround SSH username |
+| `WEBSITE_REMOTE_PORT` | | SiteGround SSH port |
+| `WEBSITE_REMOTE_PATH` | `public_html` | Remote path for website files |
 
 ## Remote Access (Tailscale)
 
@@ -276,9 +308,14 @@ LocalHummingBirdCam/
 ├── detection/
 │   ├── detector.py          # Base detector interface
 │   ├── motion_color.py      # Motion + HSV color filtering
+│   ├── custom_classifier.py # Lightweight retraining
 │   └── vision_verify.py     # MobileNetV2 bird classifier (TFLite)
 ├── analytics/
+│   ├── behavior.py          # Behavior classification
 │   └── patterns.py          # Feeding patterns, predictions, AI insights
+├── bhyve/
+│   ├── monitor.py           # Orbit B-Hyve cloud API + WebSocket
+│   └── scheduler.py         # Automated sunrise-relative watering
 ├── data/
 │   └── sightings.py         # SQLite sightings database
 ├── social/
@@ -288,12 +325,24 @@ LocalHummingBirdCam/
 │   ├── facebook_poster.py   # Facebook Graph API posting
 │   ├── twitter_poster.py    # Twitter/X via tweepy
 │   ├── bluesky_poster.py    # Bluesky via AT Protocol
+│   ├── instagram_poster.py  # Instagram via Meta Graph API
+│   ├── tiktok_poster.py     # TikTok video posting
+│   ├── engagement.py        # Social metrics tracking
 │   └── digest.py            # Weekly recap with thumbnail collage
 ├── web/
 │   ├── dashboard.py         # Flask dashboard + live feed
 │   └── static/              # Banner and static assets
+├── website/                 # Public website (backyardhummers.com)
+│   ├── index.html           # Landing page with live feed
+│   ├── stats.html           # Interactive analytics (Chart.js)
+│   ├── gallery.html         # Video gallery
+│   ├── js/                  # Frontend scripts
+│   ├── css/                 # Stylesheets
+│   └── data/                # Exported analytics (site_data.json)
 ├── scripts/
 │   ├── setup_facebook_token.py    # Facebook token setup
+│   ├── tiktok_auth.py             # TikTok OAuth flow
+│   ├── generate_site_data.py      # Sync analytics to website
 │   ├── auto_update.sh             # Git pull + restart
 │   ├── hummingbird.service        # systemd service
 │   ├── hummingbird-updater.service # Auto-update service
@@ -309,11 +358,12 @@ LocalHummingBirdCam/
 
 ## Final Notes
 
-This started as "I can do that" and turned into a multi-stage AI surveillance pipeline with multi-platform social media posting, weather-aware vision captions, autonomous comment replies, feeding pattern predictions, weekly digests, and a GPT that writes better captions than I do.
+This started as "I can do that" and turned into a multi-stage AI surveillance pipeline with five-platform social media posting, weather-aware vision captions, autonomous comment replies, feeding pattern predictions, weekly digests, a B-Hyve mister keeping the feeders fresh on schedule, a public website with interactive analytics, and a GPT that writes better captions than I do.
 
 It is absolutely over-engineered. It will never not be over-engineered. That is the point.
 
 Follow along:
+- Website: [backyardhummers.com](https://backyardhummers.com)
 - Facebook: [facebook.com/backyard.hummers](https://www.facebook.com/backyard.hummers)
 - Bluesky: [backyardhummers.bsky.social](https://bsky.app/profile/backyardhummers.bsky.social)
 - Twitter/X: [x.com/backyardhummers](https://x.com/backyardhummers)
