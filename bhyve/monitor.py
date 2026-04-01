@@ -97,6 +97,18 @@ class BHyveMonitor:
                 for info in self._active.values()
             )
 
+    def _matches_watch_station(self, station: int | None) -> bool:
+        """Return True if *station* matches the configured watch station.
+
+        When ``_watch_station`` is None every station matches.  An unknown
+        station (None) is assumed to match to avoid silently missing events.
+        """
+        if self._watch_station is None:
+            return True
+        if station is None:
+            return True
+        return station == self._watch_station
+
     @property
     def active_zones(self) -> list[dict]:
         """List of dicts describing each actively-watering device/zone."""
@@ -357,7 +369,7 @@ class BHyveMonitor:
             "B-Hyve: device already watering at startup -- station=%s",
             current_station,
         )
-        if self._on_spray_start:
+        if self._on_spray_start and self._matches_watch_station(current_station):
             try:
                 self._on_spray_start(str(current_station) if current_station else None)
             except Exception:
@@ -487,34 +499,58 @@ class BHyveMonitor:
                 except (ValueError, TypeError):
                     station = None
             logger.debug("B-Hyve: raw event payload keys=%s station=%s", list(data.keys()), station)
+            fire_start = False
+            fire_stop_zone = None
             with self._lock:
                 if device_id in self._active:
-                    # Already tracking — update silently to avoid duplicate logs
+                    old_station = self._active[device_id].get("station")
                     self._active[device_id]["station"] = station
-                    return
-                self._active[device_id] = {
-                    "mode": mode,
-                    "station": station,
-                    "started_at": time.time(),
-                }
-            logger.info(
-                "B-Hyve: watering started — device=%s mode=%s station=%s",
-                device_id, mode, station,
-            )
-            if self._on_spray_start:
-                try:
-                    self._on_spray_start(str(station) if station else None)
-                except Exception:
-                    logger.debug("Spray start callback failed", exc_info=True)
+                    old_match = self._matches_watch_station(old_station)
+                    new_match = self._matches_watch_station(station)
+                    if not old_match and new_match:
+                        fire_start = True
+                    elif old_match and not new_match:
+                        fire_stop_zone = str(old_station) if old_station else None
+                else:
+                    self._active[device_id] = {
+                        "mode": mode,
+                        "station": station,
+                        "started_at": time.time(),
+                    }
+                    if self._matches_watch_station(station):
+                        fire_start = True
+
+            if fire_start:
+                logger.info(
+                    "B-Hyve: watering started — device=%s mode=%s station=%s",
+                    device_id, mode, station,
+                )
+                if self._on_spray_start:
+                    try:
+                        self._on_spray_start(str(station) if station else None)
+                    except Exception:
+                        logger.debug("Spray start callback failed", exc_info=True)
+            elif fire_stop_zone is not None:
+                logger.info(
+                    "B-Hyve: watched station stopped (switched to %s) — device=%s",
+                    station, device_id,
+                )
+                if self._on_spray_stop:
+                    try:
+                        self._on_spray_stop(fire_stop_zone)
+                    except Exception:
+                        logger.debug("Spray stop callback failed", exc_info=True)
 
         elif event in (_EV_WATERING_COMPLETE, _EV_DEVICE_IDLE):
             zone = None
+            should_callback = False
             with self._lock:
                 info = self._active.pop(device_id, None)
                 if info:
                     zone = str(info.get("station")) if info.get("station") else None
+                    should_callback = self._matches_watch_station(info.get("station"))
             logger.info("B-Hyve: watering stopped — device=%s event=%s", device_id, event)
-            if self._on_spray_stop:
+            if should_callback and self._on_spray_stop:
                 try:
                     self._on_spray_stop(zone)
                 except Exception:

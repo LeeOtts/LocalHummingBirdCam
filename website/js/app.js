@@ -46,6 +46,39 @@ async function loadSiteData() {
 }
 
 /**
+ * Derive the Pi's base URL from the live feed URL.
+ * e.g. "https://pi.ts.net/feed" → "https://pi.ts.net"
+ */
+function getPiBaseUrl(data) {
+    if (!data || !data.live_feed_url) return null;
+    try {
+        const url = new URL(data.live_feed_url);
+        return url.origin;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Poll the Pi directly for real-time overlay status (sprinkler/sleeping).
+ * Returns { sprinkler_active, sleeping } or null on failure.
+ */
+async function pollOverlayStatus(piBaseUrl) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const resp = await fetch(piBaseUrl + '/api/overlay-status?t=' + Date.now(), {
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!resp.ok) return null;
+        return await resp.json();
+    } catch (err) {
+        return null;
+    }
+}
+
+/**
  * Format a timestamp for display (military style)
  */
 function formatTimestamp(isoStr) {
@@ -285,8 +318,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateSocials(data);
     updateHudStatus(data);
 
-    // Poll for status changes (sprinkler/sleeping overlays) every 30 seconds
+    // Poll for overlay status (sprinkler/sleeping) every 15 seconds.
+    // Try the Pi directly for real-time state; fall back to site_data.json.
+    const piBaseUrl = getPiBaseUrl(data);
     setInterval(async () => {
+        if (piBaseUrl) {
+            const overlay = await pollOverlayStatus(piBaseUrl);
+            if (overlay) {
+                updateHudStatus(overlay);
+                return;
+            }
+        }
         const fresh = await loadSiteData();
         if (fresh) updateHudStatus(fresh);
     }, 15000);

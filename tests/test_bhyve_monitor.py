@@ -595,3 +595,128 @@ class TestLoginUserId:
         with patch("requests.post", return_value=mock_resp):
             m._login()
         assert m._user_id == "nested_uid"
+
+
+# ---------------------------------------------------------------------------
+# Callback filtering by watch_station
+# ---------------------------------------------------------------------------
+
+class TestCallbackFiltering:
+    def test_start_callback_fires_for_watched_station(self):
+        m = _make_monitor(watch_station=1)
+        cb = MagicMock()
+        m._on_spray_start = cb
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 1,
+        })
+        cb.assert_called_once_with("1")
+
+    def test_start_callback_skipped_for_unwatched_station(self):
+        m = _make_monitor(watch_station=1)
+        cb = MagicMock()
+        m._on_spray_start = cb
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 2,
+        })
+        cb.assert_not_called()
+        # Device should still be tracked in _active
+        assert "dev1" in m._active
+        assert m._active["dev1"]["station"] == 2
+
+    def test_stop_callback_fires_for_watched_station(self):
+        m = _make_monitor(watch_station=1)
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": 0.0}
+        cb = MagicMock()
+        m._on_spray_stop = cb
+        m._handle_event({"event": "watering_complete", "device_id": "dev1"})
+        cb.assert_called_once_with("1")
+
+    def test_stop_callback_skipped_for_unwatched_station(self):
+        m = _make_monitor(watch_station=1)
+        m._active["dev1"] = {"mode": "auto", "station": 2, "started_at": 0.0}
+        cb = MagicMock()
+        m._on_spray_stop = cb
+        m._handle_event({"event": "watering_complete", "device_id": "dev1"})
+        cb.assert_not_called()
+
+    def test_transition_to_watched_fires_start(self):
+        """Device already active on zone 2, update to zone 1 fires start."""
+        m = _make_monitor(watch_station=1)
+        start_cb = MagicMock()
+        m._on_spray_start = start_cb
+        m._active["dev1"] = {"mode": "auto", "station": 2, "started_at": 0.0}
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 1,
+        })
+        start_cb.assert_called_once_with("1")
+        assert m._active["dev1"]["station"] == 1
+
+    def test_transition_from_watched_fires_stop(self):
+        """Device active on zone 1, update to zone 2 fires stop."""
+        m = _make_monitor(watch_station=1)
+        stop_cb = MagicMock()
+        m._on_spray_stop = stop_cb
+        m._active["dev1"] = {"mode": "auto", "station": 1, "started_at": 0.0}
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 2,
+        })
+        stop_cb.assert_called_once_with("1")
+        assert m._active["dev1"]["station"] == 2
+
+    def test_callbacks_fire_for_any_station_when_watch_none(self):
+        m = _make_monitor(watch_station=None)
+        start_cb = MagicMock()
+        stop_cb = MagicMock()
+        m._on_spray_start = start_cb
+        m._on_spray_stop = stop_cb
+        m._handle_event({
+            "event": "watering_in_progress_notification",
+            "device_id": "dev1",
+            "current_station": 3,
+        })
+        start_cb.assert_called_once_with("3")
+        m._handle_event({"event": "watering_complete", "device_id": "dev1"})
+        stop_cb.assert_called_once_with("3")
+
+    def test_initial_state_callback_respects_watch_station(self):
+        m = _make_monitor(watch_station=1)
+        cb = MagicMock()
+        m._on_spray_start = cb
+        m._token = "tok"
+        m._user_id = "uid"
+        # Device watering on zone 2 — callback should NOT fire
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [{
+            "id": "dev1", "type": "sprinkler_timer", "name": "Test",
+            "status": {"watering_status": {"stations": [{"station": 2}]}},
+        }]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        cb.assert_not_called()
+        # Device is still tracked in _active
+        assert "dev1" in m._active
+
+    def test_initial_state_callback_fires_for_watched(self):
+        m = _make_monitor(watch_station=1)
+        cb = MagicMock()
+        m._on_spray_start = cb
+        m._token = "tok"
+        m._user_id = "uid"
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = [{
+            "id": "dev1", "type": "sprinkler_timer", "name": "Test",
+            "status": {"watering_status": {"stations": [{"station": 1}]}},
+        }]
+        mock_resp.raise_for_status = MagicMock()
+        with patch("requests.get", return_value=mock_resp):
+            m._discover_devices()
+        cb.assert_called_once_with("1")

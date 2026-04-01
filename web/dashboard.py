@@ -33,7 +33,7 @@ _monitor = None
 _watering_scheduler = None
 
 # Routes that are always public (live camera feed, gallery, SSE events)
-_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events"}
+_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events", "/api/overlay-status"}
 
 # Simple in-memory rate limiter for failed auth attempts
 _AUTH_FAIL_WINDOW = 300  # 5 minutes
@@ -1463,6 +1463,31 @@ def sse_events():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.route("/api/overlay-status")
+def api_overlay_status():
+    """Lightweight public endpoint for real-time overlay state.
+
+    The public website polls this directly via Tailscale Funnel to bypass
+    the SiteGround sync delay for sprinkler/sleeping status.
+    """
+    from schedule import is_daytime
+
+    bm = getattr(_monitor, "bhyve_monitor", None) if _monitor else None
+    spraying = bool(bm and bm.is_spraying)
+    sleeping = bool(_monitor and getattr(_monitor, "_sleeping", False))
+    # Fall back to time-based sleeping if monitor isn't available
+    if not _monitor:
+        sleeping = not is_daytime()
+
+    resp = jsonify({
+        "sprinkler_active": spraying,
+        "sleeping": sleeping,
+    })
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 
 @app.route("/compose")
