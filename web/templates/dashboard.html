@@ -616,6 +616,48 @@
             </div>
         </div>
 
+        {% if is_admin and social_engagement and social_engagement.post_count > 0 %}
+        <div class="section">
+            <h2>Social Performance (30 Days)</h2>
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="label">Posts</div>
+                    <div class="value green">{{ social_engagement.post_count }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Likes</div>
+                    <div class="value green">{{ social_engagement.total_likes }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Shares</div>
+                    <div class="value yellow">{{ social_engagement.total_shares }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Comments</div>
+                    <div class="value yellow">{{ social_engagement.total_comments }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Reach</div>
+                    <div class="value" style="color: #b08ad4;">{{ social_engagement.total_reach }}</div>
+                </div>
+            </div>
+            {% if follower_history %}
+            <div style="margin-top: 15px; font-size: 0.85em; color: #a3b8a6;">
+                <strong>Latest Followers:</strong>
+                {% set ns = namespace(platforms={}) %}
+                {% for snap in follower_history | reverse %}
+                    {% if snap.platform not in ns.platforms %}
+                        {% set _ = ns.platforms.update({snap.platform: snap.follower_count}) %}
+                    {% endif %}
+                {% endfor %}
+                {% for platform, count in ns.platforms.items() %}
+                <span style="margin-right: 15px;">{{ platform | capitalize }}: <span style="color: #e8f0ea; font-weight: bold;">{{ count }}</span></span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if status.bhyve %}
         <div class="section" id="section-watering-schedule">
             <h2>Watering Schedule</h2>

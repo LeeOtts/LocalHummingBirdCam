@@ -416,12 +416,23 @@ def _get_recent_logs(limit=50):
 
 @app.route("/")
 def dashboard():
+    is_admin = not config.WEB_PASSWORD or (
+        request.authorization and request.authorization.password == config.WEB_PASSWORD
+    )
+    social_engagement = None
+    follower_history = None
+    if is_admin and _monitor and _monitor.sightings_db:
+        social_engagement = _monitor.sightings_db.get_engagement_summary(days=30)
+        follower_history = _monitor.sightings_db.get_follower_history(days=90)
     return render_template(
         "dashboard.html",
         status=_get_status(),
         clips=_get_recent_clips(),
         logs=_get_recent_logs(),
         video_width=config.VIDEO_WIDTH,
+        is_admin=is_admin,
+        social_engagement=social_engagement,
+        follower_history=follower_history,
     )
 
 

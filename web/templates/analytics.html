@@ -237,6 +237,28 @@
         <!-- Feeder Management Section -->
         <div class="chart-section" style="border-color: #4caf50;">
             <h2>Feeder Management</h2>
+            {% if analytics.feeder_stats %}
+            <div class="stats-grid" style="margin-bottom: 20px;">
+                <div class="stat-card">
+                    <div class="label">Days Since Refill</div>
+                    <div class="value" style="color: {{ '#e05535' if analytics.feeder_stats.days_since_refill is not none and analytics.feeder_stats.days_since_refill > 5 else '#f0c040' if analytics.feeder_stats.days_since_refill is not none and analytics.feeder_stats.days_since_refill > 3 else '#4caf50' }};">
+                        {{ analytics.feeder_stats.days_since_refill if analytics.feeder_stats.days_since_refill is not none else 'N/A' }}
+                    </div>
+                    {% if analytics.feeder_stats.days_since_refill is not none %}
+                    <div class="sub">days</div>
+                    {% endif %}
+                </div>
+                <div class="stat-card">
+                    <div class="label">Active Feeders</div>
+                    <div class="value">{{ analytics.feeder_stats.feeder_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Nectar Produced</div>
+                    <div class="value" style="font-size:1.3em;">{{ analytics.feeder_stats.nectar_produced_oz }}</div>
+                    <div class="sub">oz (last 30 days)</div>
+                </div>
+            </div>
+            {% endif %}
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
                 <!-- Log Refill -->
                 <div>

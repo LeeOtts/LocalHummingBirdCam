@@ -95,8 +95,6 @@ def get_analytics_summary(db) -> dict:
         "quiet_periods": get_quiet_periods(db),
         "prediction_accuracy": db.get_prediction_accuracy(days=30),
         "feeder_stats": db.get_feeder_stats(days=30),
-        "social_engagement": db.get_engagement_summary(days=30),
-        "follower_history": db.get_follower_history(days=90),
         "sunrise_offset_avg_min": db.get_sunrise_offset_avg(days=30),
     }
 
