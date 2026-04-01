@@ -636,18 +636,6 @@ function populateFeederStats(feeder) {
 }
 
 /**
- * Populate social engagement stats
- */
-function populateSocialEngagement(engagement) {
-    if (!engagement) return;
-    const el = (id) => document.getElementById(id);
-    el('totalLikes').textContent = (engagement.total_likes || 0).toLocaleString();
-    el('totalShares').textContent = (engagement.total_shares || 0).toLocaleString();
-    el('totalComments').textContent = (engagement.total_comments || 0).toLocaleString();
-    el('postsTracked').textContent = engagement.post_count || 0;
-}
-
-/**
  * Populate prediction accuracy
  */
 function populatePredictionAccuracy(accuracy) {
@@ -721,7 +709,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderWeatherCorrelationChart(data.weather_correlations);
         populateSprinklerEffect(data.sprinkler_effect);
         populateFeederStats(data.feeder_stats);
-        populateSocialEngagement(data.social_engagement);
         populatePredictionAccuracy(data.prediction_accuracy);
         populateQuietPeriods(data.quiet_periods);
     } catch (e) {
