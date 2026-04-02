@@ -49,7 +49,14 @@ PYTHON="${PROJECT_DIR}/.venv/bin/python3"
 [ -x "$PYTHON" ] || PYTHON="python3"
 "$PYTHON" scripts/generate_site_data.py || echo "[$(date)] WARNING: site data generation failed"
 
-# Step 2: Sync static website files (HTML/CSS/JS/img — only transfers changed files)
+# Step 2: Cache-bust CSS/JS references in index.html before syncing.
+# Uses the short git hash so the version changes on every deploy.
+CACHE_VER=$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo "$(date +%s)")
+echo "[$(date)] Cache-busting static assets (v=$CACHE_VER)..."
+sed -i "s/style\.css?v=[^\"']*/style.css?v=${CACHE_VER}/g; s/app\.js?v=[^\"']*/app.js?v=${CACHE_VER}/g" \
+    "$PROJECT_DIR/website/index.html"
+
+# Step 3: Sync static website files (HTML/CSS/JS/img — only transfers changed files)
 echo "[$(date)] Syncing website files..."
 rsync -az -e "ssh ${SSH_OPTS}" --timeout=60 \
     --exclude='data/site_data.json' \
@@ -57,7 +64,10 @@ rsync -az -e "ssh ${SSH_OPTS}" --timeout=60 \
     "$PROJECT_DIR/website/" \
     "${REMOTE}:${REMOTE_PATH}/"
 
-# Step 3: Sync site_data.json
+# Restore index.html so git stays clean
+git -C "$PROJECT_DIR" checkout -- "$PROJECT_DIR/website/index.html" 2>/dev/null || true
+
+# Step 4: Sync site_data.json
 if [ -f "$SITE_DATA" ]; then
     echo "[$(date)] Syncing site_data.json..."
     rsync -az -e "ssh ${SSH_OPTS}" --timeout=30 \
