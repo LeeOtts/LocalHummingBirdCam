@@ -191,10 +191,10 @@ def predict_season_arrival(db) -> dict | None:
     avg_season_length = round(mean(season_lengths)) if season_lengths else None
 
     # Determine if we're currently in season.
-    # Requires a current-year record with first_visit AND we must be between
-    # first_visit and last_visit.  If last_visit is not set yet, use the
-    # historical average season length as the upper bound so we don't show
-    # "in season" indefinitely when the last_visit hasn't been recorded.
+    # Requires BOTH a current-year season record AND recent actual detections.
+    # A season record alone isn't enough — someone may have entered a
+    # first_visit date speculatively, or the season may have ended without
+    # the last_visit being recorded yet.
     current_year_season = next((s for s in seasons if s["year"] == now.year), None)
     in_season = False
     if current_year_season and current_year_season["first_visit"]:
@@ -202,10 +202,11 @@ def predict_season_arrival(db) -> dict | None:
         if current_year_season["last_visit"]:
             last_dt = datetime.strptime(current_year_season["last_visit"], "%Y-%m-%d").date()
             in_season = first_dt <= now.date() <= last_dt
-        elif avg_season_length:
-            # No last_visit yet — estimate end from average season length + 30-day buffer
-            estimated_end = first_dt + timedelta(days=avg_season_length + 30)
-            in_season = first_dt <= now.date() <= estimated_end
+        elif now.date() >= first_dt:
+            # No last_visit yet — only mark in-season if there have been
+            # actual detections recently (at least 1 in the last 14 days)
+            recent = db.get_sightings(days=14, limit=1)
+            in_season = len(recent) > 0
 
     return {
         "predicted_date": predicted.strftime("%Y-%m-%d"),
