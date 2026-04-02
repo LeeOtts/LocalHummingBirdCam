@@ -58,7 +58,7 @@ sed -i "s/style\.css?v=[^\"']*/style.css?v=${CACHE_VER}/g; s/app\.js?v=[^\"']*/a
 
 # Step 3: Sync static website files (HTML/CSS/JS/img — only transfers changed files)
 echo "[$(date)] Syncing website files..."
-rsync -az -e "ssh ${SSH_OPTS}" --timeout=60 \
+rsync -az --delete -e "ssh ${SSH_OPTS}" --timeout=60 \
     --exclude='data/site_data.json' \
     --exclude='clips/' \
     "$PROJECT_DIR/website/" \
