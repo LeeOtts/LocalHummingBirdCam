@@ -298,6 +298,12 @@ function renderSeasonData(data) {
     const pred = data.season_prediction;
     if (!pred) return;
 
+    // Compute days_until client-side so it's never stale
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const predDate = new Date(pred.predicted_date + 'T00:00:00');
+    const daysUntil = Math.round((predDate - today) / 86400000);
+
     const predSection = document.getElementById('seasonPredictionSection');
     const predContent = document.getElementById('seasonPredictionContent');
     if (!predSection || !predContent) return;
@@ -307,12 +313,12 @@ function renderSeasonData(data) {
             <span class="metric-value" style="color:#5cb84c;">Season is Active!</span>
             ${pred.avg_season_length_days ? `<div style="color:var(--text-muted); margin-top:8px;">Average season length: ${pred.avg_season_length_days} days</div>` : ''}
         `;
-    } else if (pred.days_until > 0) {
+    } else if (daysUntil > 0) {
         predContent.innerHTML = `
             <div style="color:var(--text-muted); margin-bottom:8px; font-size:0.95em; text-transform:uppercase; letter-spacing:1px;">Hummingbirds typically arrive around</div>
             <span class="metric-value" style="color: var(--green-bright);">${pred.predicted_display}</span>
             <div style="margin-top:12px;">
-                <span style="color:#e74c3c; font-size:1.5em; font-weight:700;">${pred.days_until} days to go!</span>
+                <span style="color:#e74c3c; font-size:1.5em; font-weight:700;">${daysUntil} days to go!</span>
             </div>
             <div style="color:var(--text-muted); margin-top:8px; font-size:0.85em;">
                 Based on ${pred.based_on_years} years of data (earliest: ${pred.earliest_display}, latest: ${pred.latest_display})

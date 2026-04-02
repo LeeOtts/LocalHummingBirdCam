@@ -159,6 +159,8 @@ def predict_season_arrival(db) -> dict | None:
     first_doys = []
     season_lengths = []
     for s in seasons:
+        if s["year"] == now.year:
+            continue
         if s["first_visit"]:
             dt = datetime.strptime(s["first_visit"], "%Y-%m-%d")
             first_doys.append(dt.timetuple().tm_yday)
@@ -236,6 +238,8 @@ def predict_season_end(db) -> dict | None:
 
     last_doys = []
     for s in seasons:
+        if s["year"] == now.year:
+            continue
         if s["last_visit"]:
             dt = datetime.strptime(s["last_visit"], "%Y-%m-%d")
             last_doys.append(dt.timetuple().tm_yday)
