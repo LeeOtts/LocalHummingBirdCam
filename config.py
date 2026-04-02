@@ -163,6 +163,8 @@ BHYVE_RUN_MINUTES = max(1, min(BHYVE_RUN_MINUTES, min(BHYVE_MAX_RUN_MINUTES, 60)
 BHYVE_SCHEDULE_ENABLED = os.getenv("BHYVE_SCHEDULE_ENABLED", "true").lower() in ("true", "1", "yes")
 BHYVE_SCHEDULE_OFFSET_HOURS = int(os.getenv("BHYVE_SCHEDULE_OFFSET_HOURS", "3"))
 BHYVE_SCHEDULE_INTERVAL_HOURS = int(os.getenv("BHYVE_SCHEDULE_INTERVAL_HOURS", "3"))
+# Season gate — schedule only runs when birds have arrived (toggled from dashboard)
+BHYVE_SEASON_STARTED = os.getenv("BHYVE_SEASON_STARTED", "false").lower() in ("true", "1", "yes")
 
 # Web dashboard
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")

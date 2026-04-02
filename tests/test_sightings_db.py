@@ -298,6 +298,17 @@ class TestWateringEvents:
     def test_empty_events(self, db):
         assert db.get_watering_events(days=1) == []
 
+    def test_clear_watering_events(self, db):
+        db.record_watering_start(zone="1")
+        db.record_watering_start(zone="2")
+        assert len(db.get_watering_events(days=1)) == 2
+        deleted = db.clear_watering_events()
+        assert deleted == 2
+        assert db.get_watering_events(days=1) == []
+
+    def test_clear_empty(self, db):
+        assert db.clear_watering_events() == 0
+
 
 class TestEngagementDB:
     """Test social engagement DB operations."""

@@ -29,12 +29,28 @@ class TestEnabled:
     def test_enabled_true(self, monkeypatch):
         import config
         monkeypatch.setattr(config, "BHYVE_SCHEDULE_ENABLED", True)
+        monkeypatch.setattr(config, "BHYVE_SEASON_STARTED", True)
         s = _make_scheduler()
         assert s.enabled is True
 
     def test_enabled_false(self, monkeypatch):
         import config
         monkeypatch.setattr(config, "BHYVE_SCHEDULE_ENABLED", False)
+        monkeypatch.setattr(config, "BHYVE_SEASON_STARTED", True)
+        s = _make_scheduler()
+        assert s.enabled is False
+
+    def test_disabled_when_season_not_started(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "BHYVE_SCHEDULE_ENABLED", True)
+        monkeypatch.setattr(config, "BHYVE_SEASON_STARTED", False)
+        s = _make_scheduler()
+        assert s.enabled is False
+
+    def test_disabled_when_both_false(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "BHYVE_SCHEDULE_ENABLED", False)
+        monkeypatch.setattr(config, "BHYVE_SEASON_STARTED", False)
         s = _make_scheduler()
         assert s.enabled is False
 
@@ -166,6 +182,7 @@ class TestNextWatering:
     def test_returns_next_future_slot(self, monkeypatch):
         import config
         monkeypatch.setattr(config, "BHYVE_SCHEDULE_ENABLED", True)
+        monkeypatch.setattr(config, "BHYVE_SEASON_STARTED", True)
         monkeypatch.setattr(config, "LOCATION_TIMEZONE", "US/Central")
 
         s = _make_scheduler()
@@ -181,6 +198,7 @@ class TestNextWatering:
     def test_returns_none_when_all_slots_past(self, monkeypatch):
         import config
         monkeypatch.setattr(config, "BHYVE_SCHEDULE_ENABLED", True)
+        monkeypatch.setattr(config, "BHYVE_SEASON_STARTED", True)
         monkeypatch.setattr(config, "LOCATION_TIMEZONE", "US/Central")
 
         s = _make_scheduler()

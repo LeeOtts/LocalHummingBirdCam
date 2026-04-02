@@ -661,6 +661,15 @@
         {% if status.bhyve %}
         <div class="section" id="section-watering-schedule">
             <h2>Watering Schedule</h2>
+            <div id="season-gate" style="margin-bottom: 12px; padding: 10px 16px; background: #1a2e20; border: 1px solid {{ '#2e7d32' if status.bhyve.season_started else '#e05535' }}; border-radius: 6px; display: flex; align-items: center; gap: 12px;">
+                <label style="font-size: 0.95em; color: #e8f0ea; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="chk-season-started"
+                           {{ 'checked' if status.bhyve.season_started }}
+                           onchange="toggleSeasonStarted(this.checked)"
+                           style="width: 18px; height: 18px; cursor: pointer;">
+                    <span id="season-label">{{ 'Birds have arrived — season active' if status.bhyve.season_started else 'Season not started — watering paused' }}</span>
+                </label>
+            </div>
             <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start;">
                 <div class="status-card" style="flex: 1; min-width: 200px;">
                     <div class="label">Schedule</div>
@@ -719,6 +728,14 @@
                             </select>
                         </div>
                     </div>
+                </div>
+                <div class="status-card" style="flex: 0; min-width: 120px; text-align: center;">
+                    <div class="label">Metrics</div>
+                    <button onclick="resetWateringMetrics()"
+                            style="background:#e05535; color:#fff; border:none; border-radius:4px; padding:6px 14px; font-size:0.85em; cursor:pointer; margin-top: 12px;">
+                        Reset
+                    </button>
+                    <div style="font-size: 0.7em; color: #a3b8a6; margin-top: 6px;">Clear watering history</div>
                 </div>
             </div>
         </div>
@@ -941,6 +958,15 @@
                         if (nextW) nextW.textContent = d.bhyve.next_watering || '—';
                         const todayTimes = el('stat-todays-times');
                         if (todayTimes) todayTimes.textContent = d.bhyve.todays_schedule && d.bhyve.todays_schedule.length ? d.bhyve.todays_schedule.join(', ') : 'No waterings scheduled';
+                        // Season gate toggle
+                        const chkSeason = document.getElementById('chk-season-started');
+                        if (chkSeason) chkSeason.checked = !!d.bhyve.season_started;
+                        const seasonLabel = el('season-label');
+                        if (seasonLabel) seasonLabel.textContent = d.bhyve.season_started
+                            ? 'Birds have arrived — season active'
+                            : 'Season not started — watering paused';
+                        const seasonGate = document.getElementById('season-gate');
+                        if (seasonGate) seasonGate.style.borderColor = d.bhyve.season_started ? '#2e7d32' : '#e05535';
                         // Show watering overlay on feed when spraying
                         window._bhyveSpraying = !!d.bhyve.spraying;
                     }
@@ -1518,6 +1544,32 @@
                 pollStatus();
             })
             .catch(() => showToast('Schedule update failed'));
+        }
+
+        function toggleSeasonStarted(checked) {
+            fetch('/api/bhyve/schedule', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({season_started: checked})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast(checked ? 'Season started — watering enabled' : 'Season paused — watering disabled');
+                else showToast('Failed to update');
+                pollStatus();
+            })
+            .catch(() => showToast('Failed to update season status'));
+        }
+
+        function resetWateringMetrics() {
+            if (!confirm('Clear all watering event history? This cannot be undone.')) return;
+            fetch('/api/bhyve/watering-events', { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) showToast('Cleared ' + data.deleted + ' watering events');
+                else showToast('Failed to clear: ' + (data.error || 'unknown'));
+            })
+            .catch(() => showToast('Failed to clear watering events'));
         }
 
         function checkForUpdate() {

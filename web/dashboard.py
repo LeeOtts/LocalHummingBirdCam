@@ -327,6 +327,7 @@ def _get_status():
             "can_control": can_control,
             "device_id": bm.device_id,
             "schedule_enabled": config.BHYVE_SCHEDULE_ENABLED,
+            "season_started": config.BHYVE_SEASON_STARTED,
             "schedule_interval_hours": config.BHYVE_SCHEDULE_INTERVAL_HOURS,
             "schedule_offset_hours": config.BHYVE_SCHEDULE_OFFSET_HOURS,
             "run_minutes": config.BHYVE_RUN_MINUTES,
@@ -343,6 +344,7 @@ def _get_status():
             "can_control": False,
             "device_id": None,
             "schedule_enabled": config.BHYVE_SCHEDULE_ENABLED,
+            "season_started": config.BHYVE_SEASON_STARTED,
             "schedule_interval_hours": config.BHYVE_SCHEDULE_INTERVAL_HOURS,
             "schedule_offset_hours": config.BHYVE_SCHEDULE_OFFSET_HOURS,
             "run_minutes": config.BHYVE_RUN_MINUTES,
@@ -846,6 +848,23 @@ def bhyve_schedule():
         config.BHYVE_SCHEDULE_ENABLED = val
         _update_env_value("BHYVE_SCHEDULE_ENABLED", "true" if val else "false")
 
+    if "season_started" in data:
+        val = bool(data["season_started"])
+        config.BHYVE_SEASON_STARTED = val
+        _update_env_value("BHYVE_SEASON_STARTED", "true" if val else "false")
+        # Auto-record first_visit for current year when season starts
+        if val and _monitor and _monitor.sightings_db:
+            from datetime import date as _date
+            today = _date.today()
+            seasons = _monitor.sightings_db.get_season_dates()
+            current = [s for s in seasons if s["year"] == today.year]
+            if not current or not current[0].get("first_visit"):
+                _monitor.sightings_db.upsert_season_date(
+                    today.year, today.isoformat(), None
+                )
+                logger.info("Season started: auto-set first_visit for %d to %s",
+                            today.year, today.isoformat())
+
     if "interval_hours" in data:
         val = max(1, min(int(data["interval_hours"]), 12))
         config.BHYVE_SCHEDULE_INTERVAL_HOURS = val
@@ -871,10 +890,21 @@ def bhyve_schedule():
     return {
         "ok": True,
         "schedule_enabled": config.BHYVE_SCHEDULE_ENABLED,
+        "season_started": config.BHYVE_SEASON_STARTED,
         "schedule_interval_hours": config.BHYVE_SCHEDULE_INTERVAL_HOURS,
         "schedule_offset_hours": config.BHYVE_SCHEDULE_OFFSET_HOURS,
         "run_minutes": config.BHYVE_RUN_MINUTES,
     }
+
+
+@app.route("/api/bhyve/watering-events", methods=["DELETE"])
+def bhyve_clear_watering_events():
+    """Clear all watering event history."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "No database available"}, 503
+    count = _monitor.sightings_db.clear_watering_events()
+    logger.info("Cleared %d watering events", count)
+    return {"ok": True, "deleted": count}
 
 
 @app.route("/api/memory", methods=["GET"])

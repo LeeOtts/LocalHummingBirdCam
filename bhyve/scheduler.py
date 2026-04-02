@@ -48,7 +48,7 @@ class WateringScheduler:
 
     @property
     def enabled(self) -> bool:
-        return config.BHYVE_SCHEDULE_ENABLED
+        return config.BHYVE_SCHEDULE_ENABLED and config.BHYVE_SEASON_STARTED
 
     @property
     def todays_schedule(self) -> list[datetime]:
@@ -147,8 +147,8 @@ class WateringScheduler:
     def _run(self):
         """Main scheduler loop — sleep until each slot, then water."""
         while self._running:
-            if not config.BHYVE_SCHEDULE_ENABLED:
-                # Disabled — check again in 60s (or wake on recalculate)
+            if not self.enabled:
+                # Disabled or season not started — check again in 60s
                 self._wake.wait(timeout=60)
                 self._wake.clear()
                 continue
@@ -186,7 +186,7 @@ class WateringScheduler:
                     break
 
             # Re-check: is it still enabled? Did the schedule change?
-            if not config.BHYVE_SCHEDULE_ENABLED:
+            if not self.enabled:
                 continue
             now = self._now()
             # Allow a 2-minute window around the slot

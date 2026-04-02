@@ -1038,6 +1038,17 @@ class SightingsDB:
             finally:
                 conn.close()
 
+    def clear_watering_events(self) -> int:
+        """Delete all watering events. Returns number of rows deleted."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                cur = conn.execute("DELETE FROM watering_events")
+                conn.commit()
+                return cur.rowcount
+            finally:
+                conn.close()
+
     # ------------------------------------------------------------------
     # Social engagement
     # ------------------------------------------------------------------
