@@ -380,6 +380,49 @@
             <span style="font-size:1.2em; font-weight:bold; color:#4caf50;" id="sseText">Hummingbird detected!</span>
         </div>
 
+        {% if analytics and analytics.season_prediction %}
+        <div class="section" style="border: 2px solid {{ '#4caf50' if analytics.season_prediction.in_season else '#c4392a' }}; border-radius: 10px; padding: 25px; text-align: center; margin-bottom: 20px;">
+            {% if analytics.season_prediction.in_season %}
+            <h2 style="color: #d4a017;">Season Departure Estimate</h2>
+            {% if analytics.end_season_prediction %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically depart around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.end_season_prediction.predicted_last_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 8px;">
+                {% if analytics.end_season_prediction.days_until_last > 0 %}
+                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">~{{ analytics.end_season_prediction.days_until_last }} days remaining</span><br>
+                {% else %}
+                <span style="color: #e05535; font-size: 1.2em; font-weight: bold;">Season may end any day now</span><br>
+                {% endif %}
+                Based on {{ analytics.end_season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.end_season_prediction.earliest_last_display }}, latest: {{ analytics.end_season_prediction.latest_last_display }})
+            </div>
+            {% else %}
+            <div style="font-size: 2em; font-weight: bold; color: #4caf50; margin-top: 10px;">Season is Active!</div>
+            {% if analytics.season_prediction.avg_season_length_days %}
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">Average season length: {{ analytics.season_prediction.avg_season_length_days }} days</div>
+            {% endif %}
+            {% endif %}
+            {% elif analytics.season_prediction.days_until > 0 %}
+            <h2 style="color: #c4392a;">Season Arrival Prediction</h2>
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 8px;">
+                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">{{ analytics.season_prediction.days_until }} days to go!</span><br>
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% else %}
+            <h2 style="color: #c4392a;">Season Arrival Prediction</h2>
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="live-feed">
             <h2>Live Camera Feed</h2>
             <div class="feed-container">
@@ -698,33 +741,6 @@
         {% endif %}
 
         {% if analytics %}
-        {% if analytics.season_prediction %}
-        <div class="section" style="border: 2px solid #c4392a; border-radius: 10px; padding: 25px; text-align: center;">
-            <h2 style="color: #c4392a;">Season Arrival Prediction</h2>
-            {% if analytics.season_prediction.in_season %}
-            <div style="font-size: 2em; font-weight: bold; color: #4caf50; margin-top: 10px;">Season is Active!</div>
-            {% if analytics.season_prediction.avg_season_length_days %}
-            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">Average season length: {{ analytics.season_prediction.avg_season_length_days }} days</div>
-            {% endif %}
-            {% elif analytics.season_prediction.days_until > 0 %}
-            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
-            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
-            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 8px;">
-                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">{{ analytics.season_prediction.days_until }} days to go!</span><br>
-                Based on {{ analytics.season_prediction.based_on_years }} years of data
-                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
-            </div>
-            {% else %}
-            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
-            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
-            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">
-                Based on {{ analytics.season_prediction.based_on_years }} years of data
-                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-
         {% if analytics.season_dates %}
         <div class="section">
             <h2>Season History</h2>
