@@ -19,7 +19,7 @@ except ImportError:
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
 DB_PATH = config.BASE_DIR / "data" / "sightings.db"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SightingsDB:
@@ -191,6 +191,8 @@ class SightingsDB:
                     ("species_confidence", "REAL"),
                     ("moon_phase", "REAL"),
                     ("sunrise_offset_min", "INTEGER"),
+                    ("synced", "INTEGER DEFAULT 0"),
+                    ("synced_at", "TEXT"),
                 ]
                 for col_name, col_type in _new_columns:
                     try:
@@ -208,6 +210,7 @@ class SightingsDB:
                 for idx_sql in [
                     "CREATE INDEX IF NOT EXISTS idx_sightings_behavior ON sightings(behavior)",
                     "CREATE INDEX IF NOT EXISTS idx_sightings_species ON sightings(species)",
+                    "CREATE INDEX IF NOT EXISTS idx_sightings_synced ON sightings(synced)",
                     "CREATE INDEX IF NOT EXISTS idx_follower_snapshots_ts ON follower_snapshots(timestamp)",
                 ]:
                     conn.execute(idx_sql)
@@ -219,9 +222,13 @@ class SightingsDB:
                                  (SCHEMA_VERSION,))
                 else:
                     current_ver = row[0]
-                    # Future migrations go here:
-                    # if current_ver < 2:
-                    #     conn.execute("ALTER TABLE ...")
+                    # Migration: add sync tracking columns
+                    if current_ver < 2:
+                        for col, ctype in [("synced", "INTEGER DEFAULT 0"), ("synced_at", "TEXT")]:
+                            try:
+                                conn.execute(f"ALTER TABLE sightings ADD COLUMN {col} {ctype}")
+                            except sqlite3.OperationalError:
+                                pass
                     if current_ver < SCHEMA_VERSION:
                         conn.execute("UPDATE schema_version SET version = ?",
                                      (SCHEMA_VERSION,))
@@ -549,6 +556,48 @@ class SightingsDB:
             finally:
                 conn.close()
 
+    # ── Sync tracking ─────────────────────────────────────────────
+
+    def get_unsynced_clips(self) -> list:
+        """Return clip filenames that have not been confirmed on the remote server."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                rows = conn.execute(
+                    "SELECT clip_filename FROM sightings "
+                    "WHERE synced = 0 AND clip_filename IS NOT NULL AND clip_filename != ''",
+                ).fetchall()
+                return [r["clip_filename"] for r in rows]
+            finally:
+                conn.close()
+
+    def mark_synced(self, clip_filename: str):
+        """Mark a clip as confirmed on the remote server."""
+        now = datetime.now(tz=_local_tz).isoformat()
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "UPDATE sightings SET synced = 1, synced_at = ? WHERE clip_filename = ?",
+                    (now, clip_filename),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def mark_clip_deleted(self, clip_filename: str):
+        """Mark a clip as deleted (nulls filename so it drops from website exports)."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "UPDATE sightings SET clip_filename = NULL WHERE clip_filename = ?",
+                    (clip_filename,),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
     def export_for_website(self, sprinkler_active: bool = False) -> dict:
         """Export all data needed for the public website's site_data.json."""
         import json as _json
@@ -578,19 +627,21 @@ class SightingsDB:
         sightings = self.get_sightings(days=90, limit=100)
         clips = []
         for s in sightings:
+            fname = s.get("clip_filename") or ""
+            if not fname:
+                continue  # clip was deleted — skip
             platforms = []
             try:
                 platforms = _json.loads(s.get("posted_to") or "[]")
             except (ValueError, TypeError):
                 pass
             clips.append({
-                "filename": s.get("clip_filename", ""),
+                "filename": fname,
                 "timestamp": s.get("timestamp", ""),
                 "caption": s.get("caption", ""),
                 "confidence": s.get("confidence"),
                 "platforms_posted": platforms,
-                "thumbnail": (s.get("clip_filename", "").replace(".mp4", "_thumb.jpg")
-                              if s.get("clip_filename") else ""),
+                "thumbnail": fname.replace(".mp4", "_thumb.jpg"),
             })
 
         # Hourly pattern as 24-element array

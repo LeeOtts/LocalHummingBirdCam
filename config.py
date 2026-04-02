@@ -181,6 +181,7 @@ WEBSITE_SYNC_ENABLED = os.getenv("WEBSITE_SYNC_ENABLED", "false").lower() in ("t
 WEBSITE_REMOTE_HOST = os.getenv("WEBSITE_REMOTE_HOST", "")  # SiteGround SSH hostname
 WEBSITE_REMOTE_USER = os.getenv("WEBSITE_REMOTE_USER", "")  # SiteGround SSH username
 WEBSITE_REMOTE_PATH = os.getenv("WEBSITE_REMOTE_PATH", "public_html")  # Remote path
+WEBSITE_REMOTE_PORT = int(os.getenv("WEBSITE_REMOTE_PORT", "22"))  # SSH port
 WEBSITE_LIVE_FEED_URL = os.getenv("WEBSITE_LIVE_FEED_URL", "")  # Tailscale Funnel URL for live feed
 WEBSITE_DATA_DIR = BASE_DIR / "website" / "data"
 

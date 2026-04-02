@@ -367,8 +367,6 @@
 
     <nav style="text-align:center; padding:12px; background:rgba(13,26,18,0.95); backdrop-filter:blur(10px); border-bottom:1px solid #1e3625;">
         <a href="/" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Dashboard</a>
-        <a href="/gallery" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Gallery</a>
-        <a href="/analytics" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Analytics</a>
         <a href="/compose" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; padding:0.5rem 1rem; border-radius:8px;">Compose</a>
     </nav>
 
@@ -616,48 +614,6 @@
             </div>
         </div>
 
-        {% if is_admin and social_engagement and social_engagement.post_count > 0 %}
-        <div class="section">
-            <h2>Social Performance (30 Days)</h2>
-            <div class="status-grid">
-                <div class="status-card">
-                    <div class="label">Posts</div>
-                    <div class="value green">{{ social_engagement.post_count }}</div>
-                </div>
-                <div class="status-card">
-                    <div class="label">Likes</div>
-                    <div class="value green">{{ social_engagement.total_likes }}</div>
-                </div>
-                <div class="status-card">
-                    <div class="label">Shares</div>
-                    <div class="value yellow">{{ social_engagement.total_shares }}</div>
-                </div>
-                <div class="status-card">
-                    <div class="label">Comments</div>
-                    <div class="value yellow">{{ social_engagement.total_comments }}</div>
-                </div>
-                <div class="status-card">
-                    <div class="label">Reach</div>
-                    <div class="value" style="color: #b08ad4;">{{ social_engagement.total_reach }}</div>
-                </div>
-            </div>
-            {% if follower_history %}
-            <div style="margin-top: 15px; font-size: 0.85em; color: #a3b8a6;">
-                <strong>Latest Followers:</strong>
-                {% set ns = namespace(platforms={}) %}
-                {% for snap in follower_history | reverse %}
-                    {% if snap.platform not in ns.platforms %}
-                        {% set _ = ns.platforms.update({snap.platform: snap.follower_count}) %}
-                    {% endif %}
-                {% endfor %}
-                {% for platform, count in ns.platforms.items() %}
-                <span style="margin-right: 15px;">{{ platform | capitalize }}: <span style="color: #e8f0ea; font-weight: bold;">{{ count }}</span></span>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-
         {% if status.bhyve %}
         <div class="section" id="section-watering-schedule">
             <h2>Watering Schedule</h2>
@@ -738,6 +694,183 @@
                     <div style="font-size: 0.7em; color: #a3b8a6; margin-top: 6px;">Clear watering history</div>
                 </div>
             </div>
+        </div>
+        {% endif %}
+
+        {% if analytics %}
+        {% if analytics.season_prediction %}
+        <div class="section" style="border: 2px solid #c4392a; border-radius: 10px; padding: 25px; text-align: center;">
+            <h2 style="color: #c4392a;">Season Arrival Prediction</h2>
+            {% if analytics.season_prediction.in_season %}
+            <div style="font-size: 2em; font-weight: bold; color: #4caf50; margin-top: 10px;">Season is Active!</div>
+            {% if analytics.season_prediction.avg_season_length_days %}
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">Average season length: {{ analytics.season_prediction.avg_season_length_days }} days</div>
+            {% endif %}
+            {% elif analytics.season_prediction.days_until > 0 %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 8px;">
+                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">{{ analytics.season_prediction.days_until }} days to go!</span><br>
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% else %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if analytics.season_dates %}
+        <div class="section">
+            <h2>Season History</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.95em;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #1e3625;">
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Year</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">First Sighting</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Last Sighting</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Season Length</th>
+                        {% if is_admin %}<th style="padding: 10px; width: 40px;"></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in analytics.season_dates %}
+                    <tr style="border-bottom: 1px solid #1e3625;">
+                        <td style="padding: 10px; font-weight: bold; color: #e8f0ea;">{{ s.year }}</td>
+                        <td style="padding: 10px; color: #4caf50;">{{ s.first_display or '--' }}</td>
+                        <td style="padding: 10px; color: #d4a017;">{{ s.last_display or '--' }}</td>
+                        <td style="padding: 10px; color: #a3b8a6;">{{ (s.season_length ~ ' days') if s.season_length else '--' }}</td>
+                        {% if is_admin %}
+                        <td style="padding: 10px;">
+                            <button onclick="deleteSeason({{ s.year }})" style="background: none; border: none; color: #c4392a; cursor: pointer; font-size: 1.1em;" title="Delete">&times;</button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if is_admin %}
+        <div class="section" style="border-color: #d4a017;">
+            <h2>Add / Update Season Record</h2>
+            <form id="seasonForm" style="display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">Year</label>
+                    <input type="number" name="year" min="2000" max="2099" required
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; width: 90px; font-size: 1em;">
+                </div>
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">First Visit</label>
+                    <input type="date" name="first_visit"
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; font-size: 1em;">
+                </div>
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">Last Visit</label>
+                    <input type="date" name="last_visit"
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; font-size: 1em;">
+                </div>
+                <button type="submit" style="background: #4caf50; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold;">Save</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <div class="section" style="border-color: #4caf50;">
+            <h2>Feeder Management</h2>
+            {% if analytics.feeder_stats %}
+            <div class="status-grid" style="margin-bottom: 20px;">
+                <div class="status-card">
+                    <div class="label">Days Since Refill</div>
+                    <div class="value" style="color: {{ '#e05535' if analytics.feeder_stats.days_since_refill is not none and analytics.feeder_stats.days_since_refill > 5 else '#f0c040' if analytics.feeder_stats.days_since_refill is not none and analytics.feeder_stats.days_since_refill > 3 else '#4caf50' }};">
+                        {{ analytics.feeder_stats.days_since_refill if analytics.feeder_stats.days_since_refill is not none else 'N/A' }}
+                    </div>
+                    {% if analytics.feeder_stats.days_since_refill is not none %}
+                    <div class="sub" style="color: #a3b8a6; font-size: 0.8em; margin-top: 4px;">days</div>
+                    {% endif %}
+                </div>
+                <div class="status-card">
+                    <div class="label">Active Feeders</div>
+                    <div class="value">{{ analytics.feeder_stats.feeder_count }}</div>
+                </div>
+                <div class="status-card">
+                    <div class="label">Nectar Produced</div>
+                    <div class="value" style="font-size:1.3em;">{{ analytics.feeder_stats.nectar_produced_oz }}</div>
+                    <div class="sub" style="color: #a3b8a6; font-size: 0.8em; margin-top: 4px;">oz (last 30 days)</div>
+                </div>
+            </div>
+            {% endif %}
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+                <div>
+                    <h3 style="color:#a3b8a6; font-size:0.9em; margin-bottom:10px;">LOG REFILL</h3>
+                    <form id="refillForm" style="display:flex; flex-direction:column; gap:8px;">
+                        <select name="feeder_id" id="refillFeederSelect"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                            <option value="">Any feeder</option>
+                        </select>
+                        <input type="number" name="amount_oz" step="0.1" min="0.1" placeholder="Amount (oz)" required
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                        <input type="datetime-local" name="timestamp"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px; font-size:0.85em;"
+                            title="Leave blank for now">
+                        <input type="text" name="notes" placeholder="Notes (optional)"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                        <button type="submit" style="background:#4caf50; color:#fff; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold;">Log Refill</button>
+                    </form>
+                </div>
+                <div>
+                    <h3 style="color:#a3b8a6; font-size:0.9em; margin-bottom:10px;">LOG NECTAR PRODUCTION</h3>
+                    <form id="productionForm" style="display:flex; flex-direction:column; gap:8px;">
+                        <input type="number" name="amount_oz" step="0.1" min="0.1" placeholder="Amount (oz)" required
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                        <select name="sugar_ratio"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                            <option value="1:4">1:4 (standard)</option>
+                            <option value="1:3">1:3 (rich)</option>
+                            <option value="1:5">1:5 (light)</option>
+                        </select>
+                        <input type="datetime-local" name="timestamp"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px; font-size:0.85em;"
+                            title="Leave blank for now">
+                        <input type="text" name="notes" placeholder="Notes (optional)"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                        <button type="submit" style="background:#d4a017; color:#fff; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold;">Log Production</button>
+                    </form>
+                </div>
+            </div>
+            <details style="margin-bottom:15px;">
+                <summary style="color:#a3b8a6; cursor:pointer; font-size:0.9em; font-weight:bold;">ADD / MANAGE FEEDERS</summary>
+                <form id="feederForm" style="display:flex; gap:10px; margin-top:10px; align-items:end; flex-wrap:wrap;">
+                    <div>
+                        <label style="display:block; color:#a3b8a6; font-size:0.8em; margin-bottom:4px;">Name</label>
+                        <input type="text" name="name" placeholder="e.g. Front Porch" required
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="display:block; color:#a3b8a6; font-size:0.8em; margin-bottom:4px;">Location</label>
+                        <input type="text" name="location_description" placeholder="e.g. By the window"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="display:block; color:#a3b8a6; font-size:0.8em; margin-bottom:4px;">Ports</label>
+                        <input type="number" name="port_count" value="4" min="1" max="12"
+                            style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:8px; border-radius:6px; width:70px;">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" name="camera_feeder" id="cameraFeederCheck"
+                            style="width:18px; height:18px; accent-color:#4caf50; cursor:pointer;">
+                        <label for="cameraFeederCheck" style="color:#a3b8a6; font-size:0.8em; cursor:pointer;">Camera feeder</label>
+                    </div>
+                    <button type="submit" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-weight:bold;">Add Feeder</button>
+                </form>
+                <div id="feederList" style="margin-top:10px;"></div>
+            </details>
+            <div id="feederHistory" style="margin-top:10px; font-size:0.85em; color:#a3b8a6;"></div>
         </div>
         {% endif %}
 
@@ -1667,6 +1800,134 @@
                     hideDeleteAll();
                 });
         }
+
+        // ── Feeder management ──────────────────────────────────────
+        async function loadFeeders() {
+            const resp = await fetch('/api/feeder/config');
+            const data = await resp.json();
+            const select = document.getElementById('refillFeederSelect');
+            const list = document.getElementById('feederList');
+            if (!select || !list) return;
+            select.innerHTML = '<option value="">Any feeder</option>';
+            list.innerHTML = '';
+            for (const f of (data.feeders || [])) {
+                select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                const cam = f.camera_feeder ? ' &#x1F4F7;' : '';
+                list.innerHTML += `<div style="padding:4px 0;">${f.active ? '&#x2705;' : '&#x274C;'} ${f.name}${cam} — ${f.port_count} ports${f.location_description ? ' (' + f.location_description + ')' : ''}</div>`;
+            }
+        }
+        async function loadFeederHistory() {
+            const el = document.getElementById('feederHistory');
+            if (!el) return;
+            const [refillResp, prodResp] = await Promise.all([
+                fetch('/api/feeder/refills'), fetch('/api/feeder/production-log')
+            ]);
+            const refills = (await refillResp.json()).refills || [];
+            const production = (await prodResp.json()).production || [];
+            let html = '';
+            if (refills.length) {
+                html += '<strong>Recent Refills:</strong><br>';
+                for (const r of refills.slice(0, 5)) {
+                    html += `${new Date(r.timestamp).toLocaleDateString()} — ${r.amount_oz} oz${r.feeder_name ? ' (' + r.feeder_name + ')' : ''}${r.notes ? ' — ' + r.notes : ''}<br>`;
+                }
+            }
+            if (production.length) {
+                html += '<br><strong>Recent Production:</strong><br>';
+                for (const p of production.slice(0, 5)) {
+                    html += `${new Date(p.timestamp).toLocaleDateString()} — ${p.amount_oz} oz (${p.sugar_ratio})${p.notes ? ' — ' + p.notes : ''}<br>`;
+                }
+            }
+            el.innerHTML = html || 'No refills or production logged yet.';
+        }
+
+        document.getElementById('refillForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const ts = fd.get('timestamp');
+            await fetch('/api/feeder/refill', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    feeder_id: fd.get('feeder_id') || null,
+                    amount_oz: fd.get('amount_oz'),
+                    notes: fd.get('notes') || '',
+                    timestamp: ts || null,
+                }),
+            });
+            e.target.reset();
+            loadFeederHistory();
+        });
+
+        document.getElementById('productionForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const ts = fd.get('timestamp');
+            await fetch('/api/feeder/production', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    amount_oz: fd.get('amount_oz'),
+                    sugar_ratio: fd.get('sugar_ratio'),
+                    notes: fd.get('notes') || '',
+                    timestamp: ts || null,
+                }),
+            });
+            e.target.reset();
+            loadFeederHistory();
+        });
+
+        document.getElementById('feederForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            await fetch('/api/feeder/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: fd.get('name'),
+                    location_description: fd.get('location_description') || '',
+                    port_count: parseInt(fd.get('port_count')) || 4,
+                    camera_feeder: !!fd.get('camera_feeder'),
+                }),
+            });
+            e.target.reset();
+            loadFeeders();
+        });
+
+        loadFeeders();
+        loadFeederHistory();
+
+        // ── Season management ──────────────────────────────────────
+        const seasonForm = document.getElementById('seasonForm');
+        if (seasonForm) {
+            seasonForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(seasonForm);
+                const body = {
+                    year: parseInt(fd.get('year')),
+                    first_visit: fd.get('first_visit') || null,
+                    last_visit: fd.get('last_visit') || null,
+                };
+                const resp = await fetch('/api/season', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body),
+                });
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    const err = await resp.json();
+                    alert(err.error || 'Failed to save');
+                }
+            });
+        }
+
+        function deleteSeason(year) {
+            if (!confirm('Delete season record for ' + year + '?')) return;
+            fetch('/api/season/' + year, { method: 'DELETE' }).then(r => {
+                if (r.ok) location.reload();
+            });
+        }
+        window.deleteSeason = deleteSeason;
     </script>
 
     <footer style="text-align:center; padding:18px 12px; background:#152419; border-top:1px solid #1e3625; margin-top:30px;">

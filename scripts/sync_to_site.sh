@@ -89,4 +89,8 @@ if [ -d "$CLIPS_DIR" ]; then
         "${REMOTE}:${REMOTE_PATH}/clips/"
 fi
 
+# Step 6: Mark synced clips in DB and clean up local files
+echo "[$(date)] Running post-sync cleanup..."
+"$PYTHON" scripts/post_sync_cleanup.py || echo "[$(date)] WARNING: post-sync cleanup failed"
+
 echo "[$(date)] Sync complete!"

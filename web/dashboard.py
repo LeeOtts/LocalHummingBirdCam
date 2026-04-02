@@ -32,8 +32,8 @@ app.secret_key = os.urandom(24)  # ephemeral — sessions last until restart
 _monitor = None
 _watering_scheduler = None
 
-# Routes that are always public (live camera feed, gallery, SSE events)
-_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/gallery", "/api/events", "/api/overlay-status"}
+# Routes that are always public (live camera feed, SSE events)
+_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/api/events", "/api/overlay-status"}
 
 # Simple in-memory rate limiter for failed auth attempts
 _AUTH_FAIL_WINDOW = 300  # 5 minutes
@@ -71,7 +71,7 @@ def _enforce_auth():
     password = config.WEB_PASSWORD
     if not password:
         return  # auth disabled — open access (default)
-    if request.path in _PUBLIC_ROUTES or request.path.startswith("/gallery"):
+    if request.path in _PUBLIC_ROUTES:
         return  # public routes remain accessible
 
     # Check rate limit before processing auth
@@ -421,11 +421,10 @@ def dashboard():
     is_admin = not config.WEB_PASSWORD or (
         request.authorization and request.authorization.password == config.WEB_PASSWORD
     )
-    social_engagement = None
-    follower_history = None
-    if is_admin and _monitor and _monitor.sightings_db:
-        social_engagement = _monitor.sightings_db.get_engagement_summary(days=30)
-        follower_history = _monitor.sightings_db.get_follower_history(days=90)
+    analytics = None
+    if _monitor and _monitor.sightings_db:
+        from analytics.patterns import get_analytics_summary
+        analytics = get_analytics_summary(_monitor.sightings_db)
     return render_template(
         "dashboard.html",
         status=_get_status(),
@@ -433,8 +432,7 @@ def dashboard():
         logs=_get_recent_logs(),
         video_width=config.VIDEO_WIDTH,
         is_admin=is_admin,
-        social_engagement=social_engagement,
-        follower_history=follower_history,
+        analytics=analytics,
     )
 
 
@@ -465,24 +463,45 @@ def serve_static(filename):
 
 @app.route("/api/clips/<filename>", methods=["DELETE"])
 def delete_clip(filename):
-    """Delete a single clip and its caption file."""
+    """Delete a clip locally and from the remote website server."""
     # Sanitize filename — only allow expected patterns
     if "/" in filename or "\\" in filename or ".." in filename:
         return {"ok": False, "error": "Invalid filename"}, 400
 
-    mp4_path = config.CLIPS_DIR / filename
-    if not mp4_path.exists():
-        return {"ok": False, "error": "Clip not found"}, 404
-
     try:
-        mp4_path.unlink()
-        # Also delete caption and any h264 leftover
+        # Step 1: Delete from remote server (if configured)
+        if config.WEBSITE_REMOTE_HOST and config.WEBSITE_REMOTE_USER:
+            from scripts.remote_ssh import remote_delete_files, rsync_site_data
+            remote_clip = f"{config.WEBSITE_REMOTE_PATH}/clips/{filename}"
+            remote_thumb = f"{config.WEBSITE_REMOTE_PATH}/clips/{filename.replace('.mp4', '_thumb.jpg')}"
+            if not remote_delete_files([remote_clip, remote_thumb]):
+                return {"ok": False, "error": "Failed to delete from remote server"}, 502
+
+        # Step 2: Delete local files (may already be gone if sync cleanup ran)
+        mp4_path = config.CLIPS_DIR / filename
         caption_path = mp4_path.with_suffix(".txt")
         h264_path = mp4_path.with_suffix(".h264")
-        caption_path.unlink(missing_ok=True)
-        h264_path.unlink(missing_ok=True)
+        thumb_path = config.CLIPS_DIR / filename.replace(".mp4", "_thumb.jpg")
+        for f in (mp4_path, caption_path, h264_path, thumb_path):
+            try:
+                f.unlink(missing_ok=True)
+            except OSError:
+                pass
 
-        logger.info("Deleted clip: %s", filename)
+        # Step 3: Mark deleted in DB so it drops from website exports
+        if _monitor and _monitor.sightings_db:
+            _monitor.sightings_db.mark_clip_deleted(filename)
+
+        # Step 4: Regenerate and push site_data.json for immediate website update
+        if config.WEBSITE_REMOTE_HOST and config.WEBSITE_REMOTE_USER:
+            try:
+                from scripts.generate_site_data import generate_site_data
+                generate_site_data()
+                rsync_site_data()
+            except Exception as e:
+                logger.warning("site_data push failed after delete: %s", e)
+
+        logger.info("Deleted clip: %s (local + remote)", filename)
         return {"ok": True, "deleted": filename}
     except OSError as e:
         logger.error("Failed to delete %s: %s", filename, e)
@@ -491,7 +510,7 @@ def delete_clip(filename):
 
 @app.route("/api/clips", methods=["DELETE"])
 def delete_all_clips():
-    """Delete all clips and their captions."""
+    """Delete all LOCAL clips and their captions. Does not affect remote server."""
     if not config.CLIPS_DIR.exists():
         return {"ok": True, "deleted": 0}
 
@@ -1352,72 +1371,6 @@ def api_clips_list():
         {"name": c["name"], "size": c["size"], "time": c["time"], "caption": c.get("caption", "")}
         for c in clips
     ]}
-
-
-@app.route("/gallery")
-def gallery():
-    """Public clip gallery with shareable links."""
-    page = request.args.get("page", 1, type=int)
-    per_page = 12
-    clips = _get_recent_clips(limit=per_page * page)
-    start = (page - 1) * per_page
-    page_clips = clips[start:start + per_page]
-
-    # Track page view
-    if _monitor and _monitor.sightings_db:
-        ip_hash = hashlib.sha256((request.remote_addr or "").encode()).hexdigest()[:16]
-        _monitor.sightings_db.record_page_view(ip_hash, "/gallery")
-
-    return render_template(
-        "gallery.html",
-        clips=page_clips,
-        page=page,
-        has_more=len(clips) > start + per_page,
-    )
-
-
-@app.route("/gallery/<clip_name>")
-def gallery_clip(clip_name):
-    """Individual clip page with Open Graph meta tags for sharing."""
-    if "/" in clip_name or "\\" in clip_name or ".." in clip_name:
-        return {"error": "Invalid"}, 400
-
-    clip_path = config.CLIPS_DIR / clip_name
-    if not clip_path.exists():
-        return "Clip not found", 404
-
-    caption = ""
-    caption_path = clip_path.with_suffix(".txt")
-    if caption_path.exists():
-        try:
-            caption = caption_path.read_text().strip()
-        except OSError:
-            pass
-
-    mtime = datetime.fromtimestamp(clip_path.stat().st_mtime, tz=_local_tz).strftime("%Y-%m-%d %H:%M:%S")
-    size_mb = clip_path.stat().st_size / 1_048_576
-
-    return render_template(
-        "clip_detail.html",
-        clip={"name": clip_name, "caption": caption, "time": mtime, "size": f"{size_mb:.1f} MB"},
-        host=request.host_url.rstrip("/"),
-    )
-
-
-@app.route("/analytics")
-def analytics_page():
-    """Analytics dashboard with feeding patterns and predictions."""
-    if not _monitor or not _monitor.sightings_db:
-        return render_template("analytics.html", analytics=None)
-
-    from analytics.patterns import get_analytics_summary, generate_ai_insight
-    summary = get_analytics_summary(_monitor.sightings_db)
-    summary["ai_insight"] = generate_ai_insight(summary)
-    # Admin flag: True when no password set (local use) or auth passes
-    is_admin = not config.WEB_PASSWORD or (
-        request.authorization and request.authorization.password == config.WEB_PASSWORD
-    )
-    return render_template("analytics.html", analytics=summary, is_admin=is_admin)
 
 
 @app.route("/api/season", methods=["POST"])
