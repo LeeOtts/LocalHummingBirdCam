@@ -175,25 +175,41 @@ class TestRetryFailedPosts:
 
 
 class TestPostPhoto:
-    """Test post_photo() image uploads."""
+    """Test post_photo() two-step image uploads (unpublished photo + feed post)."""
 
     def test_post_photo_success(self, poster, tmp_path):
-        """post_photo() should upload photo directly to /photos as published."""
+        """post_photo() uploads unpublished photo then creates feed post."""
         image = tmp_path / "test.jpg"
         image.write_bytes(b"fake image data")
 
-        photo_resp = MagicMock()
-        photo_resp.json.return_value = {"id": "photo-123", "post_id": "page_post-456"}
-        photo_resp.raise_for_status = MagicMock()
+        upload_resp = MagicMock()
+        upload_resp.json.return_value = {"id": "photo-123"}
+        upload_resp.raise_for_status = MagicMock()
 
-        poster._session.post.return_value = photo_resp
-        result = poster.post_photo(image, "Test caption")
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"id": "page_post-456"}
+        feed_resp.raise_for_status = MagicMock()
+
+        poster._session.post.side_effect = [upload_resp, feed_resp]
+        with patch.object(poster, "verify_post_exists", return_value={"found": True}):
+            result = poster.post_photo(image, "Test caption")
 
         assert result is True
-        assert poster._session.post.call_count == 1
-        # Single call: feed post with photo
+        assert poster._session.post.call_count == 2
+
+        # First call: unpublished photo upload to /photos
         upload_url = poster._session.post.call_args_list[0][0][0]
+        upload_data = poster._session.post.call_args_list[0][1].get("data", {})
         assert "/photos" in upload_url
+        assert upload_data["published"] == "false"
+        assert "message" not in upload_data
+
+        # Second call: feed post to /feed with attached_media
+        feed_url = poster._session.post.call_args_list[1][0][0]
+        feed_data = poster._session.post.call_args_list[1][1].get("data", {})
+        assert "/feed" in feed_url
+        assert feed_data["message"] == "Test caption"
+        assert "photo-123" in feed_data["attached_media[0]"]
 
     def test_post_photo_no_credentials(self, monkeypatch, tmp_path):
         """post_photo() returns False when no credentials."""
@@ -214,7 +230,7 @@ class TestPostPhoto:
         assert poster.post_photo(image, "test") is False
 
     def test_post_photo_api_error(self, poster, tmp_path):
-        """post_photo() returns False and logs on API error."""
+        """post_photo() returns False on upload step failure."""
         import requests as req
 
         image = tmp_path / "test.jpg"
@@ -222,6 +238,22 @@ class TestPostPhoto:
 
         poster._session.post.side_effect = req.RequestException("fail")
         result = poster.post_photo(image, "test")
+
+        assert result is False
+
+    def test_post_photo_feed_post_fails(self, poster, tmp_path):
+        """post_photo() returns False when upload succeeds but feed post fails."""
+        import requests as req
+
+        image = tmp_path / "test.jpg"
+        image.write_bytes(b"fake image data")
+
+        upload_resp = MagicMock()
+        upload_resp.json.return_value = {"id": "photo-123"}
+        upload_resp.raise_for_status = MagicMock()
+
+        poster._session.post.side_effect = [upload_resp, req.RequestException("feed fail")]
+        result = poster.post_photo(image, "Test caption")
 
         assert result is False
 

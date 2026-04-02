@@ -323,6 +323,10 @@ class FacebookPoster(SocialPoster):
 
         Posts to /feed with attached photo so it appears as a proper
         feed/timeline post that people see when scrolling (not just a photo album entry).
+
+        Two-step process:
+        1. Upload photo as unpublished to /{PAGE_ID}/photos
+        2. Create feed post at /{PAGE_ID}/feed with attached_media referencing the photo
         """
         if not self.page_id or not self.access_token:
             logger.error("Facebook credentials not configured")
@@ -332,21 +336,38 @@ class FacebookPoster(SocialPoster):
             return False
 
         try:
+            # Step 1: Upload photo as unpublished
             with open(image_path, "rb") as f:
-                resp = self._session.post(
+                upload_resp = self._session.post(
                     f"{GRAPH_API_BASE}/{self.page_id}/photos",
                     data={
-                        "message": caption,
                         "access_token": self.access_token,
-                        "published": "true",
+                        "published": "false",
                     },
                     files={"source": f},
                     timeout=60,
                 )
-            resp.raise_for_status()
-            resp_data = resp.json()
+            upload_resp.raise_for_status()
+            photo_id = upload_resp.json()["id"]
+            logger.debug("Photo uploaded (unpublished). Photo ID: %s", photo_id)
+
+            # Step 2: Create feed post with the photo attached
+            feed_resp = self._session.post(
+                f"{GRAPH_API_BASE}/{self.page_id}/feed",
+                data={
+                    "message": caption,
+                    "attached_media[0]": f'{{"media_fbid":"{photo_id}"}}',
+                    "access_token": self.access_token,
+                },
+                timeout=30,
+            )
+            feed_resp.raise_for_status()
+            resp_data = feed_resp.json()
             post_id = resp_data.get("id", "unknown")
             logger.info("Photo feed post published! Post ID: %s", post_id)
+
+            if post_id != "unknown":
+                self.verify_post_exists(post_id)
 
             self._posts_today += 1
             return True
