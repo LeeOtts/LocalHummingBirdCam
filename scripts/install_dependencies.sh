@@ -66,12 +66,19 @@ sudo cp scripts/hummingbird-updater.service /etc/systemd/system/
 sudo cp scripts/hummingbird-sudoers /etc/sudoers.d/hummingbird
 sudo chmod 440 /etc/sudoers.d/hummingbird
 
-# Make auto-update script executable
+# Make scripts executable
 chmod +x scripts/auto_update.sh
+chmod +x scripts/sync_to_site.sh
+chmod +x scripts/backup_to_site.sh
+chmod +x scripts/install_crons.sh
+chmod +x scripts/setup_new_pi.sh
 
 # Enable services
 sudo systemctl daemon-reload
 sudo systemctl enable hummingbird
+
+# Install cron jobs (sync + backup)
+sudo bash scripts/install_crons.sh
 
 echo ""
 echo "=== Installation complete! ==="
