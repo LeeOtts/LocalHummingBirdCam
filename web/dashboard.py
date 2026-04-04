@@ -41,6 +41,24 @@ _AUTH_FAIL_MAX = 5
 _auth_failures: dict[str, list[float]] = {}  # ip -> [timestamps]
 _auth_failures_lock = threading.Lock()
 
+# --- Upload restrictions ---
+_UPLOAD_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".mov", ".avi", ".mkv"}
+_UPLOAD_MAX_SIZE_MB = 100
+
+# --- Per-endpoint rate limiting (max_requests, window_seconds) ---
+_RATE_LIMITED_ENDPOINTS: dict[str, tuple[int, int]] = {
+    "/api/restart": (1, 60),
+    "/api/update": (1, 60),
+    "/api/logs/clear": (2, 60),
+    "/api/test-mode": (5, 60),
+    "/api/bhyve/control": (5, 60),
+    "/api/compose/upload": (10, 60),
+    "/api/compose/post": (5, 60),
+    "/api/training/retrain": (1, 300),
+}
+_rate_limits: dict[str, dict[str, list[float]]] = {}  # endpoint -> {ip -> [timestamps]}
+_rate_limits_lock = threading.Lock()
+
 # Cached weather (avoid hitting OpenWeatherMap API on every 5s status poll)
 _weather_cache: dict = {"data": None, "fetched_at": 0}
 _WEATHER_CACHE_TTL = 600  # 10 minutes
@@ -98,9 +116,59 @@ def _enforce_auth():
         )
 
 
+@app.before_request
+def _enforce_rate_limit():
+    """Per-IP rate limiting on sensitive endpoints."""
+    limit = _RATE_LIMITED_ENDPOINTS.get(request.path)
+    if not limit:
+        return
+    max_reqs, window = limit
+    ip = request.remote_addr or "unknown"
+    now = _time.time()
+    with _rate_limits_lock:
+        ep_map = _rate_limits.setdefault(request.path, {})
+        timestamps = ep_map.get(ip, [])
+        timestamps = [t for t in timestamps if now - t < window]
+        if len(timestamps) >= max_reqs:
+            ep_map[ip] = timestamps
+            return Response(
+                json.dumps({"ok": False, "error": "Rate limit exceeded. Try again later."}),
+                429,
+                content_type="application/json",
+            )
+        timestamps.append(now)
+        ep_map[ip] = timestamps
+
+
+@app.after_request
+def _set_security_headers(response):
+    """Add standard security headers to all responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "media-src 'self' blob:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return response
+
+
+def _validate_text(value: str, field_name: str, max_length: int = 500) -> tuple[str, str | None]:
+    """Strip and length-check a text input. Returns (cleaned, error_or_None)."""
+    cleaned = value.strip() if value else ""
+    if len(cleaned) > max_length:
+        return "", f"{field_name} too long (max {max_length} characters)"
+    return cleaned, None
+
+
 def _update_env_value(key: str, value) -> bool:
     """Update or add a key=value in the .env file so it persists across restarts.
-    
+
     Uses atomic write (temp file + rename) to prevent corruption if process crashes mid-write.
     """
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
@@ -1489,16 +1557,29 @@ def api_compose_upload():
     if not f.filename:
         return {"ok": False, "error": "Empty filename"}, 400
 
-    # Sanitize filename and save
-    import re as _re
+    # Reject oversized uploads early (Content-Length can be spoofed, so also check after save)
+    max_bytes = _UPLOAD_MAX_SIZE_MB * 1_048_576
+    if request.content_length and request.content_length > max_bytes:
+        return {"ok": False, "error": f"File too large (max {_UPLOAD_MAX_SIZE_MB} MB)"}, 413
+
+    # Sanitize filename and validate extension
     from werkzeug.utils import secure_filename
     safe_name = secure_filename(f.filename)
+    ext = Path(safe_name).suffix.lower()
+    if ext not in _UPLOAD_ALLOWED_EXT:
+        return {"ok": False, "error": f"File type '{ext}' not allowed. Accepted: {', '.join(sorted(_UPLOAD_ALLOWED_EXT))}"}, 400
+
     # Prefix with timestamp to avoid collisions
     ts = datetime.now(tz=_local_tz).strftime("%Y%m%d_%H%M%S")
     dest_name = f"manual_{ts}_{safe_name}"
     dest_path = config.CLIPS_DIR / dest_name
     config.CLIPS_DIR.mkdir(parents=True, exist_ok=True)
     f.save(str(dest_path))
+
+    # Verify actual file size (Content-Length can be spoofed)
+    if dest_path.stat().st_size > max_bytes:
+        dest_path.unlink(missing_ok=True)
+        return {"ok": False, "error": f"File too large (max {_UPLOAD_MAX_SIZE_MB} MB)"}, 413
 
     logger.info("Compose upload saved: %s (%.1f MB)", dest_name, dest_path.stat().st_size / 1_048_576)
     return {"ok": True, "filename": dest_name}
@@ -1513,6 +1594,10 @@ def api_compose_generate():
 
     if not notes and not filename:
         return {"ok": False, "error": "Provide notes or upload media"}, 400
+
+    notes, err = _validate_text(notes, "Notes", max_length=2000)
+    if err:
+        return {"ok": False, "error": err}, 400
 
     # Determine active platforms
     platforms = ["Facebook"]
@@ -1548,6 +1633,11 @@ def api_compose_post():
 
     if not captions:
         return {"ok": False, "error": "No captions provided"}, 400
+
+    for platform, text in captions.items():
+        _, err = _validate_text(text, f"{platform} caption", max_length=2200)
+        if err:
+            return {"ok": False, "error": err}, 400
 
     if not _monitor or not _monitor.poster_manager:
         return {"ok": False, "error": "Monitor not running"}, 503
@@ -1641,15 +1731,20 @@ def api_feeder_config_post():
         return {"error": "Not available"}, 503
 
     feeder_id = data.get("id")
-    name = data.get("name", "").strip()
+    name, err = _validate_text(data.get("name", ""), "Feeder name", max_length=100)
+    if err:
+        return {"error": err}, 400
     if not name:
         return {"error": "Name is required"}, 400
+    loc_desc, err = _validate_text(data.get("location_description", ""), "Location description", max_length=500)
+    if err:
+        return {"error": err}, 400
 
     if feeder_id:
         _monitor.sightings_db.update_feeder(
             feeder_id,
             name=name,
-            location_description=data.get("location_description", ""),
+            location_description=loc_desc,
             port_count=data.get("port_count", 4),
             active=data.get("active", True),
             camera_feeder=data.get("camera_feeder", False),
@@ -1658,7 +1753,7 @@ def api_feeder_config_post():
     else:
         new_id = _monitor.sightings_db.add_feeder(
             name=name,
-            location_description=data.get("location_description", ""),
+            location_description=loc_desc,
             port_count=data.get("port_count", 4),
             camera_feeder=data.get("camera_feeder", False),
         )
@@ -1676,10 +1771,14 @@ def api_feeder_refill():
     if not amount or float(amount) <= 0:
         return {"error": "Amount is required"}, 400
 
+    refill_notes, err = _validate_text(data.get("notes", ""), "Refill notes", max_length=500)
+    if err:
+        return {"error": err}, 400
+
     refill_id = _monitor.sightings_db.record_refill(
         feeder_id=data.get("feeder_id"),
         amount_oz=float(amount),
-        notes=data.get("notes", ""),
+        notes=refill_notes,
         timestamp=data.get("timestamp"),
     )
     return {"ok": True, "id": refill_id}
@@ -1704,10 +1803,17 @@ def api_feeder_production():
     if not amount or float(amount) <= 0:
         return {"error": "Amount is required"}, 400
 
+    prod_notes, err = _validate_text(data.get("notes", ""), "Production notes", max_length=500)
+    if err:
+        return {"error": err}, 400
+    sugar_ratio, err = _validate_text(data.get("sugar_ratio", "1:4"), "Sugar ratio", max_length=10)
+    if err:
+        return {"error": err}, 400
+
     prod_id = _monitor.sightings_db.record_production(
         amount_oz=float(amount),
-        sugar_ratio=data.get("sugar_ratio", "1:4"),
-        notes=data.get("notes", ""),
+        sugar_ratio=sugar_ratio,
+        notes=prod_notes,
         timestamp=data.get("timestamp"),
     )
     return {"ok": True, "id": prod_id}

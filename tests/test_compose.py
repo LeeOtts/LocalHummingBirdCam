@@ -44,6 +44,8 @@ def client(tmp_path, monkeypatch, mock_monitor):
 
     dashboard.set_monitor(mock_monitor)
     dashboard.app.config["TESTING"] = True
+    # Clear rate-limit state so tests aren't throttled
+    dashboard._rate_limits.clear()
 
     with dashboard.app.test_client() as c:
         yield c, mock_monitor, tmp_path
