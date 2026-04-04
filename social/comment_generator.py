@@ -115,6 +115,67 @@ def _parse_platform_captions(raw: str, platforms: list[str]) -> dict[str, str]:
     return {p: cleaned for p in platforms}
 
 
+def _validate_caption(text: str) -> bool:
+    """Return True if *text* looks like a coherent caption, False if gibberish.
+
+    Uses lightweight heuristics to catch the kind of garbage that LLMs
+    occasionally emit (fragmented words on separate lines, random symbols, etc.).
+    """
+    stripped = text.strip()
+
+    # --- too short or too long ---
+    if len(stripped) < 10:
+        logger.warning("Caption rejected: too short (%d chars)", len(stripped))
+        return False
+    if len(stripped) > 2000:
+        logger.warning("Caption rejected: too long (%d chars)", len(stripped))
+        return False
+
+    words = stripped.split()
+    if not words:
+        logger.warning("Caption rejected: no words")
+        return False
+
+    # --- newline-to-word ratio (gibberish had isolated words on many lines) ---
+    newline_count = stripped.count("\n")
+    if len(words) > 0 and newline_count / len(words) > 0.4:
+        logger.warning("Caption rejected: high newline ratio (%.2f)", newline_count / len(words))
+        return False
+
+    # --- average word length (gibberish fragments are 1-2 chars) ---
+    avg_word_len = sum(len(w) for w in words) / len(words)
+    if avg_word_len < 2.5:
+        logger.warning("Caption rejected: low avg word length (%.1f)", avg_word_len)
+        return False
+
+    # --- too many stub lines (lines with only 1-2 words) ---
+    lines = [ln for ln in stripped.split("\n") if ln.strip()]
+    if lines:
+        stub_lines = sum(1 for ln in lines if len(ln.split()) <= 2)
+        if stub_lines / len(lines) > 0.6:
+            logger.warning("Caption rejected: %.0f%% stub lines", 100 * stub_lines / len(lines))
+            return False
+
+    # --- low alphabetic ratio ---
+    non_ws = stripped.replace(" ", "").replace("\n", "").replace("\t", "")
+    if non_ws:
+        alpha_ratio = sum(c.isalpha() for c in non_ws) / len(non_ws)
+        if alpha_ratio < 0.6:
+            logger.warning("Caption rejected: low alpha ratio (%.2f)", alpha_ratio)
+            return False
+
+    return True
+
+
+def _validate_all_captions(captions: dict[str, str]) -> bool:
+    """Return True only if every platform caption passes validation."""
+    for platform, text in captions.items():
+        if not _validate_caption(text):
+            logger.warning("Validation failed for %s caption", platform)
+            return False
+    return True
+
+
 def _get_client():
     global _client, _client_config
     current_config = (
@@ -406,6 +467,29 @@ def generate_comment(detections: int = 0, rejected: int = 0,
             captions = _parse_platform_captions(raw, platforms)
         else:
             captions = {platforms[0]: raw}
+
+        # Validate — retry once if gibberish
+        if not _validate_all_captions(captions):
+            logger.warning("Sighting caption failed validation, retrying once")
+            response = client.chat.completions.create(
+                model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+                messages=messages, max_tokens=max_tok, temperature=0.9,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            if "BIRD:" in raw:
+                parts = raw.split("BIRD:", 1)
+                raw = parts[0].strip()
+                desc = parts[1].strip()
+                if desc:
+                    _recent_descriptions.append(desc)
+            if multi:
+                captions = _parse_platform_captions(raw, platforms)
+            else:
+                captions = {platforms[0]: raw}
+            if not _validate_all_captions(captions):
+                logger.error("Sighting caption failed validation on retry, using fallback")
+                fb = random.choice(FALLBACK_CAPTIONS)
+                return {p: fb for p in platforms}
 
         # Store the longest caption for repetition avoidance
         longest = max(captions.values(), key=len)
@@ -699,6 +783,35 @@ def generate_good_morning(location: str, sunrise: str,
         else:
             captions = {platforms[0]: raw}
 
+        # Validate — retry once if gibberish
+        if not _validate_all_captions(captions):
+            logger.warning("Morning caption failed validation, retrying once")
+            response = client.chat.completions.create(
+                model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+                messages=[
+                    {"role": "system", "content": GOOD_MORNING_PROMPT.format(
+                        location=location, sunrise=sunrise,
+                        day_of_week=kwargs.get("day_of_week", ""),
+                        month=kwargs.get("month", ""),
+                        yesterday_text=yesterday_text,
+                        lifetime_total=lifetime_total,
+                        weather_line=weather_line,
+                        platform_block=platform_block,
+                        anticipation_block=anticipation_block,
+                    )},
+                    {"role": "user", "content": "Write this morning's post."},
+                ],
+                max_tokens=max_tok, temperature=0.9,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            if multi:
+                captions = _parse_platform_captions(raw, platforms)
+            else:
+                captions = {platforms[0]: raw}
+            if not _validate_all_captions(captions):
+                logger.error("Morning caption failed validation on retry, using fallback")
+                return {p: fallback for p in platforms}
+
         logger.info("Morning post: %s", captions)
         return captions
 
@@ -763,6 +876,36 @@ def generate_good_night(location: str, sunset: str, detections: int, rejected: i
             captions = _parse_platform_captions(raw, platforms)
         else:
             captions = {platforms[0]: raw}
+
+        # Validate — retry once if gibberish
+        if not _validate_all_captions(captions):
+            logger.warning("Night caption failed validation, retrying once")
+            response = client.chat.completions.create(
+                model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+                messages=[
+                    {"role": "system", "content": GOOD_NIGHT_PROMPT.format(
+                        location=location, sunset=sunset,
+                        detections=detections, rejected=rejected,
+                        day_of_week=kwargs.get("day_of_week", ""),
+                        month=kwargs.get("month", ""),
+                        peak_hour_text=peak_hour_text,
+                        lifetime_total=lifetime_total,
+                        record_text=record_text,
+                        platform_block=platform_block,
+                        anticipation_block=anticipation_block,
+                    )},
+                    {"role": "user", "content": "Write tonight's end-of-day recap post."},
+                ],
+                max_tokens=max_tok, temperature=0.9,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            if multi:
+                captions = _parse_platform_captions(raw, platforms)
+            else:
+                captions = {platforms[0]: raw}
+            if not _validate_all_captions(captions):
+                logger.error("Night caption failed validation on retry, using fallback")
+                return {p: fallback for p in platforms}
 
         logger.info("Night post: %s", captions)
         return captions
@@ -833,6 +976,29 @@ def generate_milestone_post(lifetime_count: int, today_count: int = 0,
             captions = _parse_platform_captions(raw, platforms)
         else:
             captions = {platforms[0]: raw}
+
+        # Validate — retry once if gibberish
+        if not _validate_all_captions(captions):
+            logger.warning("Milestone caption failed validation, retrying once")
+            response = client.chat.completions.create(
+                model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+                messages=[
+                    {"role": "system", "content": MILESTONE_PROMPT.format(
+                        count=lifetime_count, today_count=today_count,
+                        days_running=days_running, platform_block=platform_block,
+                    )},
+                    {"role": "user", "content": "Write the milestone celebration post."},
+                ],
+                max_tokens=max_tok, temperature=0.9,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            if multi:
+                captions = _parse_platform_captions(raw, platforms)
+            else:
+                captions = {platforms[0]: raw}
+            if not _validate_all_captions(captions):
+                logger.error("Milestone caption failed validation on retry, using fallback")
+                return {p: fallback for p in platforms}
 
         logger.info("Milestone post: %s", captions)
         return captions
@@ -958,6 +1124,22 @@ def generate_manual_post(user_notes: str, media_path: Path | None = None,
             captions = _parse_platform_captions(raw, platforms)
         else:
             captions = {platforms[0]: raw}
+
+        # Validate — retry once if gibberish
+        if not _validate_all_captions(captions):
+            logger.warning("Manual caption failed validation, retrying once")
+            response = client.chat.completions.create(
+                model=config.AZURE_OPENAI_DEPLOYMENT or "gpt-4o",
+                messages=messages, max_tokens=max_tok, temperature=0.95,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            if multi:
+                captions = _parse_platform_captions(raw, platforms)
+            else:
+                captions = {platforms[0]: raw}
+            if not _validate_all_captions(captions):
+                logger.error("Manual caption failed validation on retry, using fallback")
+                return {p: fallback for p in platforms}
 
         logger.info("Manual post captions: %s", captions)
         return captions

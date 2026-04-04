@@ -155,14 +155,14 @@ class TestGoodMorningGoodNight:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Morning post"
+        mock_response.choices[0].message.content = "Sun's coming up over Memphis and the feeder is full."
 
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_response
 
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_good_morning(location="Memphis, TN", sunrise="6:15 AM")
-        assert result["Facebook"] == "Morning post"
+        assert result["Facebook"] == "Sun's coming up over Memphis and the feeder is full."
 
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args.kwargs.get("messages") or call_args[1].get("messages")
@@ -178,7 +178,7 @@ class TestGoodMorningGoodNight:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Goodnight post"
+        mock_response.choices[0].message.content = "Twelve visitors today and four false alarms at the feeder."
 
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -188,7 +188,7 @@ class TestGoodMorningGoodNight:
                 location="Bartlett, TN", sunset="7:30 PM",
                 detections=12, rejected=4,
             )
-        assert result["Facebook"] == "Goodnight post"
+        assert result["Facebook"] == "Twelve visitors today and four false alarms at the feeder."
 
         call_args = mock_client.chat.completions.create.call_args
         messages = call_args.kwargs.get("messages") or call_args[1].get("messages")
@@ -303,7 +303,7 @@ class TestRecentCaptionDeduplication:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Caption one"
+        mock_response.choices[0].message.content = "First hummingbird of the day just buzzed the feeder like it owns the place."
 
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -311,14 +311,14 @@ class TestRecentCaptionDeduplication:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             generate_comment(detections=1, rejected=0)
 
-            mock_response.choices[0].message.content = "Caption two"
+            mock_response.choices[0].message.content = "Two more showed up and they are not sharing nicely."
             generate_comment(detections=2, rejected=0)
 
         # Second call should have system + avoidance user + assistant ack + user = 4 messages
         second_call = mock_client.chat.completions.create.call_args_list[1]
         messages = second_call.kwargs.get("messages") or second_call[1].get("messages")
         assert len(messages) == 4
-        assert "Caption one" in messages[1]["content"]
+        assert "First hummingbird" in messages[1]["content"]
 
     def test_captions_added_to_recent_buffer(self, monkeypatch):
         """Generated captions are stored in _recent_captions."""
@@ -329,7 +329,7 @@ class TestRecentCaptionDeduplication:
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Stored caption"
+        mock_response.choices[0].message.content = "Another tiny visitor at the feeder this afternoon."
 
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_response
@@ -337,4 +337,4 @@ class TestRecentCaptionDeduplication:
         with patch("social.comment_generator._get_client", return_value=mock_client):
             generate_comment()
 
-        assert any("Stored caption" in c for c in cg._recent_captions)
+        assert any("Another tiny visitor" in c for c in cg._recent_captions)

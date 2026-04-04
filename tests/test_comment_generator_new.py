@@ -117,10 +117,10 @@ class TestWeatherInCaptions:
         from social.comment_generator import generate_comment
         monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
 
-        mock_client = _mock_api_response("Normal caption.")
+        mock_client = _mock_api_response("Feeder visitor number one just showed up right on time.")
         with patch("social.comment_generator._get_client", return_value=mock_client):
             result = generate_comment(detections=1, rejected=0)
-        assert result["Facebook"] == "Normal caption."
+        assert result["Facebook"] == "Feeder visitor number one just showed up right on time."
 
     def test_weather_in_morning_prompt(self, monkeypatch):
         import config
