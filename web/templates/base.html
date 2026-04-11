@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Backyard Hummers{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0d1a12;
+            color: #e8f0ea;
+            min-height: 100vh;
+        }
+        header {
+            background: #111f16;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            overflow: hidden;
+            line-height: 0;
+        }
+        .banner-img {
+            display: block;
+            max-width: 100%;
+            width: auto;
+            height: auto;
+            max-height: 60vh;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: #152419;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #1e3625;
+        }
+        .status-card .label { color: #a3b8a6; font-size: 0.85em; text-transform: uppercase; }
+        .status-card .value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
+        .status-card .value.green { color: #4caf50; }
+        .status-card .value.red { color: #e05535; }
+        .status-card .value.yellow { color: #f0c040; }
+        .status-card .value.purple { color: #b08ad4; }
+
+        .section {
+            background: #152419;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #1e3625;
+        }
+        .section h2 { color: #e8f0ea; margin-bottom: 15px; font-family: 'Bangers', cursive; letter-spacing: 2px; }
+        .section .section-actions { float: right; }
+
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-delete { background: #d44a2a; color: white; }
+        .btn-delete:hover { background: #b33a1a; }
+        .btn-delete-all { background: #d44a2a; color: white; font-size: 0.85em; padding: 6px 16px; }
+        .btn-delete-all:hover { background: #b33a1a; }
+        .btn-update { background: #d4a017; color: #0d1a12; }
+        .btn-update:hover { background: #b8880f; }
+        .btn-update:disabled { background: #555; color: #999; cursor: wait; }
+        .btn-restart { background: #c0392b; color: #fff; }
+        .btn-restart:hover { background: #a93226; }
+        .btn-restart:disabled { background: #555; color: #999; cursor: wait; }
+        .btn-cancel { background: #1e3625; color: #e8f0ea; }
+
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .confirm-overlay.active { display: flex; }
+        .confirm-box {
+            background: #152419;
+            border: 2px solid #d44a2a;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            max-width: 400px;
+        }
+        .confirm-box p { margin-bottom: 20px; font-size: 1.1em; }
+        .confirm-box .btn { margin: 0 8px; padding: 10px 24px; font-size: 1em; }
+
+        nav {
+            text-align: center;
+            padding: 12px;
+            background: rgba(13,26,18,0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #1e3625;
+        }
+        nav a {
+            font-family: 'Patrick Hand', cursive;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #a3b8a6;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: color 0.2s;
+        }
+        nav a:hover { color: #e8f0ea; }
+        nav a.active { color: #d4a017; }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #d4a017;
+            color: #0d1a12;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 200;
+            display: none;
+        }
+        .toast.active { display: block; }
+
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .banner-img {
+                max-width: 100%;
+                padding: 0 10px;
+            }
+            .status-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+                gap: 10px !important;
+            }
+            nav a { margin: 0 5px; font-size: 0.75rem; padding: 0.4rem 0.6rem; }
+        }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <header>
+        <img src="/static/banner.png" alt="Backyard Hummers - AI-Powered Hummingbird Surveillance" class="banner-img">
+    </header>
+
+    <nav>
+        <a href="/" {% if request.path == '/' %}class="active"{% endif %}>Dashboard</a>
+        <a href="/gallery" {% if request.path == '/gallery' %}class="active"{% endif %}>Gallery</a>
+        <a href="/feeders" {% if request.path == '/feeders' %}class="active"{% endif %}>Feeders</a>
+        <a href="/watering" {% if request.path == '/watering' %}class="active"{% endif %}>Watering</a>
+        <a href="/season" {% if request.path == '/season' %}class="active"{% endif %}>Season</a>
+        <a href="/compose" {% if request.path == '/compose' %}class="active"{% endif %}>Compose</a>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <footer style="text-align:center; padding:18px 12px; background:#152419; border-top:1px solid #1e3625; margin-top:30px;">
+        <a href="https://www.facebook.com/backyard.hummers" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">Facebook</a>
+        <span style="color:#1e3625;">|</span>
+        <a href="https://bsky.app/profile/backyardhummers.bsky.social" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">Bluesky</a>
+        <span style="color:#1e3625;">|</span>
+        <a href="https://x.com/backyardhummers" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">X</a>
+        <span style="color:#1e3625;">|</span>
+        <a href="https://www.instagram.com/backyard.hummers" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">Instagram</a>
+        <span style="color:#1e3625;">|</span>
+        <a href="https://github.com/LeeOtts/LocalHummingBirdCam" target="_blank" style="color:#d4a017; text-decoration:none; margin:0 12px; font-weight:600;">GitHub</a>
+    </footer>
+
+    <script>
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('active');
+            setTimeout(() => t.classList.remove('active'), 3000);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

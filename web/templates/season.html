@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Season History - Backyard Hummers{% endblock %}
+
+{% block content %}
+        {% if analytics and analytics.season_prediction %}
+        <div class="section" style="border: 2px solid {{ '#4caf50' if analytics.season_prediction.in_season else '#c4392a' }}; border-radius: 10px; padding: 25px; text-align: center; margin-bottom: 20px;">
+            {% if analytics.season_prediction.in_season %}
+            <h2 style="color: #d4a017;">Season Departure Estimate</h2>
+            {% if analytics.end_season_prediction %}
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically depart around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.end_season_prediction.predicted_last_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 8px;">
+                {% if analytics.end_season_prediction.days_until_last > 0 %}
+                <span style="color: #d4a017; font-size: 1.2em; font-weight: bold;">~{{ analytics.end_season_prediction.days_until_last }} days remaining</span><br>
+                {% else %}
+                <span style="color: #e05535; font-size: 1.2em; font-weight: bold;">Season may end any day now</span><br>
+                {% endif %}
+                Based on {{ analytics.end_season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.end_season_prediction.earliest_last_display }}, latest: {{ analytics.end_season_prediction.latest_last_display }})
+            </div>
+            {% else %}
+            <div style="font-size: 2em; font-weight: bold; color: #4caf50; margin-top: 10px;">Season is Active!</div>
+            {% if analytics.season_prediction.avg_season_length_days %}
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">Average season length: {{ analytics.season_prediction.avg_season_length_days }} days</div>
+            {% endif %}
+            {% endif %}
+            {% elif analytics.season_prediction.days_until > 0 %}
+            <h2 style="color: #c4392a;">Season Arrival Prediction</h2>
+            <div style="font-size: 1.1em; color: #a3b8a6; margin-top: 8px;">Hummingbirds typically arrive around</div>
+            <div style="font-size: 2em; font-weight: bold; color: #e8f0ea; margin-top: 5px;">{{ analytics.season_prediction.predicted_display }}</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 8px;">
+                <span id="arrivalCountdown" style="color: #d4a017; font-size: 1.2em; font-weight: bold;"></span><br>
+                Based on {{ analytics.season_prediction.based_on_years }} years of data
+                (earliest: {{ analytics.season_prediction.earliest_display }}, latest: {{ analytics.season_prediction.latest_display }})
+            </div>
+            {% else %}
+            <h2 style="color: #c4392a;">Season Arrival Prediction</h2>
+            <div style="font-size: 2em; font-weight: bold; color: #d4a017; margin-top: 10px;">Any day now!</div>
+            <div style="color: #a3b8a6; font-size: 0.85em; margin-top: 5px;">
+                Based on {{ analytics.season_prediction.based_on_years }} years of historical arrivals
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if analytics and analytics.season_dates %}
+        <div class="section">
+            <h2>Season History</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.95em;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #1e3625;">
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Year</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">First Sighting</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Last Sighting</th>
+                        <th style="padding: 10px; text-align: left; color: #a3b8a6;">Season Length</th>
+                        {% if is_admin %}<th style="padding: 10px; width: 40px;"></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in analytics.season_dates %}
+                    <tr style="border-bottom: 1px solid #1e3625;">
+                        <td style="padding: 10px; font-weight: bold; color: #e8f0ea;">{{ s.year }}</td>
+                        <td style="padding: 10px; color: #4caf50;">{{ s.first_display or '--' }}</td>
+                        <td style="padding: 10px; color: #d4a017;">{{ s.last_display or '--' }}</td>
+                        <td style="padding: 10px; color: #a3b8a6;">{{ (s.season_length ~ ' days') if s.season_length else '--' }}</td>
+                        {% if is_admin %}
+                        <td style="padding: 10px;">
+                            <button onclick="deleteSeason({{ s.year }})" style="background: none; border: none; color: #c4392a; cursor: pointer; font-size: 1.1em;" title="Delete">&times;</button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if is_admin %}
+        <div class="section" style="border-color: #d4a017;">
+            <h2>Add / Update Season Record</h2>
+            <form id="seasonForm" style="display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">Year</label>
+                    <input type="number" name="year" min="2000" max="2099" required
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; width: 90px; font-size: 1em;">
+                </div>
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">First Visit</label>
+                    <input type="date" name="first_visit"
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; font-size: 1em;">
+                </div>
+                <div>
+                    <label style="display: block; color: #a3b8a6; font-size: 0.8em; margin-bottom: 4px;">Last Visit</label>
+                    <input type="date" name="last_visit"
+                        style="background: #0d1a12; border: 1px solid #1e3625; color: #e8f0ea; padding: 8px 12px; border-radius: 6px; font-size: 1em;">
+                </div>
+                <button type="submit" style="background: #4caf50; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold;">Save</button>
+            </form>
+        </div>
+        {% endif %}
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        {% if analytics and analytics.season_prediction and analytics.season_prediction.days_until is defined and analytics.season_prediction.days_until > 0 %}
+        // Client-side countdown
+        (function() {
+            const predicted = new Date('{{ analytics.season_prediction.predicted_date }}');
+            function updateCountdown() {
+                const now = new Date();
+                const diff = predicted - now;
+                if (diff <= 0) {
+                    document.getElementById('arrivalCountdown').textContent = 'Any day now!';
+                    return;
+                }
+                const days = Math.floor(diff / 86400000);
+                document.getElementById('arrivalCountdown').textContent = '~' + days + ' days away';
+            }
+            updateCountdown();
+            setInterval(updateCountdown, 60000);
+        })();
+        {% endif %}
+
+        const seasonForm = document.getElementById('seasonForm');
+        if (seasonForm) {
+            seasonForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(seasonForm);
+                const body = {
+                    year: parseInt(fd.get('year')),
+                    first_visit: fd.get('first_visit') || null,
+                    last_visit: fd.get('last_visit') || null,
+                };
+                const resp = await fetch('/api/season', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body),
+                });
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    const err = await resp.json();
+                    alert(err.error || 'Failed to save');
+                }
+            });
+        }
+
+        function deleteSeason(year) {
+            if (!confirm('Delete season record for ' + year + '?')) return;
+            fetch('/api/season/' + year, { method: 'DELETE' }).then(r => {
+                if (r.ok) location.reload();
+            });
+        }
+        window.deleteSeason = deleteSeason;
+    </script>
+{% endblock %}

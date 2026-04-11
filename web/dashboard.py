@@ -484,23 +484,53 @@ def _get_recent_logs(limit=50):
     return output
 
 
-@app.route("/")
-def dashboard():
-    is_admin = not config.WEB_PASSWORD or (
+def _is_admin():
+    return not config.WEB_PASSWORD or (
         request.authorization and request.authorization.password == config.WEB_PASSWORD
     )
-    analytics = None
+
+
+def _get_analytics():
     if _monitor and _monitor.sightings_db:
         from analytics.patterns import get_analytics_summary
-        analytics = get_analytics_summary(_monitor.sightings_db)
+        return get_analytics_summary(_monitor.sightings_db)
+    return None
+
+
+@app.route("/")
+def dashboard():
+    analytics = _get_analytics()
     return render_template(
         "dashboard.html",
         status=_get_status(),
-        clips=_get_recent_clips(),
         logs=_get_recent_logs(),
         video_width=config.VIDEO_WIDTH,
-        is_admin=is_admin,
+        is_admin=_is_admin(),
         analytics=analytics,
+    )
+
+
+@app.route("/gallery")
+def gallery_page():
+    return render_template("gallery.html", clips=_get_recent_clips())
+
+
+@app.route("/feeders")
+def feeders_page():
+    return render_template("feeders.html", analytics=_get_analytics())
+
+
+@app.route("/watering")
+def watering_page():
+    return render_template("watering.html", status=_get_status())
+
+
+@app.route("/season")
+def season_page():
+    return render_template(
+        "season.html",
+        analytics=_get_analytics(),
+        is_admin=_is_admin(),
     )
 
 

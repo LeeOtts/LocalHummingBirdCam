@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Gallery - Backyard Hummers{% endblock %}
+
+{% block extra_css %}
+        .clip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .clip-card {
+            background: #0d1a12;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #1e3625;
+        }
+        .clip-card video { width: 100%; display: block; }
+        .clip-card .clip-info { padding: 10px; font-size: 0.85em; color: #a3b8a6; }
+        .clip-card .clip-caption {
+            padding: 8px 10px;
+            font-size: 0.9em;
+            color: #e8f0ea;
+            background: #1a2d1f;
+            border-top: 1px solid #1e3625;
+            font-style: italic;
+            line-height: 1.4;
+        }
+        .clip-card .clip-actions {
+            padding: 8px 10px;
+            display: flex;
+            gap: 8px;
+            border-top: 1px solid #1e3625;
+        }
+{% endblock %}
+
+{% block content %}
+        <div class="section">
+            <h2 style="display:inline-block;">Gallery</h2>
+            {% if clips %}
+            <span class="section-actions">
+                <button class="btn btn-delete-all" onclick="showDeleteAll()">Delete All Clips</button>
+            </span>
+            <div style="clear:both; margin-bottom: 15px;"></div>
+            <div class="clip-grid">
+                {% for clip in clips %}
+                <div class="clip-card" id="clip-{{ loop.index }}">
+                    <video controls preload="metadata">
+                        <source src="/clips/{{ clip.name }}" type="video/mp4">
+                    </video>
+                    {% if clip.caption %}
+                    <div class="clip-caption">"{{ clip.caption }}"</div>
+                    {% endif %}
+                    <div class="clip-info">
+                        {{ clip.name }} &mdash; {{ clip.size }} &mdash; {{ clip.time }}
+                    </div>
+                    <div class="clip-actions">
+                        <button class="btn btn-delete" onclick="deleteClip('{{ clip.name }}', 'clip-{{ loop.index }}')">Delete Clip</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #a3b8a6; margin-top: 15px;">No clips recorded yet. Waiting for hummingbirds...</p>
+            {% endif %}
+        </div>
+
+        <!-- Delete All confirmation -->
+        <div class="confirm-overlay" id="deleteAllOverlay">
+            <div class="confirm-box">
+                <p>Delete ALL clips and their captions?</p>
+                <button class="btn btn-cancel" onclick="hideDeleteAll()">Cancel</button>
+                <button class="btn btn-delete" onclick="deleteAll()">Delete All</button>
+            </div>
+        </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        function deleteClip(filename, cardId) {
+            if (!confirm('Delete ' + filename + ' and its caption?')) return;
+            fetch('/api/clips/' + filename, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        document.getElementById(cardId).remove();
+                        showToast('Deleted ' + filename);
+                    } else {
+                        showToast('Error: ' + data.error);
+                    }
+                })
+                .catch(() => showToast('Delete failed'));
+        }
+
+        function showDeleteAll() {
+            document.getElementById('deleteAllOverlay').classList.add('active');
+        }
+        function hideDeleteAll() {
+            document.getElementById('deleteAllOverlay').classList.remove('active');
+        }
+
+        function deleteAll() {
+            fetch('/api/clips', { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) {
+                        showToast('Deleted ' + data.deleted + ' clips');
+                        hideDeleteAll();
+                        document.querySelectorAll('.clip-card').forEach(c => c.remove());
+                    } else {
+                        showToast('Error: ' + data.error);
+                        hideDeleteAll();
+                    }
+                })
+                .catch(() => {
+                    showToast('Delete failed');
+                    hideDeleteAll();
+                });
+        }
+
+        // Poll for new clips
+        let knownClipsFingerprint = '';
+        function clipsFingerprint(clips) {
+            return clips.map(c => c.name + '|' + (c.caption || '')).join(';');
+        }
+        function pollClips() {
+            fetch('/api/clips/list')
+                .then(r => r.json())
+                .then(data => {
+                    const fp = clipsFingerprint(data.clips);
+                    if (fp !== knownClipsFingerprint) {
+                        const grid = document.querySelector('.clip-grid');
+                        if (!grid && data.clips.length > 0) {
+                            location.reload();
+                            return;
+                        }
+                        if (grid) {
+                            grid.innerHTML = data.clips.map((c, i) => `
+                                <div class="clip-card" id="clip-dyn-${i}">
+                                    <video controls preload="metadata">
+                                        <source src="/clips/${c.name}" type="video/mp4">
+                                    </video>
+                                    ${c.caption ? `<div class="clip-caption">"${escapeHtml(c.caption)}"</div>` : ''}
+                                    <div class="clip-info">${c.name} &mdash; ${c.size} &mdash; ${c.time}</div>
+                                    <div class="clip-actions">
+                                        <button class="btn btn-delete" onclick="deleteClip('${c.name}', 'clip-dyn-${i}')">Delete Clip</button>
+                                    </div>
+                                </div>
+                            `).join('');
+                        }
+                        knownClipsFingerprint = fp;
+                    }
+                })
+                .catch(() => {});
+        }
+        setInterval(pollClips, 10000);
+    </script>
+{% endblock %}

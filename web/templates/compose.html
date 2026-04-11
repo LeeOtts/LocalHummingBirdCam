@@ -1,30 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Backyard Hummers - Compose Post</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0d1a12;
-            color: #e8f0ea;
-            min-height: 100vh;
-        }
-        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+{% extends "base.html" %}
+{% block title %}Compose Post - Backyard Hummers{% endblock %}
 
-        .section {
-            background: #152419;
-            border-radius: 10px;
-            padding: 24px;
-            margin-bottom: 20px;
-            border: 1px solid #1e3625;
-        }
-        .section h2 { color: #e8f0ea; margin-bottom: 15px; font-size: 1.2em; font-family: 'Bangers', cursive; letter-spacing: 2px; }
+{% block extra_css %}
+        .container { max-width: 800px; }
 
         label { display: block; color: #a3b8a6; font-size: 0.9em; margin-bottom: 6px; }
 
@@ -63,10 +41,7 @@
         .file-upload-text strong { color: #d4a017; }
         .file-name { color: #4caf50; font-weight: bold; margin-top: 8px; }
 
-        .media-preview {
-            margin-top: 15px;
-            text-align: center;
-        }
+        .media-preview { margin-top: 15px; text-align: center; }
         .media-preview img, .media-preview video {
             max-width: 100%;
             max-height: 400px;
@@ -74,15 +49,6 @@
             border: 1px solid #1e3625;
         }
 
-        .btn {
-            padding: 10px 24px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 0.95em;
-            transition: background 0.2s;
-        }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-generate { background: #58a6ff; color: #1a1a2e; }
         .btn-generate:hover:not(:disabled) { background: #4090e0; }
@@ -108,16 +74,8 @@
             text-transform: uppercase;
             margin-bottom: 8px;
         }
-        .caption-card textarea {
-            min-height: 70px;
-            margin-bottom: 0;
-        }
-        .caption-card .char-count {
-            text-align: right;
-            font-size: 0.8em;
-            color: #888;
-            margin-top: 4px;
-        }
+        .caption-card textarea { min-height: 70px; margin-bottom: 0; }
+        .caption-card .char-count { text-align: right; font-size: 0.8em; color: #888; margin-top: 4px; }
         .caption-card .char-count.over { color: #d44a2a; font-weight: bold; }
 
         .status-msg {
@@ -143,9 +101,7 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .platform-results {
-            margin-top: 12px;
-        }
+        .platform-results { margin-top: 12px; }
         .platform-results .result-item {
             display: flex;
             align-items: center;
@@ -155,15 +111,9 @@
         }
         .result-item .ok { color: #4caf50; }
         .result-item .fail { color: #d44a2a; }
-    </style>
-</head>
-<body>
-    <nav style="text-align:center; padding:12px; background:rgba(13,26,18,0.95); backdrop-filter:blur(10px); border-bottom:1px solid #1e3625;">
-        <a href="/" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px;">Dashboard</a>
-        <a href="/compose" style="font-family:'Patrick Hand',cursive; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a3b8a6; text-decoration:none; margin:0 15px; border-bottom:2px solid #a3b8a6; padding-bottom:2px;">Compose</a>
-    </nav>
+{% endblock %}
 
-    <div class="container">
+{% block content %}
         <!-- Step 1: Upload & Notes -->
         <div class="section" id="step-upload">
             <h2>1. Upload Media & Notes</h2>
@@ -207,15 +157,16 @@
             <div class="status-msg" id="post-status"></div>
             <div class="platform-results" id="platform-results"></div>
         </div>
-    </div>
+{% endblock %}
 
+{% block scripts %}
     <script>
         const fileInput = document.getElementById('media-file');
         const fileDrop = document.getElementById('file-drop');
         const fileNameEl = document.getElementById('file-name');
         const previewEl = document.getElementById('media-preview');
-        let uploadedFilename = null;  // Server-side filename after upload
-        let generatedCaptions = {};   // {platform: caption}
+        let uploadedFilename = null;
+        let generatedCaptions = {};
         const CHAR_LIMITS = {
             'Twitter': 280,
             'Bluesky': 300,
@@ -224,10 +175,8 @@
             'Facebook': null
         };
 
-        // File selection & preview
         fileInput.addEventListener('change', handleFileSelect);
 
-        // Drag & drop
         fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.style.borderColor = '#d4a017'; });
         fileDrop.addEventListener('dragleave', () => { fileDrop.style.borderColor = uploadedFilename ? '#4caf50' : '#1e3625'; });
         fileDrop.addEventListener('drop', e => {
@@ -241,12 +190,9 @@
         function handleFileSelect() {
             const file = fileInput.files[0];
             if (!file) return;
-
             fileNameEl.textContent = file.name;
             fileNameEl.style.display = 'block';
             fileDrop.classList.add('has-file');
-
-            // Preview
             previewEl.innerHTML = '';
             if (file.type.startsWith('image/')) {
                 const img = document.createElement('img');
@@ -259,8 +205,6 @@
                 vid.muted = true;
                 previewEl.appendChild(vid);
             }
-
-            // Upload immediately
             uploadFile(file);
         }
 
@@ -288,20 +232,15 @@
                 setStatus('generate-status', 'error', 'Please add some notes or upload media first.');
                 return;
             }
-
             const btn = document.getElementById('btn-generate');
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> Generating...';
             setStatus('generate-status', 'info', '<span class="spinner"></span> Feeding your notes to the AI hummingbird brain...');
-
             try {
                 const resp = await fetch('/api/compose/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        notes: notes,
-                        filename: uploadedFilename
-                    })
+                    body: JSON.stringify({ notes: notes, filename: uploadedFilename })
                 });
                 const data = await resp.json();
                 if (data.ok) {
@@ -335,7 +274,6 @@
                     <div class="char-count" id="chars-${platform}"></div>
                 `;
                 container.appendChild(card);
-                // Initial char count
                 setTimeout(() => updateCharCount(platform), 0);
             }
         }
@@ -356,27 +294,21 @@
         }
 
         async function postToSocials() {
-            // Collect edited captions from textareas
             const captions = {};
             for (const platform of Object.keys(generatedCaptions)) {
                 const ta = document.getElementById('caption-' + platform);
                 if (ta) captions[platform] = ta.value;
             }
-
             const btn = document.getElementById('btn-post');
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> Posting...';
             setStatus('post-status', 'info', '<span class="spinner"></span> Posting to all platforms...');
             document.getElementById('platform-results').innerHTML = '';
-
             try {
                 const resp = await fetch('/api/compose/post', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        captions: captions,
-                        filename: uploadedFilename
-                    })
+                    body: JSON.stringify({ captions: captions, filename: uploadedFilename })
                 });
                 const data = await resp.json();
                 if (data.ok) {
@@ -412,5 +344,4 @@
             el.innerHTML = html;
         }
     </script>
-</body>
-</html>
+{% endblock %}
