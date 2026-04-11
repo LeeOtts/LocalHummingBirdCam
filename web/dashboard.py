@@ -1784,6 +1784,40 @@ def api_feeder_refill():
     return {"ok": True, "id": refill_id}
 
 
+@app.route("/api/feeder/refill/<int:refill_id>", methods=["PUT"])
+def api_feeder_refill_update(refill_id):
+    """Update a feeder refill."""
+    data = request.get_json(force=True)
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "Not available"}, 503
+
+    amount = data.get("amount_oz")
+    if not amount or float(amount) <= 0:
+        return {"error": "Amount is required"}, 400
+
+    refill_notes, err = _validate_text(data.get("notes", ""), "Refill notes", max_length=500)
+    if err:
+        return {"error": err}, 400
+
+    _monitor.sightings_db.update_refill(
+        refill_id=refill_id,
+        feeder_id=data.get("feeder_id"),
+        amount_oz=float(amount),
+        notes=refill_notes,
+        timestamp=data.get("timestamp"),
+    )
+    return {"ok": True}
+
+
+@app.route("/api/feeder/refill/<int:refill_id>", methods=["DELETE"])
+def api_feeder_refill_delete(refill_id):
+    """Delete a feeder refill."""
+    if not _monitor or not _monitor.sightings_db:
+        return {"error": "Not available"}, 503
+    _monitor.sightings_db.delete_refill(refill_id)
+    return {"ok": True}
+
+
 @app.route("/api/feeder/refills", methods=["GET"])
 def api_feeder_refills():
     """Get recent feeder refills."""

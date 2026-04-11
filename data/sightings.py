@@ -945,6 +945,38 @@ class SightingsDB:
             finally:
                 conn.close()
 
+    def update_refill(self, refill_id: int, feeder_id: int | None,
+                      amount_oz: float, notes: str = "",
+                      timestamp: str | None = None) -> None:
+        """Update an existing feeder refill."""
+        if timestamp:
+            ts = _ensure_aware(datetime.fromisoformat(timestamp)).isoformat()
+        else:
+            ts = datetime.now(tz=_local_tz).isoformat()
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    """UPDATE feeder_refills
+                       SET timestamp = ?, feeder_id = ?, amount_oz = ?, notes = ?
+                       WHERE id = ?""",
+                    (ts, feeder_id, amount_oz, notes, refill_id),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def delete_refill(self, refill_id: int) -> None:
+        """Delete a feeder refill."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("DELETE FROM feeder_refills WHERE id = ?",
+                             (refill_id,))
+                conn.commit()
+            finally:
+                conn.close()
+
     def record_production(self, amount_oz: float, sugar_ratio: str = "1:4",
                           notes: str = "", timestamp: str | None = None) -> int:
         """Record nectar production. Returns the production ID."""

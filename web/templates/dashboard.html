@@ -1842,9 +1842,15 @@
             const production = (await prodResp.json()).production || [];
             let html = '';
             if (refills.length) {
-                html += '<strong>Recent Refills:</strong><br>';
+                html += '<strong>Recent Refills:</strong>';
                 for (const r of refills.slice(0, 5)) {
-                    html += `${new Date(r.timestamp).toLocaleDateString()} — ${r.amount_oz} oz${r.feeder_name ? ' (' + r.feeder_name + ')' : ''}${r.notes ? ' — ' + r.notes : ''}<br>`;
+                    html += `<div style="display:flex; align-items:center; gap:8px; padding:3px 0;" data-refill-id="${r.id}">
+                        <span style="flex:1;">${new Date(r.timestamp).toLocaleDateString()} — ${r.amount_oz} oz${r.feeder_name ? ' (' + r.feeder_name + ')' : ''}${r.notes ? ' — ' + r.notes : ''}</span>
+                        <button onclick="editRefill(${r.id}, ${r.feeder_id || 'null'}, ${r.amount_oz}, '${(r.notes||'').replace(/'/g,"\\'")}', '${r.timestamp}')"
+                            style="background:none; border:none; color:#a3b8a6; cursor:pointer; font-size:0.85em; padding:2px 6px;" title="Edit">&#9998;</button>
+                        <button onclick="deleteRefill(${r.id})"
+                            style="background:none; border:none; color:#e05535; cursor:pointer; font-size:0.85em; padding:2px 6px;" title="Delete">&#10005;</button>
+                    </div>`;
                 }
             }
             if (production.length) {
@@ -1854,6 +1860,50 @@
                 }
             }
             el.innerHTML = html || 'No refills or production logged yet.';
+        }
+
+        async function deleteRefill(id) {
+            if (!confirm('Delete this refill?')) return;
+            await fetch(`/api/feeder/refill/${id}`, { method: 'DELETE' });
+            loadFeederHistory();
+        }
+
+        function editRefill(id, feederId, amountOz, notes, timestamp) {
+            const el = document.querySelector(`[data-refill-id="${id}"]`);
+            if (!el) return;
+            const feederSelect = document.getElementById('refillFeederSelect');
+            const options = feederSelect ? feederSelect.innerHTML : '<option value="">Any feeder</option>';
+            const tsLocal = timestamp ? new Date(timestamp).toISOString().slice(0, 16) : '';
+            el.innerHTML = `<form onsubmit="submitEditRefill(event, ${id})" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:1;">
+                <select name="feeder_id" style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:4px; border-radius:4px; font-size:0.85em;">${options}</select>
+                <input type="number" name="amount_oz" step="0.1" min="0.1" value="${amountOz}" required
+                    style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:4px; border-radius:4px; width:70px; font-size:0.85em;">
+                <input type="datetime-local" name="timestamp" value="${tsLocal}"
+                    style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:4px; border-radius:4px; font-size:0.8em;">
+                <input type="text" name="notes" value="${notes}" placeholder="Notes"
+                    style="background:#0d1a12; border:1px solid #1e3625; color:#e8f0ea; padding:4px; border-radius:4px; font-size:0.85em; width:100px;">
+                <button type="submit" style="background:#4caf50; color:#fff; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em;">Save</button>
+                <button type="button" onclick="loadFeederHistory()" style="background:none; border:1px solid #1e3625; color:#a3b8a6; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:0.85em;">Cancel</button>
+            </form>`;
+            const select = el.querySelector('select[name="feeder_id"]');
+            if (select && feederId) select.value = feederId;
+        }
+
+        async function submitEditRefill(e, id) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const ts = fd.get('timestamp');
+            await fetch(`/api/feeder/refill/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    feeder_id: fd.get('feeder_id') || null,
+                    amount_oz: fd.get('amount_oz'),
+                    notes: fd.get('notes') || '',
+                    timestamp: ts || null,
+                }),
+            });
+            loadFeederHistory();
         }
 
         document.getElementById('refillForm')?.addEventListener('submit', async (e) => {
