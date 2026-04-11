@@ -694,7 +694,6 @@ class SightingsDB:
 
         return {
             "last_updated": datetime.now(tz=_local_tz).isoformat(),
-            "live_feed_url": config.WEBSITE_LIVE_FEED_URL if hasattr(config, 'WEBSITE_LIVE_FEED_URL') else "",
             "lifetime_detections": lifetime,
             "today_detections": today,
             "this_week_detections": week_count,

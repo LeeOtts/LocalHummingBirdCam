@@ -16,6 +16,7 @@ website/data/.login_attempts.json
 # Runtime data (written by the running system, causes merge conflicts)
 data/sightings.db
 website/data/site_data.json
+website/hls/
 
 # Project artifacts
 .post_state.json

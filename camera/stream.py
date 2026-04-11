@@ -1,6 +1,7 @@
 """Camera stream with automatic Pi Camera / USB camera detection."""
 
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -259,8 +260,102 @@ class CameraStream:
             logger.exception("Snapshot capture failed")
             return False
 
+    # --- HLS frame pipe ---
+
+    def start_hls_pipe(self):
+        """Start writing raw video frames to a named pipe for ffmpeg HLS encoding.
+
+        Creates a FIFO at /tmp/hls_input.pipe and writes raw BGR frames
+        that ffmpeg reads via `-f rawvideo -pix_fmt bgr24`.
+        This allows the existing CameraStream to own the camera device while
+        ffmpeg encodes HLS segments from the same frames.
+        """
+        if not config.HLS_ENABLED:
+            return
+
+        self._hls_running = True
+        self._hls_pipe_path = "/tmp/hls_input.pipe"
+
+        # Parse resolution from config (e.g. "1280x720")
+        parts = config.HLS_RESOLUTION.split("x")
+        self._hls_width = int(parts[0])
+        self._hls_height = int(parts[1])
+        self._hls_fps = config.HLS_FRAMERATE
+
+        # Create FIFO (remove stale one if it exists)
+        if os.path.exists(self._hls_pipe_path):
+            os.remove(self._hls_pipe_path)
+        os.mkfifo(self._hls_pipe_path)
+
+        self._hls_thread = threading.Thread(target=self._hls_pipe_loop, daemon=True)
+        self._hls_thread.start()
+        logger.info("HLS pipe started: %dx%d@%dfps -> %s",
+                     self._hls_width, self._hls_height, self._hls_fps,
+                     self._hls_pipe_path)
+
+    def _hls_pipe_loop(self):
+        """Write resized raw frames to the named pipe for ffmpeg."""
+        interval = 1.0 / self._hls_fps
+        pipe_fd = None
+
+        while self._hls_running:
+            try:
+                # Open blocks until ffmpeg opens the read end
+                if pipe_fd is None:
+                    logger.info("HLS pipe: waiting for ffmpeg to connect...")
+                    pipe_fd = os.open(self._hls_pipe_path, os.O_WRONLY)
+                    logger.info("HLS pipe: ffmpeg connected")
+
+                frame = self.get_full_res_frame()
+                if frame is None:
+                    time.sleep(interval)
+                    continue
+
+                # Resize to HLS resolution if different from camera resolution
+                h, w = frame.shape[:2]
+                if w != self._hls_width or h != self._hls_height:
+                    frame = cv2.resize(frame, (self._hls_width, self._hls_height))
+
+                os.write(pipe_fd, frame.tobytes())
+                time.sleep(interval)
+
+            except BrokenPipeError:
+                logger.warning("HLS pipe: broken pipe (ffmpeg may have restarted)")
+                if pipe_fd is not None:
+                    try:
+                        os.close(pipe_fd)
+                    except OSError:
+                        pass
+                    pipe_fd = None
+                time.sleep(1)
+            except Exception:
+                logger.exception("HLS pipe: error writing frame")
+                time.sleep(1)
+
+        if pipe_fd is not None:
+            try:
+                os.close(pipe_fd)
+            except OSError:
+                pass
+        logger.info("HLS pipe stopped")
+
+    def stop_hls_pipe(self):
+        """Stop the HLS frame pipe."""
+        self._hls_running = False
+        if hasattr(self, '_hls_thread') and self._hls_thread.is_alive():
+            self._hls_thread.join(timeout=5)
+        if hasattr(self, '_hls_pipe_path') and os.path.exists(self._hls_pipe_path):
+            try:
+                os.remove(self._hls_pipe_path)
+            except OSError:
+                pass
+
     def stop(self):
         """Stop the camera."""
+        # Stop HLS pipe first (if running)
+        if hasattr(self, '_hls_running') and self._hls_running:
+            self.stop_hls_pipe()
+
         if self.camera_type is None or self._backend is None:
             return
         if self.camera_type == "picamera":

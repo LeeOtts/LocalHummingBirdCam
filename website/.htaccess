@@ -17,6 +17,30 @@ ErrorDocument 404 /404.html
     </IfModule>
 </FilesMatch>
 
+# HLS streaming — MIME types for .m3u8 playlists and .ts segments
+<IfModule mod_mime.c>
+    AddType application/vnd.apple.mpegurl .m3u8
+    AddType video/mp2t .ts
+</IfModule>
+
+# HLS playlists must never be cached (updated every few seconds)
+<FilesMatch "\.m3u8$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+        Header set Access-Control-Allow-Origin "*"
+    </IfModule>
+</FilesMatch>
+
+# HLS segments are immutable once written — short cache is fine
+<FilesMatch "\.ts$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "public, max-age=60"
+        Header set Access-Control-Allow-Origin "*"
+    </IfModule>
+</FilesMatch>
+
 # Block dotfiles (protects config files etc.)
 <FilesMatch "^\.">
     <IfModule mod_authz_core.c>

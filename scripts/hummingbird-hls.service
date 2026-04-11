@@ -1,0 +1,35 @@
+[Unit]
+Description=Backyard Hummers HLS Streaming (encode + sync)
+After=network-online.target hummingbird.service
+Wants=network-online.target
+Requires=hummingbird.service
+
+[Service]
+Type=forking
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/LocalHummingBirdCam
+
+# Start ffmpeg encoder in background, then run sync loop in foreground
+ExecStartPre=/bin/mkdir -p /tmp/hls
+ExecStart=/bin/bash -c '\
+    /home/pi/LocalHummingBirdCam/scripts/hls_stream.sh &\
+    echo $! > /tmp/hls_stream.pid;\
+    sleep 5;\
+    exec /home/pi/LocalHummingBirdCam/scripts/hls_sync.sh'
+
+ExecStop=/bin/bash -c '\
+    [ -f /tmp/hls_stream.pid ] && kill "$(cat /tmp/hls_stream.pid)" 2>/dev/null;\
+    rm -f /tmp/hls_stream.pid /tmp/hls_input.pipe;\
+    rm -rf /tmp/hls/*.ts /tmp/hls/*.m3u8'
+
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hummingbird-hls
+
+[Install]
+WantedBy=multi-user.target

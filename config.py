@@ -182,8 +182,17 @@ WEBSITE_REMOTE_HOST = os.getenv("WEBSITE_REMOTE_HOST", "")  # SiteGround SSH hos
 WEBSITE_REMOTE_USER = os.getenv("WEBSITE_REMOTE_USER", "")  # SiteGround SSH username
 WEBSITE_REMOTE_PATH = os.getenv("WEBSITE_REMOTE_PATH", "public_html")  # Remote path
 WEBSITE_REMOTE_PORT = int(os.getenv("WEBSITE_REMOTE_PORT", "22"))  # SSH port
-WEBSITE_LIVE_FEED_URL = os.getenv("WEBSITE_LIVE_FEED_URL", "")  # Tailscale Funnel URL for live feed
 WEBSITE_DATA_DIR = BASE_DIR / "website" / "data"
+
+# HLS streaming — encode once on Pi, push segments to SiteGround for public viewers
+HLS_ENABLED = os.getenv("HLS_ENABLED", "false").lower() in ("true", "1", "yes")
+HLS_AUDIO = os.getenv("HLS_AUDIO", "false").lower() in ("true", "1", "yes")
+HLS_OUTPUT_DIR = os.getenv("HLS_OUTPUT_DIR", "/tmp/hls")
+HLS_SEGMENT_TIME = int(os.getenv("HLS_SEGMENT_TIME", "4"))
+HLS_LIST_SIZE = int(os.getenv("HLS_LIST_SIZE", "10"))
+HLS_VIDEO_BITRATE = os.getenv("HLS_VIDEO_BITRATE", "1200k")
+HLS_RESOLUTION = os.getenv("HLS_RESOLUTION", "1280x720")
+HLS_FRAMERATE = int(os.getenv("HLS_FRAMERATE", "10"))
 
 # Social links for public website
 WEBSITE_SOCIAL_FACEBOOK = os.getenv("WEBSITE_SOCIAL_FACEBOOK", "")

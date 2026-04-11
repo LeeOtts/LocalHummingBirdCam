@@ -20,6 +20,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Patrick+Hand&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css?v=2">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 </head>
 <body>
     <nav class="top-nav">
@@ -47,7 +48,10 @@
     <section class="section" id="liveFeed">
         <div class="feed-container">
             <div class="feed-wrapper">
-                <img id="cameraFeed" class="camera-feed" alt="Live hummingbird feed" style="display:none;" />
+                <video id="cameraFeed" class="camera-feed" muted autoplay playsinline style="display:none;"></video>
+                <button id="unmuteBtn" class="unmute-btn" style="display:none;" aria-label="Unmute audio">
+                    <span class="unmute-icon">&#128264;</span>
+                </button>
                 <div class="feed-offline" id="feedOffline" style="display:none;">
                     <div class="offline-icon">&#x1F50D;</div>
                     <h3>FEED OFFLINE</h3>

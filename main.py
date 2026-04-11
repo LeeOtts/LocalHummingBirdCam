@@ -238,6 +238,10 @@ class HummingbirdMonitor:
             logger.error("Camera not available — dashboard is up, will retry every 10 seconds")
             self.detection_state = "camera_error"
 
+        # Start HLS frame pipe if enabled (feeds raw frames to ffmpeg for public stream)
+        if config.HLS_ENABLED and self.camera.is_available:
+            self.camera.start_hls_pipe()
+
         recorder = ClipRecorder(self.camera)
 
         # Start the posting worker in a background thread

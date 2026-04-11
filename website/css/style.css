@@ -421,6 +421,26 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     background: #000;
 }
 
+/* Unmute button — shown only when HLS stream has audio */
+.unmute-btn {
+    position: absolute;
+    bottom: 48px;
+    left: 12px;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.unmute-btn:hover { background: rgba(0, 0, 0, 0.8); }
+.unmute-icon { font-size: 1.1rem; }
+
 .feed-offline {
     position: absolute;
     top: 0;

@@ -46,37 +46,9 @@ async function loadSiteData() {
 }
 
 /**
- * Derive the Pi's base URL from the live feed URL.
- * e.g. "https://pi.ts.net/feed" → "https://pi.ts.net"
+ * HLS stream URL — served from SiteGround, not the Pi
  */
-function getPiBaseUrl(data) {
-    if (!data || !data.live_feed_url) return null;
-    try {
-        const url = new URL(data.live_feed_url);
-        return url.origin;
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
- * Poll the Pi directly for real-time overlay status (sprinkler/sleeping).
- * Returns { sprinkler_active, sleeping } or null on failure.
- */
-async function pollOverlayStatus(piBaseUrl) {
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const resp = await fetch(piBaseUrl + '/api/overlay-status?t=' + Date.now(), {
-            signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!resp.ok) return null;
-        return await resp.json();
-    } catch (err) {
-        return null;
-    }
-}
+const HLS_URL = 'hls/stream.m3u8';
 
 /**
  * Format a timestamp for display (military style)
@@ -141,45 +113,80 @@ function startClock() {
 }
 
 /**
- * Set up live feed iframe
+ * Set up live HLS video feed — streams from SiteGround, not the Pi
  */
-function setupLiveFeed(data) {
-    const img = document.getElementById('cameraFeed');
+function setupLiveFeed() {
+    const video = document.getElementById('cameraFeed');
     const offline = document.getElementById('feedOffline');
-    if (!img || !data || !data.live_feed_url) {
-        if (img) img.style.display = 'none';
-        if (offline) offline.style.display = 'flex';
-        return;
+    const unmuteBtn = document.getElementById('unmuteBtn');
+    if (!video) return;
+
+    function showOffline(msg) {
+        video.style.display = 'none';
+        if (offline) { offline.style.display = 'flex'; offline.querySelector('h3').textContent = msg || 'FEED OFFLINE'; }
     }
 
-    // MJPEG streams natively in <img> tags across all browsers
-    img.style.display = 'block';
-    img.src = data.live_feed_url;
+    function showLive() {
+        video.style.display = 'block';
+        if (offline) offline.style.display = 'none';
+        video.play().catch(() => {});
+    }
 
-    // Auto-reconnect on stream failure with backoff (max 10 retries)
-    let feedReconnectTimer = null;
-    let feedRetryCount = 0;
-    const FEED_MAX_RETRIES = 10;
-    img.addEventListener('error', () => {
-        img.style.display = 'none';
-        if (offline) { offline.style.display = 'flex'; offline.textContent = 'Reconnecting...'; }
-        clearTimeout(feedReconnectTimer);
-        if (feedRetryCount >= FEED_MAX_RETRIES) {
-            if (offline) offline.textContent = 'FEED OFFLINE';
-            return;
-        }
-        const delay = Math.min(5000 * Math.pow(1.5, feedRetryCount), 60000);
-        feedRetryCount++;
-        feedReconnectTimer = setTimeout(() => {
-            feedReconnectTimer = null;
-            img.style.display = 'block';
-            img.src = data.live_feed_url + (data.live_feed_url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-        }, delay);
-    });
-    img.addEventListener('load', () => {
-        feedRetryCount = 0;  // Reset on successful load
-        if (offline) { offline.style.display = 'none'; offline.textContent = 'FEED OFFLINE'; }
-    });
+    // Unmute button — only shown when HLS stream has audio
+    if (unmuteBtn) {
+        unmuteBtn.addEventListener('click', () => {
+            video.muted = !video.muted;
+            unmuteBtn.querySelector('.unmute-icon').textContent = video.muted ? '\u{1F508}' : '\u{1F50A}';
+        });
+    }
+
+    function checkAudioTracks() {
+        if (!unmuteBtn) return;
+        // Show unmute button only if the stream actually has audio tracks
+        const hasAudio = video.audioTracks ? video.audioTracks.length > 0 : true;
+        unmuteBtn.style.display = hasAudio ? 'block' : 'none';
+    }
+
+    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        const hls = new Hls({
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 6,
+            enableWorker: true,
+            lowLatencyMode: false,
+        });
+
+        hls.loadSource(HLS_URL);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            showLive();
+            checkAudioTracks();
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+                showOffline('RECONNECTING...');
+                // Auto-retry: destroy and recreate after delay
+                setTimeout(() => {
+                    hls.destroy();
+                    setupLiveFeed();
+                }, 10000);
+            }
+        });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari — native HLS support
+        video.src = HLS_URL;
+        video.addEventListener('loadedmetadata', () => {
+            showLive();
+            checkAudioTracks();
+        });
+        video.addEventListener('error', () => {
+            showOffline('FEED OFFLINE');
+            setTimeout(() => { video.src = HLS_URL + '?t=' + Date.now(); }, 10000);
+        });
+    } else {
+        showOffline('FEED OFFLINE');
+    }
 }
 
 /**
@@ -312,24 +319,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!data) return;
 
     // Homepage-specific
-    setupLiveFeed(data);
+    setupLiveFeed();
     populateStatsTicker(data);
     populateLatestDetection(data);
     populateSocials(data);
     updateHudStatus(data);
 
-    // Poll for overlay status (sprinkler/sleeping) every 15 seconds.
-    // Try the Pi directly for real-time state; fall back to site_data.json.
-    const piBaseUrl = getPiBaseUrl(data);
+    // Poll site_data.json for overlay status (sleeping/watering) every 30 seconds.
+    // HLS sync pushes site_data.json every ~30s so this stays near-real-time.
     setInterval(async () => {
-        if (piBaseUrl) {
-            const overlay = await pollOverlayStatus(piBaseUrl);
-            if (overlay) {
-                updateHudStatus(overlay);
-                return;
-            }
-        }
         const fresh = await loadSiteData();
         if (fresh) updateHudStatus(fresh);
-    }, 15000);
+    }, 30000);
 });

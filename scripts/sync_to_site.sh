@@ -22,7 +22,7 @@ git -C "$PROJECT_DIR" pull --ff-only 2>&1 || echo "[$(date)] WARNING: git pull s
 # Load config from .env
 if [ -f "$PROJECT_DIR/.env" ]; then
     # shellcheck disable=SC1091
-    source <(grep -E '^WEBSITE_' "$PROJECT_DIR/.env" | sed 's/^/export /')
+    source <(grep -E '^(WEBSITE_|HLS_ENABLED)' "$PROJECT_DIR/.env" | sed 's/^/export /')
 fi
 
 REMOTE_HOST="${WEBSITE_REMOTE_HOST:-}"
@@ -67,12 +67,17 @@ rsync -az --delete -e "ssh ${SSH_OPTS}" --timeout=60 \
 # Restore index.html so git stays clean
 git -C "$PROJECT_DIR" checkout -- "$PROJECT_DIR/website/index.html" 2>/dev/null || true
 
-# Step 4: Sync site_data.json
-if [ -f "$SITE_DATA" ]; then
-    echo "[$(date)] Syncing site_data.json..."
-    rsync -az -e "ssh ${SSH_OPTS}" --timeout=30 \
-        "$SITE_DATA" \
-        "${REMOTE}:${REMOTE_PATH}/data/site_data.json"
+# Step 4: Sync site_data.json (skip if HLS sync is handling it at higher frequency)
+HLS_ENABLED="${HLS_ENABLED:-false}"
+if [ "$HLS_ENABLED" != "true" ] && [ "$HLS_ENABLED" != "1" ] && [ "$HLS_ENABLED" != "yes" ]; then
+    if [ -f "$SITE_DATA" ]; then
+        echo "[$(date)] Syncing site_data.json..."
+        rsync -az -e "ssh ${SSH_OPTS}" --timeout=30 \
+            "$SITE_DATA" \
+            "${REMOTE}:${REMOTE_PATH}/data/site_data.json"
+    fi
+else
+    echo "[$(date)] Skipping site_data.json sync (handled by HLS sync)"
 fi
 
 # Step 5: Sync video clips (only .mp4 files, skip temp files)
