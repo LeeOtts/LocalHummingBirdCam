@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Logs - Backyard Hummers{% endblock %}
+
+{% block extra_css %}
+        .log-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .log-controls select, .log-controls input {
+            background: #0d1a12;
+            color: #e8f0ea;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.85em;
+        }
+        .log-controls input[type="text"] {
+            flex: 1;
+            min-width: 150px;
+        }
+        .log-box {
+            background: #0d1a12;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            max-height: calc(100vh - 340px);
+            min-height: 400px;
+            overflow-y: auto;
+            overflow-x: auto;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .log-box .log-info { color: #66bb6a; }
+        .log-box .log-warn { color: #f0c040; }
+        .log-box .log-error { color: #e05535; }
+        .log-line:hover { background: rgba(255,255,255,0.03); }
+        .log-stats {
+            display: flex;
+            gap: 20px;
+            color: #a3b8a6;
+            font-size: 0.8em;
+            margin-top: 10px;
+        }
+        .log-stats span { display: flex; align-items: center; gap: 5px; }
+        .log-stats .dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+        .log-empty {
+            color: #a3b8a6;
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1em;
+        }
+        .auto-refresh-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #a3b8a6;
+            font-size: 0.8em;
+            cursor: pointer;
+        }
+        .auto-refresh-toggle input { cursor: pointer; }
+
+        @media (max-width: 768px) {
+            .log-box {
+                font-size: 0.75em;
+                padding: 10px;
+                max-height: 60vh;
+                min-height: 250px;
+            }
+            .log-controls { gap: 6px; }
+            .log-controls select, .log-controls input { padding: 6px 8px; font-size: 0.8em; }
+        }
+{% endblock %}
+
+{% block content %}
+        <div class="section">
+            <h2>System Logs</h2>
+
+            <div class="log-controls">
+                <select id="dateSelect" onchange="loadLogs()">
+                    {% for d in dates %}
+                    <option value="{{ d }}">{{ d }}</option>
+                    {% endfor %}
+                    {% if not dates %}
+                    <option value="">No logs available</option>
+                    {% endif %}
+                </select>
+
+                <select id="levelFilter" onchange="loadLogs()">
+                    <option value="all">All Levels</option>
+                    <option value="log-error">Errors</option>
+                    <option value="log-warn">Warnings</option>
+                    <option value="log-info">Info</option>
+                </select>
+
+                <input type="text" id="searchBox" placeholder="Search logs..." onkeyup="debounceSearch()">
+
+                <label class="auto-refresh-toggle">
+                    <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
+                    Live
+                </label>
+
+                <button class="btn btn-delete" onclick="clearLogs()" style="font-size:0.75em;">Clear Today</button>
+            </div>
+
+            <div class="log-box" id="logBox">
+                <div class="log-empty">Loading...</div>
+            </div>
+
+            <div class="log-stats" id="logStats"></div>
+        </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        let refreshTimer = null;
+        let searchTimer = null;
+
+        function loadLogs() {
+            const date = document.getElementById('dateSelect').value;
+            const level = document.getElementById('levelFilter').value;
+            const search = document.getElementById('searchBox').value;
+
+            const params = new URLSearchParams({ date, level, limit: '500' });
+            if (search) params.set('search', search);
+
+            fetch('/api/logs?' + params)
+                .then(r => r.json())
+                .then(data => {
+                    const box = document.getElementById('logBox');
+                    if (!data.logs.length) {
+                        box.innerHTML = '<div class="log-empty">No log entries found</div>';
+                        updateStats([]);
+                        return;
+                    }
+                    box.innerHTML = data.logs.map(l =>
+                        `<div class="log-line ${escapeHtml(l.css_class)}">${escapeHtml(l.text)}</div>`
+                    ).join('');
+                    updateStats(data.logs);
+                })
+                .catch(() => {});
+        }
+
+        function updateStats(logs) {
+            const errors = logs.filter(l => l.css_class === 'log-error').length;
+            const warns = logs.filter(l => l.css_class === 'log-warn').length;
+            const infos = logs.filter(l => l.css_class === 'log-info').length;
+            document.getElementById('logStats').innerHTML =
+                `<span><span class="dot" style="background:#e05535;"></span> ${errors} errors</span>` +
+                `<span><span class="dot" style="background:#f0c040;"></span> ${warns} warnings</span>` +
+                `<span><span class="dot" style="background:#66bb6a;"></span> ${infos} info</span>` +
+                `<span style="margin-left:auto;">${logs.length} lines shown</span>`;
+        }
+
+        function debounceSearch() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(loadLogs, 300);
+        }
+
+        function toggleAutoRefresh() {
+            if (document.getElementById('autoRefresh').checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            // Only auto-refresh when viewing today's logs
+            const dates = document.getElementById('dateSelect');
+            if (dates.selectedIndex === 0) {
+                refreshTimer = setInterval(loadLogs, 5000);
+            }
+        }
+
+        function stopAutoRefresh() {
+            if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        }
+
+        function clearLogs() {
+            if (!confirm('Clear today\'s log entries?')) return;
+            fetch('/api/logs/clear', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.ok) { loadLogs(); showToast('Logs cleared'); }
+                    else showToast('Error: ' + data.error);
+                })
+                .catch(() => showToast('Failed to clear logs'));
+        }
+
+        // Initial load
+        loadLogs();
+        startAutoRefresh();
+
+        // Pause auto-refresh when switching to older dates
+        document.getElementById('dateSelect').addEventListener('change', function() {
+            if (this.selectedIndex === 0 && document.getElementById('autoRefresh').checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+    </script>
+{% endblock %}

@@ -448,17 +448,9 @@
 
         <div class="section">
             <h2>Recent Logs
-                <div class="log-header-controls" style="float:right; display:flex; gap:8px;">
-                    <select id="logFilter" onchange="filterLogs()" style="background:#12150e; color:#e8f0ea; border:1px solid #333; border-radius:4px; padding:6px 10px; font-size:0.8em;">
-                        <option value="all">All</option>
-                        <option value="log-error">Errors</option>
-                        <option value="log-warn">Warnings</option>
-                        <option value="log-info">Info</option>
-                    </select>
-                    <button class="btn btn-delete" onclick="clearLogs()" style="font-size:0.7em; padding:6px 14px;">Clear Logs</button>
-                </div>
+                <a href="/logs" class="btn btn-update" style="float:right; font-size:0.7em; padding:6px 14px; text-decoration:none;">View All Logs</a>
             </h2>
-            <div class="log-box" id="logBox">
+            <div class="log-box" id="logBox" style="max-height:250px;">
                 {% for line in logs %}
                 <div class="log-line {{ line.css_class }}">{{ line.text }}</div>
                 {% endfor %}
@@ -604,15 +596,13 @@
 
         // Poll logs and update
         function pollLogs() {
-            const filter = document.getElementById('logFilter').value;
-            fetch('/api/logs')
+            fetch('/api/logs?limit=50')
                 .then(r => r.json())
                 .then(data => {
                     const box = document.getElementById('logBox');
-                    box.innerHTML = data.logs.map(l => {
-                        const display = (filter === 'all' || l.css_class === filter) ? '' : 'display:none;';
-                        return `<div class="log-line ${escapeHtml(l.css_class)}" style="${display}">${escapeHtml(l.text)}</div>`;
-                    }).join('');
+                    box.innerHTML = data.logs.map(l =>
+                        `<div class="log-line ${escapeHtml(l.css_class)}">${escapeHtml(l.text)}</div>`
+                    ).join('');
                 })
                 .catch(() => {});
         }
@@ -913,21 +903,6 @@
         refreshRetrainStatus();
         setInterval(refreshRetrainStatus, 30000);
 
-        function clearLogs() {
-            if (!confirm('Clear all log entries?')) return;
-            fetch('/api/logs/clear', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => { if (data.ok) { document.getElementById('logBox').innerHTML = ''; showToast('Logs cleared'); } })
-                .catch(() => showToast('Failed to clear logs'));
-        }
-
-        function filterLogs() {
-            const filter = document.getElementById('logFilter').value;
-            document.querySelectorAll('#logBox .log-line').forEach(el => {
-                if (filter === 'all' || el.classList.contains(filter)) el.style.display = '';
-                else el.style.display = 'none';
-            });
-        }
 
         function checkForUpdate() {
             const btn = document.getElementById('updateBtn');

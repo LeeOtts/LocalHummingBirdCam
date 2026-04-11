@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 from datetime import date, datetime
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from queue import Empty, Queue
 
@@ -70,12 +70,13 @@ def setup_logging():
         tz=local_tz,
     )
 
-    # File handler with rotation (5MB per file, keep 5 backups)
-    file_handler = RotatingFileHandler(
+    # File handler with daily rotation at midnight, keep 30 days
+    file_handler = TimedRotatingFileHandler(
         config.LOGS_DIR / "hummingbird.log",
-        maxBytes=5 * 1024 * 1024,
-        backupCount=5,
+        when="midnight",
+        backupCount=30,
     )
+    file_handler.suffix = "%Y-%m-%d"
     file_handler.setFormatter(formatter)
 
     # Console handler

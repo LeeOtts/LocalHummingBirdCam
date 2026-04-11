@@ -454,16 +454,51 @@ def _get_recent_clips(limit=6):
     return clips
 
 
-def _get_recent_logs(limit=50):
-    """Read the last N lines from the log file using tail (avoids loading full 5MB file)."""
-    log_file = config.LOGS_DIR / "hummingbird.log"
+def _classify_log_line(line):
+    """Return CSS class for a log line based on level."""
+    if "[ERROR]" in line:
+        return "log-error"
+    if "[WARNING]" in line:
+        return "log-warn"
+    return "log-info"
+
+
+def _get_log_file_for_date(date_str):
+    """Return the log file path for a given date string (YYYY-MM-DD).
+
+    Today's logs are in hummingbird.log, older dates in hummingbird.log.YYYY-MM-DD.
+    """
+    from datetime import date as _date
+    today = datetime.now(tz=_local_tz).strftime("%Y-%m-%d")
+    if date_str == today:
+        return config.LOGS_DIR / "hummingbird.log"
+    return config.LOGS_DIR / f"hummingbird.log.{date_str}"
+
+
+def _get_available_log_dates():
+    """Return sorted list of dates (YYYY-MM-DD) that have log files, newest first."""
+    dates = []
+    today = datetime.now(tz=_local_tz).strftime("%Y-%m-%d")
+    main_log = config.LOGS_DIR / "hummingbird.log"
+    if main_log.exists() and main_log.stat().st_size > 0:
+        dates.append(today)
+    for f in config.LOGS_DIR.glob("hummingbird.log.*"):
+        suffix = f.name.replace("hummingbird.log.", "")
+        # Validate it looks like a date
+        if len(suffix) == 10 and suffix[4] == "-" and suffix[7] == "-":
+            dates.append(suffix)
+    return sorted(set(dates), reverse=True)
+
+
+def _read_log_file(log_file, limit=500, level=None, search=None):
+    """Read log lines from a file, with optional level/search filtering."""
     if not log_file.exists():
         return []
 
     try:
         import subprocess
         result = subprocess.run(
-            ["tail", "-n", str(limit), str(log_file)],
+            ["tail", "-n", "5000", str(log_file)],
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode != 0:
@@ -474,14 +509,23 @@ def _get_recent_logs(limit=50):
 
     output = []
     for line in reversed(lines):  # Newest first
-        if "[ERROR]" in line:
-            css = "log-error"
-        elif "[WARNING]" in line:
-            css = "log-warn"
-        else:
-            css = "log-info"
+        if not line.strip():
+            continue
+        css = _classify_log_line(line)
+        if level and level != "all" and css != level:
+            continue
+        if search and search.lower() not in line.lower():
+            continue
         output.append({"text": line, "css_class": css})
+        if len(output) >= limit:
+            break
     return output
+
+
+def _get_recent_logs(limit=50):
+    """Read the last N lines from today's log file."""
+    log_file = config.LOGS_DIR / "hummingbird.log"
+    return _read_log_file(log_file, limit=limit)
 
 
 def _is_admin():
@@ -532,6 +576,12 @@ def season_page():
         analytics=_get_analytics(),
         is_admin=_is_admin(),
     )
+
+
+@app.route("/logs")
+def logs_page():
+    dates = _get_available_log_dates()
+    return render_template("logs.html", dates=dates)
 
 
 @app.route("/clips/<filename>")
@@ -899,14 +949,30 @@ def test_record():
 
 @app.route("/api/logs")
 def api_logs():
-    """JSON log lines for live refresh."""
-    logs = _get_recent_logs()
+    """JSON log lines with optional date/level/search filtering."""
+    date_str = request.args.get("date", "")
+    level = request.args.get("level", "all")
+    search = request.args.get("search", "")
+    limit = min(int(request.args.get("limit", 200)), 2000)
+
+    if date_str:
+        log_file = _get_log_file_for_date(date_str)
+    else:
+        log_file = config.LOGS_DIR / "hummingbird.log"
+
+    logs = _read_log_file(log_file, limit=limit, level=level, search=search or None)
     return {"logs": [{"text": l["text"], "css_class": l["css_class"]} for l in logs]}
+
+
+@app.route("/api/logs/dates")
+def api_log_dates():
+    """Return list of available log dates."""
+    return {"dates": _get_available_log_dates()}
 
 
 @app.route("/api/logs/clear", methods=["POST"])
 def clear_logs():
-    """Clear the log file."""
+    """Clear the current log file."""
     log_file = config.LOGS_DIR / "hummingbird.log"
     try:
         log_file.write_text("")
