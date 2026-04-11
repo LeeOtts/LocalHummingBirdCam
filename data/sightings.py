@@ -18,6 +18,14 @@ except ImportError:
 
 _local_tz = ZoneInfo(config.LOCATION_TIMEZONE)
 
+
+def _ensure_aware(dt: datetime) -> datetime:
+    """Attach local timezone to naive datetimes so aware/naive subtraction never crashes."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=_local_tz)
+    return dt
+
+
 DB_PATH = config.BASE_DIR / "data" / "sightings.db"
 SCHEMA_VERSION = 2
 
@@ -902,7 +910,10 @@ class SightingsDB:
     def record_refill(self, feeder_id: int | None, amount_oz: float,
                       notes: str = "", timestamp: str | None = None) -> int:
         """Record a feeder refill. Returns the refill ID."""
-        ts = timestamp or datetime.now(tz=_local_tz).isoformat()
+        if timestamp:
+            ts = _ensure_aware(datetime.fromisoformat(timestamp)).isoformat()
+        else:
+            ts = datetime.now(tz=_local_tz).isoformat()
         with self._lock:
             conn = self._get_conn()
             try:
@@ -937,7 +948,10 @@ class SightingsDB:
     def record_production(self, amount_oz: float, sugar_ratio: str = "1:4",
                           notes: str = "", timestamp: str | None = None) -> int:
         """Record nectar production. Returns the production ID."""
-        ts = timestamp or datetime.now(tz=_local_tz).isoformat()
+        if timestamp:
+            ts = _ensure_aware(datetime.fromisoformat(timestamp)).isoformat()
+        else:
+            ts = datetime.now(tz=_local_tz).isoformat()
         with self._lock:
             conn = self._get_conn()
             try:
@@ -982,7 +996,7 @@ class SightingsDB:
                 ).fetchone()
                 days_since_refill = None
                 if last_refill:
-                    lr = datetime.fromisoformat(last_refill["timestamp"])
+                    lr = _ensure_aware(datetime.fromisoformat(last_refill["timestamp"]))
                     days_since_refill = (datetime.now(tz=_local_tz) - lr).days
 
                 # Total nectar produced in period
@@ -1050,7 +1064,7 @@ class SightingsDB:
                 if not row:
                     return
 
-                start = datetime.fromisoformat(row["start_time"])
+                start = _ensure_aware(datetime.fromisoformat(row["start_time"]))
                 before_start = (start - timedelta(minutes=30)).isoformat()
                 after_end = (now + timedelta(minutes=30)).isoformat()
 
