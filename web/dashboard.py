@@ -491,8 +491,12 @@ def dashboard():
     )
     analytics = None
     if _monitor and _monitor.sightings_db:
-        from analytics.patterns import get_analytics_summary
-        analytics = get_analytics_summary(_monitor.sightings_db)
+        try:
+            from analytics.patterns import get_analytics_summary
+            analytics = get_analytics_summary(_monitor.sightings_db)
+        except Exception:
+            logger.exception("Failed to load analytics for dashboard")
+            analytics = None
     return render_template(
         "dashboard.html",
         status=_get_status(),

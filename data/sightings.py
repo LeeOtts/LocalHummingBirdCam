@@ -902,7 +902,13 @@ class SightingsDB:
     def record_refill(self, feeder_id: int | None, amount_oz: float,
                       notes: str = "", timestamp: str | None = None) -> int:
         """Record a feeder refill. Returns the refill ID."""
-        ts = timestamp or datetime.now(tz=_local_tz).isoformat()
+        if timestamp:
+            dt = datetime.fromisoformat(timestamp)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_local_tz)
+            ts = dt.isoformat()
+        else:
+            ts = datetime.now(tz=_local_tz).isoformat()
         with self._lock:
             conn = self._get_conn()
             try:
@@ -937,7 +943,13 @@ class SightingsDB:
     def record_production(self, amount_oz: float, sugar_ratio: str = "1:4",
                           notes: str = "", timestamp: str | None = None) -> int:
         """Record nectar production. Returns the production ID."""
-        ts = timestamp or datetime.now(tz=_local_tz).isoformat()
+        if timestamp:
+            dt = datetime.fromisoformat(timestamp)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=_local_tz)
+            ts = dt.isoformat()
+        else:
+            ts = datetime.now(tz=_local_tz).isoformat()
         with self._lock:
             conn = self._get_conn()
             try:
@@ -983,6 +995,8 @@ class SightingsDB:
                 days_since_refill = None
                 if last_refill:
                     lr = datetime.fromisoformat(last_refill["timestamp"])
+                    if lr.tzinfo is None:
+                        lr = lr.replace(tzinfo=_local_tz)
                     days_since_refill = (datetime.now(tz=_local_tz) - lr).days
 
                 # Total nectar produced in period
