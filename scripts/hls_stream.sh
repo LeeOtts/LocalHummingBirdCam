@@ -30,6 +30,55 @@ HLS_FRAMERATE="${HLS_FRAMERATE:-10}"
 HLS_AUDIO="${HLS_AUDIO:-false}"
 AUDIO_DEVICE="${AUDIO_DEVICE:-default}"
 
+# Auto-detect USB audio device (mirrors camera/recorder.py _detect_audio_device)
+detect_audio_device() {
+    local device="$AUDIO_DEVICE"
+
+    # If user explicitly set a device (not "default"), use it as-is
+    if [ "$device" != "default" ]; then
+        echo "$device"
+        return
+    fi
+
+    # Try to auto-detect a USB audio capture device via arecord
+    if command -v arecord &>/dev/null; then
+        local arecord_output
+        arecord_output=$(arecord -l 2>/dev/null) || true
+
+        local line
+        while IFS= read -r line; do
+            if echo "$line" | grep -qi "card" && echo "$line" | grep -qi "usb"; then
+                local card_num device_num
+                card_num=$(echo "$line" | sed -n 's/.*card[[:space:]]*\([0-9]*\).*/\1/ip')
+                device_num=$(echo "$line" | sed -n 's/.*device[[:space:]]*\([0-9]*\).*/\1/ip')
+                if [ -n "$card_num" ] && [ -n "$device_num" ]; then
+                    echo "hw:${card_num},${device_num}"
+                    return
+                fi
+            fi
+        done <<< "$arecord_output"
+    fi
+
+    echo "default"
+}
+
+# Validate that an ALSA capture device is accessible
+validate_audio_device() {
+    local device="$1"
+
+    if [ "$device" = "default" ]; then
+        return 0
+    fi
+
+    if command -v arecord &>/dev/null; then
+        if arecord -D "$device" -d 0 /dev/null 2>/dev/null; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 PIPE_PATH="/tmp/hls_input.pipe"
 WIDTH="${HLS_RESOLUTION%%x*}"
 HEIGHT="${HLS_RESOLUTION##*x}"
@@ -37,7 +86,7 @@ HEIGHT="${HLS_RESOLUTION##*x}"
 # Create output directory (use tmpfs to avoid SD card wear)
 mkdir -p "$HLS_OUTPUT_DIR"
 
-echo "[$(date)] HLS encoder starting: ${WIDTH}x${HEIGHT}@${HLS_FRAMERATE}fps, bitrate=${HLS_VIDEO_BITRATE}, audio=${HLS_AUDIO}"
+echo "[$(date)] HLS encoder starting: ${WIDTH}x${HEIGHT}@${HLS_FRAMERATE}fps, bitrate=${HLS_VIDEO_BITRATE}, audio=${HLS_AUDIO}, audio_device=${AUDIO_DEVICE}"
 
 # Wait for the pipe to exist (CameraStream creates it)
 WAIT_COUNT=0
@@ -72,11 +121,24 @@ FFMPEG_CMD=(
 
 # Optionally add audio input
 if [ "$HLS_AUDIO" = "true" ] || [ "$HLS_AUDIO" = "1" ] || [ "$HLS_AUDIO" = "yes" ]; then
-    FFMPEG_CMD+=(
-        -f alsa -ac 1 -ar 44100 -i "plughw:CARD=Camera"
-    )
-    AUDIO_OPTS=(-c:a aac -b:a 64k -ar 44100)
-    echo "[$(date)] Audio enabled from ALSA device"
+    # Detect and resolve the audio device
+    RAW_DEVICE=$(detect_audio_device)
+    echo "[$(date)] Audio: detected device '$RAW_DEVICE'"
+
+    # Convert hw: to plughw: for automatic format conversion (matches recorder.py pattern)
+    ALSA_DEVICE="${RAW_DEVICE/hw:/plughw:}"
+
+    # Validate the device actually exists before passing to ffmpeg
+    if validate_audio_device "$ALSA_DEVICE"; then
+        FFMPEG_CMD+=(
+            -f alsa -ac 1 -ar 44100 -i "$ALSA_DEVICE"
+        )
+        AUDIO_OPTS=(-c:a aac -b:a 64k -ar 44100)
+        echo "[$(date)] Audio enabled: device='$ALSA_DEVICE'"
+    else
+        AUDIO_OPTS=(-an)
+        echo "[$(date)] WARNING: Audio device '$ALSA_DEVICE' not accessible — falling back to no audio"
+    fi
 else
     AUDIO_OPTS=(-an)
     echo "[$(date)] Audio disabled"
