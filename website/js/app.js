@@ -118,7 +118,6 @@ function startClock() {
 function setupLiveFeed() {
     const video = document.getElementById('cameraFeed');
     const offline = document.getElementById('feedOffline');
-    const unmuteBtn = document.getElementById('unmuteBtn');
     if (!video) return;
 
     function showOffline(msg) {
@@ -130,21 +129,6 @@ function setupLiveFeed() {
         video.style.display = 'block';
         if (offline) offline.style.display = 'none';
         video.play().catch(() => {});
-    }
-
-    // Unmute button — only shown when HLS stream has audio
-    if (unmuteBtn) {
-        unmuteBtn.addEventListener('click', () => {
-            video.muted = !video.muted;
-            unmuteBtn.querySelector('.unmute-icon').textContent = video.muted ? '\u{1F508}' : '\u{1F50A}';
-        });
-    }
-
-    function checkAudioTracks() {
-        if (!unmuteBtn) return;
-        // Show unmute button only if the stream actually has audio tracks
-        const hasAudio = video.audioTracks ? video.audioTracks.length > 0 : true;
-        unmuteBtn.style.display = hasAudio ? 'block' : 'none';
     }
 
     if (typeof Hls !== 'undefined' && Hls.isSupported()) {
@@ -160,7 +144,6 @@ function setupLiveFeed() {
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
             showLive();
-            checkAudioTracks();
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
@@ -178,7 +161,6 @@ function setupLiveFeed() {
         video.src = HLS_URL;
         video.addEventListener('loadedmetadata', () => {
             showLive();
-            checkAudioTracks();
         });
         video.addEventListener('error', () => {
             showOffline('FEED OFFLINE');

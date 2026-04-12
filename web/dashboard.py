@@ -33,7 +33,7 @@ _monitor = None
 _watering_scheduler = None
 
 # Routes that are always public (live camera feed, SSE events)
-_PUBLIC_ROUTES = {"/feed", "/feed/audio", "/api/events", "/api/overlay-status"}
+_PUBLIC_ROUTES = {"/feed", "/api/events", "/api/overlay-status"}
 
 # Simple in-memory rate limiter for failed auth attempts
 _AUTH_FAIL_WINDOW = 300  # 5 minutes
