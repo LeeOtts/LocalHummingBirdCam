@@ -325,10 +325,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateSocials(data);
     updateHudStatus(data);
 
-    // Poll site_data.json for overlay status (sleeping/watering) every 30 seconds.
-    // HLS sync pushes site_data.json every ~30s so this stays near-real-time.
+    // Poll site_data.json every 2 minutes — site_data only changes on
+    // detection events or state transitions, not continuously.
     setInterval(async () => {
         const fresh = await loadSiteData();
-        if (fresh) updateHudStatus(fresh);
-    }, 30000);
+        if (fresh) {
+            updateHudStatus(fresh);
+            populateStatsTicker(fresh);
+            populateLatestDetection(fresh);
+        }
+    }, 120000);
 });

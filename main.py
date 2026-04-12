@@ -142,6 +142,7 @@ class HummingbirdMonitor:
         self._state_file = Path(config.BASE_DIR) / ".post_state.json"
         self.bhyve_monitor = None  # set in start() if BHYVE_ENABLED
         self._last_site_data_regen = 0.0  # timestamp of last periodic site_data.json update
+        self._site_data_dirty = True  # generate once on startup
 
         # Engagement tracking
         self._detection_hours: list = []  # hour ints for peak-hour calc
@@ -273,12 +274,14 @@ class HummingbirdMonitor:
                     self._watering_event_id = self.sightings_db.record_watering_start(zone)
                     logger.info("Recorded watering start (event #%s, zone %s)",
                                 self._watering_event_id, zone)
+                self._site_data_dirty = True
 
             def _on_spray_stop(zone):
                 if self.sightings_db and self._watering_event_id:
                     self.sightings_db.record_watering_end(self._watering_event_id)
                     logger.info("Recorded watering end (event #%s)", self._watering_event_id)
                     self._watering_event_id = None
+                self._site_data_dirty = True
 
             self.bhyve_monitor = BHyveMonitor(
                 config.BHYVE_EMAIL, config.BHYVE_PASSWORD,
@@ -362,10 +365,20 @@ class HummingbirdMonitor:
                             daemon=True,
                         ).start()
 
+                    # Flush site_data.json so the website shows the sleeping overlay
+                    try:
+                        from scripts.generate_site_data import generate_site_data
+                        generate_site_data(self.sightings_db, sprinkler_active=False)
+                        self._site_data_dirty = False
+                        self._last_site_data_regen = time.time()
+                    except Exception:
+                        self._site_data_dirty = True
+
                 time.sleep(30)  # Check every 30 seconds if it's daytime yet
                 continue
             elif self._sleeping:
                 self._sleeping = False
+                self._site_data_dirty = True
                 self._night_posted = False  # Reset for next night
                 self._save_post_state()
                 self.detection_state = "idle"
@@ -383,10 +396,11 @@ class HummingbirdMonitor:
                 self._save_post_state()
                 threading.Thread(target=self._post_goodmorning, daemon=True).start()
 
-            # Periodically regenerate site_data.json so sprinkler/sleeping
-            # state reaches the public website without waiting for a detection.
+            # Regenerate site_data.json only when something changed,
+            # with a 5-minute fallback as a safety net.
             now = time.time()
-            if now - self._last_site_data_regen >= 30:
+            if self._site_data_dirty or (now - self._last_site_data_regen >= 300):
+                self._site_data_dirty = False
                 self._last_site_data_regen = now
                 try:
                     from scripts.generate_site_data import generate_site_data

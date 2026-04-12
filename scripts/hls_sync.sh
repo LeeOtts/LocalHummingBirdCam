@@ -3,7 +3,7 @@
 # HLS Sync — push HLS segments + periodic data to SiteGround
 #
 # Runs a tight rsync loop (every 2-3s) to push .m3u8 + .ts segments.
-# Every ~30 seconds, also pushes site_data.json for near-real-time status.
+# Also pushes site_data.json whenever its mtime changes (event-driven).
 # Uses SSH ControlMaster to avoid per-rsync SSH handshake overhead.
 #
 # Usage: called by hummingbird-hls.service (not run directly)
@@ -60,10 +60,9 @@ echo "[$(date)] SSH ControlMaster connected"
 ssh -S "$SSH_CTL" -p "$REMOTE_PORT" "$REMOTE" "mkdir -p ${REMOTE_PATH}/hls" 2>/dev/null || true
 
 SYNC_INTERVAL=2
-DATA_SYNC_COUNTER=0
-DATA_SYNC_EVERY=15  # Every 15 iterations (30s) push site_data.json
+LAST_DATA_MTIME=0  # mtime of site_data.json at last successful push
 
-echo "[$(date)] HLS sync loop started (every ${SYNC_INTERVAL}s, data every $((DATA_SYNC_EVERY * SYNC_INTERVAL))s)"
+echo "[$(date)] HLS sync loop started (every ${SYNC_INTERVAL}s, data on change)"
 
 while true; do
     # Sync HLS segments
@@ -78,15 +77,19 @@ while true; do
             echo "[$(date)] WARNING: HLS rsync failed"
     fi
 
-    # Periodically sync site_data.json for near-real-time status
-    DATA_SYNC_COUNTER=$((DATA_SYNC_COUNTER + 1))
-    if [ $DATA_SYNC_COUNTER -ge $DATA_SYNC_EVERY ] && [ -f "$SITE_DATA" ]; then
-        rsync -a --timeout=10 \
-            -e "$SSH_CMD" \
-            "$SITE_DATA" \
-            "${REMOTE}:${REMOTE_PATH}/data/site_data.json" 2>/dev/null || \
-            echo "[$(date)] WARNING: site_data rsync failed"
-        DATA_SYNC_COUNTER=0
+    # Sync site_data.json only when it has been modified since last push
+    if [ -f "$SITE_DATA" ]; then
+        CURRENT_MTIME=$(stat -c %Y "$SITE_DATA" 2>/dev/null || echo 0)
+        if [ "$CURRENT_MTIME" != "$LAST_DATA_MTIME" ]; then
+            if rsync -a --timeout=10 \
+                -e "$SSH_CMD" \
+                "$SITE_DATA" \
+                "${REMOTE}:${REMOTE_PATH}/data/site_data.json" 2>/dev/null; then
+                LAST_DATA_MTIME="$CURRENT_MTIME"
+            else
+                echo "[$(date)] WARNING: site_data rsync failed"
+            fi
+        fi
     fi
 
     sleep "$SYNC_INTERVAL"
