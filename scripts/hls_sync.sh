@@ -34,11 +34,12 @@ fi
 
 REMOTE="${REMOTE_USER}@${REMOTE_HOST}"
 SSH_CTL="/tmp/hls_ssh_ctl"
+SSH_CMD="ssh -S $SSH_CTL -p $REMOTE_PORT"
 
 # Clean up SSH control socket on exit
 cleanup() {
     echo "[$(date)] HLS sync stopping..."
-    ssh -S "$SSH_CTL" -O exit "$REMOTE" 2>/dev/null || true
+    ssh -S "$SSH_CTL" -p "$REMOTE_PORT" -O exit "$REMOTE" 2>/dev/null || true
     rm -f "$SSH_CTL"
 }
 trap cleanup EXIT
@@ -56,7 +57,7 @@ ssh -M -S "$SSH_CTL" -fN \
 echo "[$(date)] SSH ControlMaster connected"
 
 # Ensure remote hls directory exists
-ssh -S "$SSH_CTL" "$REMOTE" "mkdir -p ${REMOTE_PATH}/hls" 2>/dev/null || true
+ssh -S "$SSH_CTL" -p "$REMOTE_PORT" "$REMOTE" "mkdir -p ${REMOTE_PATH}/hls" 2>/dev/null || true
 
 SYNC_INTERVAL=2
 DATA_SYNC_COUNTER=0
@@ -68,7 +69,7 @@ while true; do
     # Sync HLS segments
     if [ -d "$HLS_OUTPUT_DIR" ] && ls "$HLS_OUTPUT_DIR"/*.m3u8 &>/dev/null; then
         rsync -a --timeout=10 \
-            -e "ssh -S $SSH_CTL" \
+            -e "$SSH_CMD" \
             --include='*.m3u8' \
             --include='*.ts' \
             --exclude='*' \
@@ -81,7 +82,7 @@ while true; do
     DATA_SYNC_COUNTER=$((DATA_SYNC_COUNTER + 1))
     if [ $DATA_SYNC_COUNTER -ge $DATA_SYNC_EVERY ] && [ -f "$SITE_DATA" ]; then
         rsync -a --timeout=10 \
-            -e "ssh -S $SSH_CTL" \
+            -e "$SSH_CMD" \
             "$SITE_DATA" \
             "${REMOTE}:${REMOTE_PATH}/data/site_data.json" 2>/dev/null || \
             echo "[$(date)] WARNING: site_data rsync failed"
