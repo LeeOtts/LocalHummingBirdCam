@@ -164,8 +164,8 @@ function setupLiveFeed(sleeping) {
 
     if (typeof Hls !== 'undefined' && Hls.isSupported()) {
         hlsInstance = new Hls({
-            liveSyncDurationCount: 3,
-            liveMaxLatencyDurationCount: 6,
+            liveSyncDurationCount: 8,
+            liveMaxLatencyDurationCount: 10,
             enableWorker: true,
             lowLatencyMode: false,
         });
