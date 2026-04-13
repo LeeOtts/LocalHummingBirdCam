@@ -51,16 +51,12 @@ while [ ! -p "$PIPE_PATH" ]; do
     WAIT_COUNT=$((WAIT_COUNT + 1))
 done
 
-# Detect hardware encoder availability
+# Use libx264 for HLS — h264_v4l2m2m omits SPS/PPS NAL units from the
+# bitstream, making segments undecodable in browsers.  libx264 ultrafast
+# at 10 fps 720p is well within the Pi 4's CPU budget.
 ENCODER="libx264"
-ENCODER_OPTS="-preset ultrafast -tune zerolatency"
-if ffmpeg -hide_banner -encoders 2>/dev/null | grep -q h264_v4l2m2m; then
-    ENCODER="h264_v4l2m2m"
-    ENCODER_OPTS=""
-    echo "[$(date)] Using hardware encoder: h264_v4l2m2m"
-else
-    echo "[$(date)] Hardware encoder not available, using libx264 ultrafast"
-fi
+ENCODER_OPTS="-preset ultrafast -tune zerolatency -pix_fmt yuv420p"
+echo "[$(date)] Using libx264 (browser-compatible HLS)"
 
 # Build ffmpeg command
 FFMPEG_CMD=(
@@ -86,7 +82,6 @@ fi
 FFMPEG_CMD+=(
     -c:v "$ENCODER" $ENCODER_OPTS -b:v "$HLS_VIDEO_BITRATE"
     -g "$((HLS_FRAMERATE * 2))"
-    -bsf:v dump_extra
     "${AUDIO_OPTS[@]}"
     -f hls
     -hls_time "$HLS_SEGMENT_TIME"
