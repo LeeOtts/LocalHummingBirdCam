@@ -193,10 +193,8 @@ def predict_season_arrival(db) -> dict | None:
     avg_season_length = round(mean(season_lengths)) if season_lengths else None
 
     # Determine if we're currently in season.
-    # Requires BOTH a current-year season record AND recent actual detections.
-    # A season record alone isn't enough — someone may have entered a
-    # first_visit date speculatively, or the season may have ended without
-    # the last_visit being recorded yet.
+    # A manual season entry with first_visit <= today is authoritative —
+    # the operator confirmed a bird was seen.
     current_year_season = next((s for s in seasons if s["year"] == now.year), None)
     in_season = False
     if current_year_season and current_year_season["first_visit"]:
@@ -205,10 +203,7 @@ def predict_season_arrival(db) -> dict | None:
             last_dt = datetime.strptime(current_year_season["last_visit"], "%Y-%m-%d").date()
             in_season = first_dt <= now.date() <= last_dt
         elif now.date() >= first_dt:
-            # No last_visit yet — only mark in-season if there have been
-            # actual detections recently (at least 1 in the last 14 days)
-            recent = db.get_sightings(days=14, limit=1)
-            in_season = len(recent) > 0
+            in_season = True
 
     return {
         "predicted_date": predicted.strftime("%Y-%m-%d"),

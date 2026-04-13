@@ -1664,6 +1664,7 @@ def api_season_upsert():
             data.get("first_visit") or None,
             data.get("last_visit") or None,
         )
+        _monitor._site_data_dirty = True
         return {"ok": True}
     except (ValueError, TypeError) as e:
         return {"error": str(e)}, 400
@@ -1675,6 +1676,7 @@ def api_season_delete(year):
     if not _monitor or not _monitor.sightings_db:
         return {"error": "No database available"}, 503
     deleted = _monitor.sightings_db.delete_season_date(year)
+    _monitor._site_data_dirty = True
     return {"ok": deleted}
 
 
