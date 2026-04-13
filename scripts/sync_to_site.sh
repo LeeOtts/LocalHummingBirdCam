@@ -53,8 +53,10 @@ PYTHON="${PROJECT_DIR}/.venv/bin/python3"
 # Uses the short git hash so the version changes on every deploy.
 CACHE_VER=$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo "$(date +%s)")
 echo "[$(date)] Cache-busting static assets (v=$CACHE_VER)..."
-sed -i "s/style\.css?v=[^\"']*/style.css?v=${CACHE_VER}/g; s/app\.js?v=[^\"']*/app.js?v=${CACHE_VER}/g" \
-    "$PROJECT_DIR/website/index.html"
+for HTML_FILE in "$PROJECT_DIR/website/"*.html; do
+    sed -i "s/style\.css?v=[^\"']*/style.css?v=${CACHE_VER}/g; s/app\.js?v=[^\"']*/app.js?v=${CACHE_VER}/g" \
+        "$HTML_FILE"
+done
 
 # Step 3: Sync static website files (HTML/CSS/JS/img — only transfers changed files)
 echo "[$(date)] Syncing website files..."
@@ -65,8 +67,8 @@ rsync -az --delete -e "ssh ${SSH_OPTS}" --timeout=60 \
     "$PROJECT_DIR/website/" \
     "${REMOTE}:${REMOTE_PATH}/"
 
-# Restore index.html so git stays clean
-git -C "$PROJECT_DIR" checkout -- "$PROJECT_DIR/website/index.html" 2>/dev/null || true
+# Restore HTML files so git stays clean
+git -C "$PROJECT_DIR" checkout -- "$PROJECT_DIR/website/"*.html 2>/dev/null || true
 
 # Step 4: Sync site_data.json (skip if HLS sync is handling it at higher frequency)
 HLS_ENABLED="${HLS_ENABLED:-false}"
