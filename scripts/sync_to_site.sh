@@ -61,6 +61,7 @@ echo "[$(date)] Syncing website files..."
 rsync -az --delete -e "ssh ${SSH_OPTS}" --timeout=60 \
     --exclude='data/site_data.json' \
     --exclude='clips/' \
+    --exclude='hls/' \
     "$PROJECT_DIR/website/" \
     "${REMOTE}:${REMOTE_PATH}/"
 
