@@ -159,6 +159,9 @@ function setupLiveFeed(sleeping) {
         return;
     }
 
+    // Show loading state — overlay stays visible until video actually renders
+    showOfflineMsg('CONNECTING...');
+
     if (typeof Hls !== 'undefined' && Hls.isSupported()) {
         hlsInstance = new Hls({
             liveSyncDurationCount: 3,
@@ -170,25 +173,56 @@ function setupLiveFeed(sleeping) {
         hlsInstance.loadSource(HLS_URL);
         hlsInstance.attachMedia(video);
 
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        // Only reveal video once it has actual frames rendering
+        let hasPlayed = false;
+        video.addEventListener('playing', function onPlaying() {
+            video.removeEventListener('playing', onPlaying);
+            hasPlayed = true;
             showLiveMsg();
+        });
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            // Start playback attempt — video stays behind overlay until 'playing' fires
+            video.style.display = 'block';
+            video.play().catch(() => {});
         });
 
         hlsInstance.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
+                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                    // Pi hardware encoder (h264_v4l2m2m) can produce streams
+                    // that need a media error recovery nudge
+                    console.warn('[HLS] Media error, attempting recovery...');
+                    hlsInstance.recoverMediaError();
+                    return;
+                }
+                // Network or other fatal error — full retry
                 showOfflineMsg('RECONNECTING...');
-                // Auto-retry: destroy and recreate after delay
                 setTimeout(() => {
                     if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
                     setupLiveFeed(isSleeping);
                 }, 10000);
             }
         });
+
+        // Fallback: if video hasn't started playing 15s after setup, retry
+        setTimeout(() => {
+            if (!hasPlayed && hlsInstance) {
+                console.warn('[HLS] Playback timeout, retrying...');
+                hlsInstance.destroy();
+                hlsInstance = null;
+                setupLiveFeed(isSleeping);
+            }
+        }, 15000);
+
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari — native HLS support
         video.src = HLS_URL;
-        video.addEventListener('loadedmetadata', () => {
+        video.addEventListener('playing', () => {
             showLiveMsg();
+        }, { once: true });
+        video.addEventListener('loadedmetadata', () => {
+            video.play().catch(() => {});
         });
         video.addEventListener('error', () => {
             showOfflineMsg('FEED OFFLINE');
