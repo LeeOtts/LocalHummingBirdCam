@@ -86,6 +86,7 @@ fi
 FFMPEG_CMD+=(
     -c:v "$ENCODER" $ENCODER_OPTS -b:v "$HLS_VIDEO_BITRATE"
     -g "$((HLS_FRAMERATE * 2))"
+    -bsf:v dump_extra
     "${AUDIO_OPTS[@]}"
     -f hls
     -hls_time "$HLS_SEGMENT_TIME"
