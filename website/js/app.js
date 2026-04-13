@@ -26,6 +26,8 @@ const STATIC_SOCIALS = {
 };
 
 let siteData = null;
+let hlsInstance = null;
+let isSleeping = false;
 
 /**
  * Fetch site_data.json
@@ -113,46 +115,72 @@ function startClock() {
 }
 
 /**
- * Set up live HLS video feed — streams from SiteGround, not the Pi
+ * Show/hide offline overlay (module-level so poll interval can call it)
  */
-function setupLiveFeed() {
+function showOfflineMsg(msg) {
     const video = document.getElementById('cameraFeed');
     const offline = document.getElementById('feedOffline');
+    if (video) video.style.display = 'none';
+    if (offline) { offline.style.display = 'flex'; offline.querySelector('h3').textContent = msg || 'FEED OFFLINE'; }
+}
+
+function showLiveMsg() {
+    const video = document.getElementById('cameraFeed');
+    const offline = document.getElementById('feedOffline');
+    if (video) { video.style.display = 'block'; video.play().catch(() => {}); }
+    if (offline) offline.style.display = 'none';
+}
+
+/**
+ * Tear down active HLS session
+ */
+function teardownLiveFeed() {
+    if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+    }
+    const video = document.getElementById('cameraFeed');
+    if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.style.display = 'none';
+    }
+}
+
+/**
+ * Set up live HLS video feed — streams from SiteGround, not the Pi
+ */
+function setupLiveFeed(sleeping) {
+    const video = document.getElementById('cameraFeed');
     if (!video) return;
 
-    function showOffline(msg) {
-        video.style.display = 'none';
-        if (offline) { offline.style.display = 'flex'; offline.querySelector('h3').textContent = msg || 'FEED OFFLINE'; }
-    }
-
-    function showLive() {
-        video.style.display = 'block';
-        if (offline) offline.style.display = 'none';
-        video.play().catch(() => {});
+    if (sleeping) {
+        showOfflineMsg('SLEEPING');
+        return;
     }
 
     if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-        const hls = new Hls({
+        hlsInstance = new Hls({
             liveSyncDurationCount: 3,
             liveMaxLatencyDurationCount: 6,
             enableWorker: true,
             lowLatencyMode: false,
         });
 
-        hls.loadSource(HLS_URL);
-        hls.attachMedia(video);
+        hlsInstance.loadSource(HLS_URL);
+        hlsInstance.attachMedia(video);
 
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            showLive();
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            showLiveMsg();
         });
 
-        hls.on(Hls.Events.ERROR, (event, data) => {
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
-                showOffline('RECONNECTING...');
+                showOfflineMsg('RECONNECTING...');
                 // Auto-retry: destroy and recreate after delay
                 setTimeout(() => {
-                    hls.destroy();
-                    setupLiveFeed();
+                    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+                    setupLiveFeed(isSleeping);
                 }, 10000);
             }
         });
@@ -160,14 +188,14 @@ function setupLiveFeed() {
         // Safari — native HLS support
         video.src = HLS_URL;
         video.addEventListener('loadedmetadata', () => {
-            showLive();
+            showLiveMsg();
         });
         video.addEventListener('error', () => {
-            showOffline('FEED OFFLINE');
+            showOfflineMsg('FEED OFFLINE');
             setTimeout(() => { video.src = HLS_URL + '?t=' + Date.now(); }, 10000);
         });
     } else {
-        showOffline('FEED OFFLINE');
+        showOfflineMsg('FEED OFFLINE');
     }
 }
 
@@ -301,11 +329,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!data) return;
 
     // Homepage-specific
-    setupLiveFeed();
+    updateHudStatus(data);
+    isSleeping = !!data.sleeping;
+    setupLiveFeed(isSleeping);
     populateStatsTicker(data);
     populateLatestDetection(data);
     populateSocials(data);
-    updateHudStatus(data);
 
     // Poll site_data.json every 2 minutes — site_data only changes on
     // detection events or state transitions, not continuously.
@@ -315,6 +344,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateHudStatus(fresh);
             populateStatsTicker(fresh);
             populateLatestDetection(fresh);
+
+            const nowSleeping = !!fresh.sleeping;
+            if (nowSleeping !== isSleeping) {
+                isSleeping = nowSleeping;
+                if (nowSleeping) {
+                    teardownLiveFeed();
+                    showOfflineMsg('SLEEPING');
+                } else {
+                    setupLiveFeed(false);
+                }
+            }
         }
     }, 120000);
 });
