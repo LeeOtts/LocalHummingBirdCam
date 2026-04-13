@@ -41,6 +41,13 @@ ErrorDocument 404 /404.html
     </IfModule>
 </FilesMatch>
 
+# HTML pages — revalidate every time (SiteGround caches aggressively)
+<FilesMatch "\.html$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, must-revalidate"
+    </IfModule>
+</FilesMatch>
+
 # Block dotfiles (protects config files etc.)
 <FilesMatch "^\.">
     <IfModule mod_authz_core.c>
