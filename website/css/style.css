@@ -394,7 +394,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
     opacity: 0.7;
 }
 
-/* ---- Live Feed ---- */
+/* ---- Latest Capture ---- */
 .feed-container {
     background: var(--bg-card);
     border-radius: var(--radius-lg);

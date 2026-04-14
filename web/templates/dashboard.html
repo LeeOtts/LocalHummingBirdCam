@@ -326,16 +326,6 @@
                         Restart System
                     </button>
                 </div>
-                <div class="status-card" id="hlsCard">
-                    <div class="label">HLS Stream</div>
-                    <div class="value" id="hlsStatus" style="font-size: 0.9em;">--</div>
-                    <button class="btn" style="margin-top: 10px; font-size: 0.7em;" id="hlsToggleBtn" onclick="toggleHls()">
-                        Toggle Stream
-                    </button>
-                    <button class="btn" style="margin-top: 6px; font-size: 0.7em;" id="hlsAudioBtn" onclick="toggleHlsAudio()">
-                        Toggle Audio
-                    </button>
-                </div>
                 <div class="status-card">
                     <div class="label">Schedule</div>
                     <div class="value {{ 'green' if status.schedule.is_daytime else 'purple' }}" style="font-size: 1em;" id="stat-schedule">
@@ -941,65 +931,6 @@
                     showToast('Restarting — reconnecting shortly...');
                     setTimeout(function poll() { fetch('/api/status').then(() => location.reload()).catch(() => setTimeout(poll, 2000)); }, 5000);
                 });
-        }
-
-        // HLS stream controls
-        function pollHlsStatus() {
-            fetch('/api/hls/status')
-                .then(r => r.json())
-                .then(data => {
-                    const el = document.getElementById('hlsStatus');
-                    const toggleBtn = document.getElementById('hlsToggleBtn');
-                    const audioBtn = document.getElementById('hlsAudioBtn');
-                    if (data.running) {
-                        el.textContent = 'LIVE';
-                        el.className = 'value green';
-                        toggleBtn.textContent = 'Stop Stream';
-                        toggleBtn.className = 'btn btn-restart';
-                    } else if (data.enabled) {
-                        el.textContent = 'STARTING';
-                        el.className = 'value yellow';
-                        toggleBtn.textContent = 'Stop Stream';
-                        toggleBtn.className = 'btn btn-restart';
-                    } else {
-                        el.textContent = 'OFF';
-                        el.className = 'value';
-                        toggleBtn.textContent = 'Start Stream';
-                        toggleBtn.className = 'btn btn-update';
-                    }
-                    audioBtn.textContent = data.audio ? 'Disable Audio' : 'Enable Audio';
-                })
-                .catch(() => {});
-        }
-        pollHlsStatus();
-        setInterval(pollHlsStatus, 10000);
-
-        function toggleHls() {
-            const btn = document.getElementById('hlsToggleBtn');
-            btn.disabled = true; btn.textContent = 'Working...';
-            fetch('/api/hls/toggle', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.ok) showToast('HLS stream ' + data.action);
-                    else showToast('HLS error: ' + (data.error || 'unknown'));
-                    setTimeout(pollHlsStatus, 2000);
-                })
-                .catch(() => showToast('HLS toggle failed'))
-                .finally(() => { btn.disabled = false; });
-        }
-
-        function toggleHlsAudio() {
-            const btn = document.getElementById('hlsAudioBtn');
-            btn.disabled = true; btn.textContent = 'Working...';
-            fetch('/api/hls/audio', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.ok) showToast('HLS audio ' + (data.audio ? 'enabled' : 'disabled'));
-                    else showToast('Error: ' + (data.error || 'unknown'));
-                    setTimeout(pollHlsStatus, 2000);
-                })
-                .catch(() => showToast('Audio toggle failed'))
-                .finally(() => { btn.disabled = false; });
         }
 
         // SSE — live detection notifications

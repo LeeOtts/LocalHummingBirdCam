@@ -1407,99 +1407,6 @@ def restart_system():
         return {"ok": False, "error": str(e)}, 500
 
 
-@app.route("/api/hls/status")
-def hls_status():
-    """Return HLS streaming status and config."""
-    import subprocess
-
-    hls_running = False
-    try:
-        result = subprocess.run(
-            ["systemctl", "is-active", "hummingbird-hls"],
-            capture_output=True, text=True, timeout=5,
-        )
-        hls_running = result.stdout.strip() == "active"
-    except Exception:
-        pass
-
-    return {
-        "enabled": config.HLS_ENABLED,
-        "audio": config.HLS_AUDIO,
-        "running": hls_running,
-        "resolution": config.HLS_RESOLUTION,
-        "bitrate": config.HLS_VIDEO_BITRATE,
-        "framerate": config.HLS_FRAMERATE,
-    }
-
-
-@app.route("/api/hls/toggle", methods=["POST"])
-def hls_toggle():
-    """Toggle HLS streaming on/off. Starts/stops the hummingbird-hls service."""
-    import subprocess
-
-    data = request.get_json() or {}
-    action = data.get("action", "toggle")  # "start", "stop", or "toggle"
-
-    try:
-        if action == "toggle":
-            result = subprocess.run(
-                ["systemctl", "is-active", "hummingbird-hls"],
-                capture_output=True, text=True, timeout=5,
-            )
-            action = "stop" if result.stdout.strip() == "active" else "start"
-
-        if action == "start":
-            # Enable HLS in .env
-            _update_env("HLS_ENABLED", "true")
-            config.HLS_ENABLED = True
-            # Start the HLS pipe in the camera stream
-            if _monitor and _monitor.camera and _monitor.camera.is_available:
-                _monitor.camera.start_hls_pipe()
-            subprocess.run(
-                ["sudo", "systemctl", "start", "hummingbird-hls"],
-                capture_output=True, text=True, timeout=10,
-            )
-            return {"ok": True, "action": "started"}
-        else:
-            _update_env("HLS_ENABLED", "false")
-            config.HLS_ENABLED = False
-            if _monitor and _monitor.camera and hasattr(_monitor.camera, '_hls_running'):
-                _monitor.camera.stop_hls_pipe()
-            subprocess.run(
-                ["sudo", "systemctl", "stop", "hummingbird-hls"],
-                capture_output=True, text=True, timeout=10,
-            )
-            return {"ok": True, "action": "stopped"}
-    except Exception as e:
-        logger.exception("HLS toggle failed")
-        return {"ok": False, "error": str(e)}, 500
-
-
-@app.route("/api/hls/audio", methods=["POST"])
-def hls_audio_toggle():
-    """Toggle audio in the HLS stream. Restarts ffmpeg to apply."""
-    import subprocess
-
-    data = request.get_json() or {}
-    enabled = data.get("enabled", not config.HLS_AUDIO)
-
-    try:
-        _update_env("HLS_AUDIO", "true" if enabled else "false")
-        config.HLS_AUDIO = enabled
-
-        # Restart HLS service to apply audio change (ffmpeg needs to restart)
-        if config.HLS_ENABLED:
-            subprocess.run(
-                ["sudo", "systemctl", "restart", "hummingbird-hls"],
-                capture_output=True, text=True, timeout=10,
-            )
-
-        return {"ok": True, "audio": enabled}
-    except Exception as e:
-        logger.exception("HLS audio toggle failed")
-        return {"ok": False, "error": str(e)}, 500
-
-
 def _update_env(key: str, value: str):
     """Update a single key in the .env file."""
     env_path = config.BASE_DIR / ".env"
@@ -1731,7 +1638,7 @@ def api_overlay_status():
     """Lightweight endpoint for overlay state (sleeping/watering).
 
     Used by the local dashboard. Public website gets this from site_data.json
-    pushed to SiteGround every ~30s by the HLS sync loop.
+    pushed to SiteGround every ~5min by the sync cron job.
     """
     from schedule import is_daytime
 

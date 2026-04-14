@@ -26,8 +26,8 @@ const STATIC_SOCIALS = {
 };
 
 let siteData = null;
-let hlsInstance = null;
 let isSleeping = false;
+let currentFeedClip = null;  // track which clip is loaded in the feed
 
 /**
  * Fetch site_data.json
@@ -46,11 +46,6 @@ async function loadSiteData() {
         return null;
     }
 }
-
-/**
- * HLS stream URL — served from SiteGround, not the Pi
- */
-const HLS_URL = 'hls/stream.m3u8';
 
 /**
  * Format a timestamp for display (military style)
@@ -115,122 +110,47 @@ function startClock() {
 }
 
 /**
- * Show/hide offline overlay (module-level so poll interval can call it)
+ * Show/hide the "no clip" overlay in the feed area
  */
-function showOfflineMsg(msg) {
-    const video = document.getElementById('cameraFeed');
+function showFeedOverlay(msg) {
+    const video = document.getElementById('feedClip');
     const offline = document.getElementById('feedOffline');
     if (video) video.style.display = 'none';
-    if (offline) { offline.style.display = 'flex'; offline.querySelector('h3').textContent = msg || 'FEED OFFLINE'; }
+    if (offline) { offline.style.display = 'flex'; offline.querySelector('h3').textContent = msg || 'NO CLIPS YET'; }
 }
 
-function showLiveMsg() {
-    const video = document.getElementById('cameraFeed');
+function showFeedClip() {
+    const video = document.getElementById('feedClip');
     const offline = document.getElementById('feedOffline');
-    if (video) { video.style.display = 'block'; video.play().catch(() => {}); }
+    if (video) video.style.display = 'block';
     if (offline) offline.style.display = 'none';
 }
 
 /**
- * Tear down active HLS session
+ * Load the latest clip into the feed area from site_data
  */
-function teardownLiveFeed() {
-    if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsInstance = null;
-    }
-    const video = document.getElementById('cameraFeed');
-    if (video) {
-        video.pause();
-        video.removeAttribute('src');
-        video.style.display = 'none';
-    }
-}
-
-/**
- * Set up live HLS video feed — streams from SiteGround, not the Pi
- */
-function setupLiveFeed(sleeping) {
-    const video = document.getElementById('cameraFeed');
+function populateFeedClip(data) {
+    const video = document.getElementById('feedClip');
     if (!video) return;
 
-    if (sleeping) {
-        showOfflineMsg('SLEEPING');
+    if (isSleeping) {
+        showFeedOverlay('SLEEPING');
         return;
     }
 
-    // Show loading state — overlay stays visible until video actually renders
-    showOfflineMsg('CONNECTING...');
-
-    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-        hlsInstance = new Hls({
-            liveSyncDurationCount: 8,
-            liveMaxLatencyDurationCount: 10,
-            enableWorker: true,
-            lowLatencyMode: false,
-        });
-
-        hlsInstance.loadSource(HLS_URL);
-        hlsInstance.attachMedia(video);
-
-        // Only reveal video once it has actual frames rendering
-        let hasPlayed = false;
-        video.addEventListener('playing', function onPlaying() {
-            video.removeEventListener('playing', onPlaying);
-            hasPlayed = true;
-            showLiveMsg();
-        });
-
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-            // Start playback attempt — video stays behind overlay until 'playing' fires
-            video.style.display = 'block';
-            video.play().catch(() => {});
-        });
-
-        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) {
-                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                    // Pi hardware encoder (h264_v4l2m2m) can produce streams
-                    // that need a media error recovery nudge
-                    console.warn('[HLS] Media error, attempting recovery...');
-                    hlsInstance.recoverMediaError();
-                    return;
-                }
-                // Network or other fatal error — full retry
-                showOfflineMsg('RECONNECTING...');
-                setTimeout(() => {
-                    if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-                    setupLiveFeed(isSleeping);
-                }, 10000);
-            }
-        });
-
-        // Fallback: if video hasn't started playing 15s after setup, retry
-        setTimeout(() => {
-            if (!hasPlayed && hlsInstance) {
-                console.warn('[HLS] Playback timeout, retrying...');
-                hlsInstance.destroy();
-                hlsInstance = null;
-                setupLiveFeed(isSleeping);
-            }
-        }, 15000);
-
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari — native HLS support
-        video.src = HLS_URL;
-        video.addEventListener('playing', () => {
-            showLiveMsg();
-        }, { once: true });
-        video.addEventListener('loadedmetadata', () => {
-            video.play().catch(() => {});
-        });
-        video.addEventListener('error', () => {
-            showOfflineMsg('FEED OFFLINE');
-            setTimeout(() => { video.src = HLS_URL + '?t=' + Date.now(); }, 10000);
-        });
-    } else {
-        showOfflineMsg('FEED OFFLINE');
+    if (!data || !data.clips || !data.clips.length) {
+        showFeedOverlay('NO CLIPS YET');
+        return;
     }
+
+    const clip = data.clips[0];
+    if (currentFeedClip === clip.filename) return; // already loaded
+    currentFeedClip = clip.filename;
+
+    video.poster = clip.thumbnail ? ('clips/' + clip.thumbnail) : '';
+    video.src = 'clips/' + clip.filename;
+    video.load();
+    showFeedClip();
 }
 
 /**
@@ -365,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Homepage-specific
     updateHudStatus(data);
     isSleeping = !!data.sleeping;
-    setupLiveFeed(isSleeping);
+    populateFeedClip(data);
     populateStatsTicker(data);
     populateLatestDetection(data);
     populateSocials(data);
@@ -383,11 +303,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (nowSleeping !== isSleeping) {
                 isSleeping = nowSleeping;
                 if (nowSleeping) {
-                    teardownLiveFeed();
-                    showOfflineMsg('SLEEPING');
+                    showFeedOverlay('SLEEPING');
                 } else {
-                    setupLiveFeed(false);
+                    populateFeedClip(fresh);
                 }
+            } else if (!nowSleeping) {
+                populateFeedClip(fresh);
             }
         }
     }, 120000);
