@@ -26,7 +26,6 @@ const STATIC_SOCIALS = {
 };
 
 let siteData = null;
-let isSleeping = false;
 let currentFeedClip = null;  // track which clip is loaded in the feed
 
 /**
@@ -127,16 +126,11 @@ function showFeedClip() {
 }
 
 /**
- * Load the latest clip into the feed area from site_data
+ * Load the latest clip into the feed area + populate detection details
  */
 function populateFeedClip(data) {
     const video = document.getElementById('feedClip');
     if (!video) return;
-
-    if (isSleeping) {
-        showFeedOverlay('SLEEPING');
-        return;
-    }
 
     if (!data || !data.clips || !data.clips.length) {
         showFeedOverlay('NO CLIPS YET');
@@ -151,6 +145,20 @@ function populateFeedClip(data) {
     video.src = 'clips/' + clip.filename;
     video.load();
     showFeedClip();
+
+    // Detection details
+    const timestamp = document.getElementById('clipTimestamp');
+    const caption = document.getElementById('latestCaption');
+    const confidence = document.getElementById('latestConfidence');
+    const platforms = document.getElementById('latestPlatforms');
+
+    if (timestamp) timestamp.textContent = formatTimestamp(clip.timestamp);
+    if (caption) caption.textContent = clip.caption || 'No intel available.';
+    if (confidence) {
+        const conf = clip.confidence ? Math.round(clip.confidence * 100) : '--';
+        confidence.textContent = `CONFIDENCE: ${conf}%`;
+    }
+    if (platforms) platforms.innerHTML = renderPlatformBadges(clip.platforms_posted);
 }
 
 /**
@@ -171,33 +179,6 @@ function populateStatsTicker(data) {
     if (next && data.next_predicted_visit) {
         next.textContent = formatTime(data.next_predicted_visit.time);
     }
-}
-
-/**
- * Populate latest detection on homepage
- */
-function populateLatestDetection(data) {
-    if (!data || !data.clips || !data.clips.length) return;
-
-    const clip = data.clips[0]; // Most recent
-    const video = document.getElementById('latestVideo');
-    const timestamp = document.getElementById('latestTimestamp');
-    const caption = document.getElementById('latestCaption');
-    const confidence = document.getElementById('latestConfidence');
-    const platforms = document.getElementById('latestPlatforms');
-
-    if (video) {
-        video.querySelector('source').src = 'clips/' + clip.filename;
-        video.poster = clip.thumbnail ? ('clips/' + clip.thumbnail) : '';
-        video.load();
-    }
-    if (timestamp) timestamp.textContent = formatTimestamp(clip.timestamp);
-    if (caption) caption.textContent = clip.caption || 'No intel available.';
-    if (confidence) {
-        const conf = clip.confidence ? Math.round(clip.confidence * 100) : '--';
-        confidence.textContent = `CONFIDENCE: ${conf}%`;
-    }
-    if (platforms) platforms.innerHTML = renderPlatformBadges(clip.platforms_posted);
 }
 
 /**
@@ -251,28 +232,6 @@ function setupNav() {
 }
 
 /**
- * Update HUD status indicators (sleeping / watering)
- */
-function updateHudStatus(data) {
-    if (!data) return;
-    const sleeping = document.getElementById('hudSleeping');
-    const watering = document.getElementById('hudWatering');
-    const wateringOverlay = document.getElementById('wateringOverlay');
-    const sleepingOverlay = document.getElementById('sleepingOverlay');
-    const hud = document.querySelector('.feed-hud');
-    const isSleeping = !!data.sleeping;
-    const isWatering = !!data.sprinkler_active;
-    if (sleeping) sleeping.style.display = isSleeping ? 'flex' : 'none';
-    if (watering) watering.style.display = isWatering ? 'flex' : 'none';
-    if (wateringOverlay) wateringOverlay.style.display = isWatering ? 'flex' : 'none';
-    if (sleepingOverlay) sleepingOverlay.style.display = isSleeping ? 'flex' : 'none';
-    if (hud) {
-        hud.classList.toggle('watering-active', isWatering);
-        hud.classList.toggle('sleeping-active', isSleeping);
-    }
-}
-
-/**
  * Initialize
  */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -283,11 +242,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!data) return;
 
     // Homepage-specific
-    updateHudStatus(data);
-    isSleeping = !!data.sleeping;
     populateFeedClip(data);
     populateStatsTicker(data);
-    populateLatestDetection(data);
     populateSocials(data);
 
     // Poll site_data.json every 2 minutes — site_data only changes on
@@ -295,21 +251,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(async () => {
         const fresh = await loadSiteData();
         if (fresh) {
-            updateHudStatus(fresh);
+            populateFeedClip(fresh);
             populateStatsTicker(fresh);
-            populateLatestDetection(fresh);
-
-            const nowSleeping = !!fresh.sleeping;
-            if (nowSleeping !== isSleeping) {
-                isSleeping = nowSleeping;
-                if (nowSleeping) {
-                    showFeedOverlay('SLEEPING');
-                } else {
-                    populateFeedClip(fresh);
-                }
-            } else if (!nowSleeping) {
-                populateFeedClip(fresh);
-            }
         }
     }, 120000);
 });

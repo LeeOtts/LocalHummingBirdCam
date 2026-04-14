@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backyard Hummers - AI-Powered Hummingbird Cam</title>
-    <meta name="description" content="Live AI-powered hummingbird cam from Memphis, TN. Watch Ruby-throated hummingbirds visit our feeder in real-time.">
+    <meta name="description" content="AI-powered hummingbird cam from Memphis, TN. Watch Ruby-throated hummingbirds caught on camera visiting our feeder.">
     <meta property="og:title" content="Backyard Hummers - AI-Powered Hummingbird Cam">
-    <meta property="og:description" content="Live AI-powered hummingbird cam from Memphis, TN. Watch Ruby-throated hummingbirds visit our feeder in real-time.">
+    <meta property="og:description" content="AI-powered hummingbird cam from Memphis, TN. Watch Ruby-throated hummingbirds caught on camera visiting our feeder.">
     <meta property="og:image" content="img/banner.png">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://backyardhummers.com">
@@ -43,8 +43,12 @@
         <img src="img/banner.png" alt="Backyard Hummers Banner" class="hero-banner">
     </section>
 
-    <!-- Live Feed -->
-    <section class="section" id="liveFeed">
+    <!-- Latest Capture -->
+    <section class="section" id="latestCapture">
+        <div class="section-header">
+            <h2 class="hud-title">LATEST CAPTURE</h2>
+            <span class="hud-badge" id="latestConfidence">CONFIDENCE: --%</span>
+        </div>
         <div class="feed-container">
             <div class="feed-wrapper">
                 <video id="feedClip" class="camera-feed" controls preload="metadata" playsinline style="display:none;"></video>
@@ -53,40 +57,24 @@
                     <h3>NO CLIPS YET</h3>
                     <p>Waiting for a visitor...<br>Check back soon!</p>
                 </div>
-                <div class="watering-overlay" id="wateringOverlay" style="display:none;">
-                    <div class="watering-badge">
-                        <span class="watering-dot"></span>
-                        WATERING
-                    </div>
-                </div>
-                <div class="sleeping-overlay" id="sleepingOverlay" style="display:none;">
-                    <div class="sleeping-badge">
-                        <span class="sleeping-dot"></span>
-                        SLEEPING
-                    </div>
-                </div>
                 <div class="feed-hud">
                     <div class="hud-corner hud-tl"></div>
                     <div class="hud-corner hud-tr"></div>
                     <div class="hud-corner hud-bl"></div>
                     <div class="hud-corner hud-br"></div>
                     <div class="hud-top-left">
-                        <span class="status-indicator status-active">
-                            <span class="status-dot"></span>
-                            LATEST CAPTURE
-                        </span>
                         <span class="status-location">MEMPHIS, TN</span>
                     </div>
                     <div class="hud-top-right">
-                        <span class="status-time" id="currentTime"></span>
-                    </div>
-                    <div class="hud-bottom-left">
-                        <span class="hud-sleeping" id="hudSleeping" style="display:none;">&#127769; SLEEPING</span>
-                        <span class="hud-watering" id="hudWatering" style="display:none;">&#128167; WATERING</span>
-                    </div>
-                    <div class="hud-bottom-right">
+                        <span class="status-time" id="clipTimestamp"></span>
                     </div>
                 </div>
+            </div>
+            <div class="feed-details">
+                <div class="detection-caption" id="latestCaption">
+                    Waiting for a visitor...
+                </div>
+                <div class="detection-platforms" id="latestPlatforms"></div>
             </div>
         </div>
     </section>
@@ -112,43 +100,6 @@
             <div class="ticker-stat">
                 <span class="ticker-label">NEXT EXPECTED VISIT</span>
                 <span class="ticker-value" id="nextVisit">--</span>
-            </div>
-        </div>
-    </section>
-
-    <!-- Latest Detection -->
-    <section class="section">
-        <div class="section-header">
-            <h2 class="hud-title">LATEST VISITOR</h2>
-            <span class="hud-badge" id="latestConfidence">CONFIDENCE: --%</span>
-        </div>
-        <div class="latest-detection" id="latestDetection">
-            <div class="detection-card">
-                <div class="detection-video-wrap">
-                    <video id="latestVideo" controls preload="metadata" poster="">
-                        <source src="" type="video/mp4">
-                    </video>
-                    <div class="target-brackets">
-                        <div class="bracket bracket-tl"></div>
-                        <div class="bracket bracket-tr"></div>
-                        <div class="bracket bracket-bl"></div>
-                        <div class="bracket bracket-br"></div>
-                    </div>
-                </div>
-                <div class="detection-info">
-                    <div class="detection-meta">
-                        <span class="hud-label">TIMESTAMP</span>
-                        <span class="hud-value" id="latestTimestamp">--:--:-- CST</span>
-                    </div>
-                    <div class="detection-meta">
-                        <span class="hud-label">SPECIES</span>
-                        <span class="hud-value species-tag">RUBY-THROATED</span>
-                    </div>
-                    <div class="detection-caption" id="latestCaption">
-                        Waiting for a visitor...
-                    </div>
-                    <div class="detection-platforms" id="latestPlatforms"></div>
-                </div>
             </div>
         </div>
     </section>
