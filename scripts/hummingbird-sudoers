@@ -4,3 +4,9 @@ pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop hummingbird
 pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl start hummingbird
 pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart tailscaled
 pi ALL=(ALL) NOPASSWD: /usr/bin/systemctl status tailscaled
+
+# Network watchdog — WiFi recovery and reboot
+pi ALL=(ALL) NOPASSWD: /usr/sbin/iw dev wlan0 set power_save off
+pi ALL=(ALL) NOPASSWD: /usr/sbin/ip link set wlan0 down
+pi ALL=(ALL) NOPASSWD: /usr/sbin/ip link set wlan0 up
+pi ALL=(ALL) NOPASSWD: /usr/sbin/reboot

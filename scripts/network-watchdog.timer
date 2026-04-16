@@ -1,0 +1,10 @@
+[Unit]
+Description=Check network connectivity every 2 minutes
+
+[Timer]
+OnBootSec=120
+OnUnitActiveSec=120
+AccuracySec=30
+
+[Install]
+WantedBy=timers.target

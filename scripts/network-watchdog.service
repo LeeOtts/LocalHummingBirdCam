@@ -1,0 +1,8 @@
+[Unit]
+Description=Backyard Hummers - Network Watchdog
+# Deliberately no After=network-online.target — this must run when network is DOWN
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/LocalHummingBirdCam/scripts/network_watchdog.sh

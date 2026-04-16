@@ -61,6 +61,8 @@ fi
 echo "Installing systemd services..."
 sudo cp scripts/hummingbird.service /etc/systemd/system/
 sudo cp scripts/hummingbird-updater.service /etc/systemd/system/
+sudo cp scripts/network-watchdog.service /etc/systemd/system/
+sudo cp scripts/network-watchdog.timer /etc/systemd/system/
 
 # Sudoers — allow pi to restart the service without a password
 sudo cp scripts/hummingbird-sudoers /etc/sudoers.d/hummingbird
@@ -72,10 +74,12 @@ chmod +x scripts/sync_to_site.sh
 chmod +x scripts/backup_to_site.sh
 chmod +x scripts/install_crons.sh
 chmod +x scripts/setup_new_pi.sh
+chmod +x scripts/network_watchdog.sh
 
 # Enable services
 sudo systemctl daemon-reload
 sudo systemctl enable hummingbird
+sudo systemctl enable --now network-watchdog.timer
 
 # Install cron jobs (sync + backup)
 sudo bash scripts/install_crons.sh
