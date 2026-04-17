@@ -584,6 +584,11 @@ def logs_page():
     return render_template("logs.html", dates=dates)
 
 
+@app.route("/training")
+def training_page():
+    return render_template("training.html")
+
+
 @app.route("/clips/<filename>")
 def serve_clip(filename):
     if "/" in filename or "\\" in filename or ".." in filename:
@@ -1544,6 +1549,50 @@ def api_retrain_revert():
     if revert_classifier():
         return {"ok": True, "message": "Reverted to previous classifier"}
     return {"ok": False, "error": "No previous classifier to revert to"}, 404
+
+
+@app.route("/api/training/photos")
+def api_training_photos():
+    """List all training photos per class, newest first."""
+    def _list(label):
+        d = config.TRAINING_DIR / label
+        if not d.exists():
+            return []
+        return sorted([p.name for p in d.glob("*.jpg")], reverse=True)
+    return {
+        "hummingbird": _list("hummingbird"),
+        "not_hummingbird": _list("not_hummingbird"),
+    }
+
+
+@app.route("/api/training/photos/<label>/<filename>", methods=["DELETE"])
+def delete_training_photo(label, filename):
+    """Delete a single training photo."""
+    if label not in ("hummingbird", "not_hummingbird"):
+        return {"ok": False, "error": "Invalid label"}, 400
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return {"ok": False, "error": "Invalid filename"}, 400
+    path = config.TRAINING_DIR / label / filename
+    try:
+        path.unlink(missing_ok=True)
+        logger.info("Deleted training sample: %s/%s", label, filename)
+        return {"ok": True, "deleted": filename}
+    except OSError as e:
+        logger.error("Failed to delete training sample %s/%s: %s", label, filename, e)
+        return {"ok": False, "error": str(e)}, 500
+
+
+@app.route("/training-photo/<label>/<filename>")
+def serve_training_photo(label, filename):
+    """Serve a training photo thumbnail."""
+    if label not in ("hummingbird", "not_hummingbird"):
+        return {"ok": False, "error": "Invalid label"}, 400
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return {"ok": False, "error": "Invalid filename"}, 400
+    resp = send_from_directory(str(config.TRAINING_DIR / label), filename)
+    resp.cache_control.max_age = 86400
+    resp.cache_control.public = True
+    return resp
 
 
 @app.route("/api/clips/list")

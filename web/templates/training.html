@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}AI Training — Backyard Hummers{% endblock %}
+
+{% block extra_css %}
+        h1.page-title {
+            color: #e8f0ea;
+            font-family: 'Bangers', cursive;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+        }
+        .page-subtitle { color: #a3b8a6; margin-bottom: 20px; font-size: 0.95em; }
+
+        .retrain-panel {
+            background: #152419;
+            border: 1px solid #1e3625;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 24px;
+        }
+        .retrain-panel h2 {
+            color: #e8f0ea;
+            font-family: 'Bangers', cursive;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        .retrain-panel .btn { font-size: 0.9em; padding: 6px 14px; margin: 2px 4px; }
+        .btn-retrain { background: #58a6ff; color: #1a1a2e; }
+        .btn-retrain:hover { background: #4090e0; }
+        .btn-retrain:disabled { background: #555; color: #888; cursor: not-allowed; }
+        .btn-revert { background: #d44a2a; color: white; }
+        .btn-revert:hover { background: #b33a1a; }
+        .btn-revert:disabled { background: #555; color: #888; cursor: not-allowed; }
+        .clf-status { color: #4caf50; font-weight: bold; }
+        .clf-status.inactive { color: #888; font-weight: normal; }
+
+        .class-section {
+            background: #152419;
+            border: 1px solid #1e3625;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 24px;
+        }
+        .class-section h2 {
+            color: #e8f0ea;
+            font-family: 'Bangers', cursive;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .class-count { color: #a3b8a6; font-size: 0.75em; font-family: 'Patrick Hand', cursive; letter-spacing: 1px; }
+
+        .thumb-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        .training-thumb {
+            position: relative;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #0d1a12;
+            border: 1px solid #1e3625;
+        }
+        .training-thumb img {
+            display: block;
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+        }
+        .thumb-delete {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(212, 74, 42, 0.9);
+            color: white;
+            font-weight: bold;
+            font-size: 0.95em;
+            line-height: 26px;
+            padding: 0;
+            cursor: pointer;
+            opacity: 0.85;
+            transition: opacity 0.15s, background 0.15s;
+        }
+        .thumb-delete:hover { background: #d44a2a; opacity: 1; }
+        .thumb-empty { color: #888; font-style: italic; padding: 20px 0; text-align: center; }
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title">AI Training</h1>
+<p class="page-subtitle">Review training photos and retrain the custom classifier. Click &times; to delete an accidental or mislabeled sample.</p>
+
+<div class="retrain-panel">
+    <h2>Model</h2>
+    <div>
+        <span id="retrainCounts">Loading...</span>
+        &nbsp;|&nbsp;
+        <span id="clfStatus" class="clf-status inactive">No custom model</span>
+    </div>
+    <div style="margin-top:10px;">
+        <button class="btn btn-retrain" id="btnRetrain" onclick="retrainModel()" disabled>Retrain Model</button>
+        <button class="btn btn-revert" id="btnRevert" onclick="revertModel()" disabled>Revert</button>
+        <span id="retrainMsg" style="margin-left:8px;"></span>
+    </div>
+</div>
+
+<div class="class-section">
+    <h2>Hummingbird samples <span class="class-count" id="countHb">0</span></h2>
+    <div class="thumb-grid" id="gridHb"></div>
+</div>
+
+<div class="class-section">
+    <h2>Not-a-hummingbird samples <span class="class-count" id="countNot">0</span></h2>
+    <div class="thumb-grid" id="gridNot"></div>
+</div>
+
+<script>
+function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('active');
+    setTimeout(() => toast.classList.remove('active'), 2500);
+}
+
+function refreshRetrainStatus() {
+    fetch('/api/training/retrain/status')
+        .then(r => r.json())
+        .then(data => {
+            const counts = data.counts || {};
+            const hb = counts.hummingbird || 0;
+            const notHb = counts.not_hummingbird || 0;
+            document.getElementById('retrainCounts').textContent = 'Hummingbird: ' + hb + ' | Not: ' + notHb;
+
+            const btnRetrain = document.getElementById('btnRetrain');
+            const btnRevert = document.getElementById('btnRevert');
+            const clfStatus = document.getElementById('clfStatus');
+            const retrainMsg = document.getElementById('retrainMsg');
+
+            btnRetrain.disabled = !data.can_retrain || data.retrain_in_progress;
+            if (data.retrain_in_progress) {
+                btnRetrain.textContent = 'Training...';
+                retrainMsg.textContent = 'Retraining in progress...';
+                retrainMsg.style.color = '#58a6ff';
+            } else {
+                btnRetrain.textContent = 'Retrain Model';
+                if (!data.can_retrain) {
+                    retrainMsg.textContent = 'Need ' + data.min_samples + '+ samples (' + data.min_per_class + '+ per class)';
+                    retrainMsg.style.color = '#888';
+                } else {
+                    retrainMsg.textContent = '';
+                }
+            }
+
+            if (data.classifier_active && data.meta) {
+                clfStatus.className = 'clf-status';
+                clfStatus.textContent = 'Custom model active (' + Math.round(data.meta.train_accuracy * 100) + '% accuracy)';
+                btnRevert.disabled = false;
+            } else {
+                clfStatus.className = 'clf-status inactive';
+                clfStatus.textContent = 'No custom model';
+                btnRevert.disabled = true;
+            }
+        })
+        .catch(() => {});
+}
+
+function retrainModel() {
+    const btn = document.getElementById('btnRetrain');
+    btn.textContent = 'Training...'; btn.disabled = true;
+    document.getElementById('retrainMsg').textContent = 'Retraining in progress...';
+    document.getElementById('retrainMsg').style.color = '#58a6ff';
+    fetch('/api/training/retrain', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                showToast('Retraining started...');
+                const poll = setInterval(() => {
+                    fetch('/api/training/retrain/status').then(r => r.json()).then(s => {
+                        if (!s.retrain_in_progress) {
+                            clearInterval(poll);
+                            refreshRetrainStatus();
+                            if (s.classifier_active) showToast('Model retrained! Accuracy: ' + Math.round(s.meta.train_accuracy * 100) + '%');
+                        }
+                    });
+                }, 2000);
+            } else { showToast('Retrain failed: ' + (data.error || 'unknown')); refreshRetrainStatus(); }
+        })
+        .catch(() => { showToast('Retrain request failed'); refreshRetrainStatus(); });
+}
+
+function revertModel() {
+    if (!confirm('Revert to previous classifier?')) return;
+    fetch('/api/training/retrain/revert', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => { if (data.ok) showToast('Reverted to previous classifier'); else showToast('Revert failed: ' + (data.error || 'no backup')); refreshRetrainStatus(); })
+        .catch(() => showToast('Revert failed'));
+}
+
+function renderGrid(label, filenames, gridEl, countEl) {
+    countEl.textContent = filenames.length;
+    gridEl.innerHTML = '';
+    if (filenames.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'thumb-empty';
+        empty.textContent = 'No samples yet.';
+        empty.style.gridColumn = '1 / -1';
+        gridEl.appendChild(empty);
+        return;
+    }
+    for (const name of filenames) {
+        const tile = document.createElement('div');
+        tile.className = 'training-thumb';
+        tile.dataset.filename = name;
+
+        const img = document.createElement('img');
+        img.src = '/training-photo/' + label + '/' + encodeURIComponent(name);
+        img.alt = name;
+        img.loading = 'lazy';
+        tile.appendChild(img);
+
+        const btn = document.createElement('button');
+        btn.className = 'thumb-delete';
+        btn.type = 'button';
+        btn.title = 'Delete this training photo';
+        btn.textContent = '\u00D7';
+        btn.onclick = () => deletePhoto(label, name, tile, countEl);
+        tile.appendChild(btn);
+
+        gridEl.appendChild(tile);
+    }
+}
+
+function deletePhoto(label, filename, tile, countEl) {
+    if (!confirm('Delete this training photo?')) return;
+    fetch('/api/training/photos/' + label + '/' + encodeURIComponent(filename), { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                tile.remove();
+                countEl.textContent = Math.max(0, parseInt(countEl.textContent, 10) - 1);
+                refreshRetrainStatus();
+                showToast('Deleted ' + filename);
+            } else {
+                showToast('Delete failed: ' + (data.error || 'unknown'));
+            }
+        })
+        .catch(() => showToast('Delete request failed'));
+}
+
+function loadPhotos() {
+    fetch('/api/training/photos')
+        .then(r => r.json())
+        .then(data => {
+            renderGrid('hummingbird', data.hummingbird || [], document.getElementById('gridHb'), document.getElementById('countHb'));
+            renderGrid('not_hummingbird', data.not_hummingbird || [], document.getElementById('gridNot'), document.getElementById('countNot'));
+        })
+        .catch(() => showToast('Failed to load training photos'));
+}
+
+refreshRetrainStatus();
+loadPhotos();
+</script>
+{% endblock %}

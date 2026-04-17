@@ -112,22 +112,6 @@
         .btn-mark-no { background: #d44a2a; color: white; }
         .btn-mark-no:hover { background: #b33a1a; }
         .training-stats { color: #a3b8a6; font-size: 0.85em; }
-        .retrain-section {
-            margin-top: 8px;
-            padding: 8px 12px;
-            background: rgba(255,255,255,0.04);
-            border-radius: 6px;
-            font-size: 0.85em;
-        }
-        .retrain-section .btn { font-size: 0.8em; padding: 4px 12px; margin: 2px 4px; }
-        .btn-retrain { background: #58a6ff; color: #1a1a2e; }
-        .btn-retrain:hover { background: #4090e0; }
-        .btn-retrain:disabled { background: #555; color: #888; cursor: not-allowed; }
-        .btn-revert { background: #d44a2a; color: white; }
-        .btn-revert:hover { background: #b33a1a; }
-        .btn-revert:disabled { background: #555; color: #888; cursor: not-allowed; }
-        .clf-status { color: #4caf50; font-weight: bold; }
-        .clf-status.inactive { color: #888; font-weight: normal; }
         .detection-legend {
             text-align: center;
             margin-top: 10px;
@@ -272,24 +256,8 @@
                     <option value="270" {% if status.camera_rotation == 270 %}selected{% endif %}>270° CW</option>
                 </select>
                 <span class="training-stats">
-                    Training samples: {{ status.training_count }}
+                    Training samples: <span id="trainingCount">{{ status.training_count }}</span>
                 </span>
-            </div>
-            <div class="retrain-section" id="retrainSection">
-                <div>
-                    <span id="retrainCounts">Loading...</span>
-                    &nbsp;|&nbsp;
-                    <span id="clfStatus" class="clf-status inactive">No custom model</span>
-                </div>
-                <div style="margin-top:6px;">
-                    <button class="btn btn-retrain" id="btnRetrain" onclick="retrainModel()" disabled>
-                        Retrain Model
-                    </button>
-                    <button class="btn btn-revert" id="btnRevert" onclick="revertModel()" disabled>
-                        Revert
-                    </button>
-                    <span id="retrainMsg" style="margin-left:8px;"></span>
-                </div>
             </div>
             <div class="detection-legend">
                 <span class="legend-dot" style="background:#4caf50;"></span> Confirmed
@@ -867,96 +835,33 @@
             .finally(() => { if (btn) btn.disabled = false; });
         }
 
+        function refreshTrainingCount() {
+            fetch('/api/training/retrain/status')
+                .then(r => r.json())
+                .then(data => {
+                    const counts = data.counts || {};
+                    const total = (counts.hummingbird || 0) + (counts.not_hummingbird || 0);
+                    const el = document.getElementById('trainingCount');
+                    if (el) el.textContent = total;
+                })
+                .catch(() => {});
+        }
+
         function markHummingbird() {
             fetch('/api/training/mark', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({label: 'hummingbird'}) })
             .then(r => r.json())
-            .then(data => { if (data.ok) { showToast('Saved as hummingbird (' + data.filename + ')'); refreshRetrainStatus(); } else showToast('Error: ' + data.error); })
+            .then(data => { if (data.ok) { showToast('Saved as hummingbird (' + data.filename + ')'); refreshTrainingCount(); } else showToast('Error: ' + data.error); })
             .catch(() => showToast('Mark failed'));
         }
 
         function markNotHummingbird() {
             fetch('/api/training/mark', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({label: 'not_hummingbird'}) })
             .then(r => r.json())
-            .then(data => { if (data.ok) { showToast('Saved as NOT hummingbird (' + data.filename + ')'); refreshRetrainStatus(); } else showToast('Error: ' + data.error); })
+            .then(data => { if (data.ok) { showToast('Saved as NOT hummingbird (' + data.filename + ')'); refreshTrainingCount(); } else showToast('Error: ' + data.error); })
             .catch(() => showToast('Mark failed'));
         }
 
-        function refreshRetrainStatus() {
-            fetch('/api/training/retrain/status')
-                .then(r => r.json())
-                .then(data => {
-                    const counts = data.counts || {};
-                    const hb = counts.hummingbird || 0;
-                    const notHb = counts.not_hummingbird || 0;
-                    document.getElementById('retrainCounts').textContent = 'Hummingbird: ' + hb + ' | Not: ' + notHb;
-
-                    const btnRetrain = document.getElementById('btnRetrain');
-                    const btnRevert = document.getElementById('btnRevert');
-                    const clfStatus = document.getElementById('clfStatus');
-                    const retrainMsg = document.getElementById('retrainMsg');
-
-                    btnRetrain.disabled = !data.can_retrain || data.retrain_in_progress;
-                    if (data.retrain_in_progress) {
-                        btnRetrain.textContent = 'Training...';
-                        retrainMsg.textContent = 'Retraining in progress...';
-                        retrainMsg.style.color = '#58a6ff';
-                    } else {
-                        btnRetrain.textContent = 'Retrain Model';
-                        if (!data.can_retrain) {
-                            retrainMsg.textContent = 'Need ' + data.min_samples + '+ samples (' + data.min_per_class + '+ per class)';
-                            retrainMsg.style.color = '#888';
-                        } else {
-                            retrainMsg.textContent = '';
-                        }
-                    }
-
-                    if (data.classifier_active && data.meta) {
-                        clfStatus.className = 'clf-status';
-                        clfStatus.textContent = 'Custom model active (' + Math.round(data.meta.train_accuracy * 100) + '% accuracy)';
-                        btnRevert.disabled = false;
-                    } else {
-                        clfStatus.className = 'clf-status inactive';
-                        clfStatus.textContent = 'No custom model';
-                        btnRevert.disabled = true;
-                    }
-                })
-                .catch(() => {});
-        }
-
-        function retrainModel() {
-            const btn = document.getElementById('btnRetrain');
-            btn.textContent = 'Training...'; btn.disabled = true;
-            document.getElementById('retrainMsg').textContent = 'Retraining in progress...';
-            document.getElementById('retrainMsg').style.color = '#58a6ff';
-            fetch('/api/training/retrain', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.ok) {
-                        showToast('Retraining started...');
-                        const poll = setInterval(() => {
-                            fetch('/api/training/retrain/status').then(r => r.json()).then(s => {
-                                if (!s.retrain_in_progress) {
-                                    clearInterval(poll);
-                                    refreshRetrainStatus();
-                                    if (s.classifier_active) showToast('Model retrained! Accuracy: ' + Math.round(s.meta.train_accuracy * 100) + '%');
-                                }
-                            });
-                        }, 2000);
-                    } else { showToast('Retrain failed: ' + (data.error || 'unknown')); refreshRetrainStatus(); }
-                })
-                .catch(() => { showToast('Retrain request failed'); refreshRetrainStatus(); });
-        }
-
-        function revertModel() {
-            if (!confirm('Revert to previous classifier?')) return;
-            fetch('/api/training/retrain/revert', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => { if (data.ok) showToast('Reverted to previous classifier'); else showToast('Revert failed: ' + (data.error || 'no backup')); refreshRetrainStatus(); })
-                .catch(() => showToast('Revert failed'));
-        }
-
-        refreshRetrainStatus();
-        setInterval(refreshRetrainStatus, 30000);
+        refreshTrainingCount();
 
 
         function checkForUpdate() {
