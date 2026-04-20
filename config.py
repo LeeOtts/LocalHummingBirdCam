@@ -36,6 +36,11 @@ COLOR_MAX_AREA = int(os.getenv("COLOR_MAX_AREA", "5000"))
 DETECTION_COOLDOWN_SECONDS = int(os.getenv("DETECTION_COOLDOWN_SECONDS", "60"))
 MAX_POSTS_PER_DAY = int(os.getenv("MAX_POSTS_PER_DAY", "10"))
 
+# Detection method: "mog2" (background subtraction — robust to wind-swinging feeder)
+# or "framediff" (legacy frame differencing — fallback if MOG2 misbehaves).
+DETECTION_METHOD = os.getenv("DETECTION_METHOD", "mog2")
+DETECTION_DEBUG = os.getenv("DETECTION_DEBUG", "false").lower() in ("true", "1", "yes")
+
 # Video settings
 VIDEO_WIDTH = int(os.getenv("VIDEO_WIDTH", "1920"))
 VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "1080"))
@@ -225,6 +230,9 @@ if VIDEO_HEIGHT < 1:
 if MOTION_THRESHOLD < 0:
     _log.warning("MOTION_THRESHOLD=%.1f invalid (must be >= 0), clamping to 0", MOTION_THRESHOLD)
     MOTION_THRESHOLD = 0.0
+if DETECTION_METHOD not in ("mog2", "framediff"):
+    _log.warning("DETECTION_METHOD=%r invalid, defaulting to 'mog2'", DETECTION_METHOD)
+    DETECTION_METHOD = "mog2"
 if MAX_POSTS_PER_DAY < 1:
     _log.warning("MAX_POSTS_PER_DAY=%d invalid, clamping to 1", MAX_POSTS_PER_DAY)
     MAX_POSTS_PER_DAY = 1

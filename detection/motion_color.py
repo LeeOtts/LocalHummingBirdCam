@@ -41,7 +41,23 @@ class MotionColorDetector(Detector):
         self.color_max_area = int(getattr(config, 'COLOR_MAX_AREA', 5000))
         self.prev_gray = None
         self._consecutive_detections = 0
-        self._required_consecutive = 5  # bumped from 3 — need 5 consecutive frames
+        self._required_consecutive = 3  # catch brief visits (<333ms at 15fps)
+
+        self._method = getattr(config, "DETECTION_METHOD", "mog2")
+        self._debug = getattr(config, "DETECTION_DEBUG", False)
+
+        if self._method == "mog2":
+            # MOG2 learns repetitive motion (wind-swinging feeder) as background,
+            # so only novel motion (a bird arriving) shows up in the foreground mask.
+            self._bg_sub = cv2.createBackgroundSubtractorMOG2(
+                history=500,          # ~33s at 15fps — long enough to learn the swing cycle
+                varThreshold=25,      # slightly less sensitive than default 16
+                detectShadows=False,  # shadows off: cheaper, avoids gray 127-pixel mask values
+            )
+            self._warmup_frames_remaining = 500
+        else:
+            self._bg_sub = None
+            self._warmup_frames_remaining = 0
 
         # Detection metadata (read by main.py after confirmation)
         self.last_bird_count = 1
@@ -65,8 +81,27 @@ class MotionColorDetector(Detector):
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (21, 21), 0)  # blur to reduce noise-triggered motion
 
-        # Motion detection via frame differencing
-        motion_mask = self._get_motion_mask(gray)
+        # MOG2 warmup: feed frames to the background model but don't detect yet.
+        if self._method == "mog2" and self._warmup_frames_remaining > 0:
+            self._bg_sub.apply(gray, learningRate=-1)
+            self._warmup_frames_remaining -= 1
+            if self._debug and self._warmup_frames_remaining % 100 == 0:
+                logger.debug("MOG2 warmup: %d frames remaining", self._warmup_frames_remaining)
+            self.prev_gray = gray
+            return False
+
+        # Motion detection — MOG2 background subtraction or legacy frame differencing.
+        if self._method == "mog2":
+            motion_mask, motion_percent = self._get_motion_mask_mog2(gray)
+        else:
+            motion_mask, motion_percent = self._get_motion_mask_framediff(gray)
+
+        if self._debug:
+            logger.debug(
+                "frame: motion=%.2f%% mask=%s",
+                motion_percent, "OK" if motion_mask is not None else "REJECT",
+            )
+
         if motion_mask is None:
             self._consecutive_detections = 0
             self.prev_gray = gray
@@ -81,6 +116,11 @@ class MotionColorDetector(Detector):
 
         self.prev_gray = gray
 
+        if self._debug and self._consecutive_detections > 0:
+            logger.debug(
+                "  consec=%d/%d", self._consecutive_detections, self._required_consecutive,
+            )
+
         if self._consecutive_detections >= self._required_consecutive:
             self.last_visit_duration_frames = self._consecutive_detections
             logger.info("Hummingbird detected! (%d consecutive frames)", self._consecutive_detections)
@@ -88,22 +128,18 @@ class MotionColorDetector(Detector):
 
         return False
 
-    def _get_motion_mask(self, gray: np.ndarray) -> np.ndarray | None:
+    def _get_motion_mask_framediff(self, gray: np.ndarray) -> tuple[np.ndarray | None, float]:
         """
-        Return a binary mask of moving pixels, or None if no significant motion.
+        Frame-differencing motion mask (legacy fallback).
+        Returns (mask, motion_percent). mask is None if motion is out of range.
         """
         if self.prev_gray is None:
-            return None
+            return None, 0.0
 
         diff = cv2.absdiff(gray, self.prev_gray)
-
-        # Threshold the difference to get a binary motion mask
         _, thresh = cv2.threshold(diff, self.motion_threshold, 255, cv2.THRESH_BINARY)
-
-        # Dilate to fill gaps in the motion region
         thresh = cv2.dilate(thresh, None, iterations=2)
 
-        # Check if total motion exceeds threshold
         motion_pixels = cv2.countNonZero(thresh)
         total_pixels = gray.shape[0] * gray.shape[1]
         motion_percent = (motion_pixels / total_pixels) * 100
@@ -111,9 +147,31 @@ class MotionColorDetector(Detector):
         # Too little motion = nothing there
         # Too much motion = camera shake, lighting change, wind blowing everything
         if motion_percent < 0.5 or motion_percent > 30:
-            return None
+            return None, motion_percent
 
-        return thresh
+        return thresh, motion_percent
+
+    def _get_motion_mask_mog2(self, gray: np.ndarray) -> tuple[np.ndarray | None, float]:
+        """
+        Foreground mask via MOG2 background subtraction.
+        MOG2 learns repetitive motion (wind-swinging feeder) as background, so only
+        novel motion (a bird arriving) shows up in the foreground mask.
+        """
+        fg_mask = self._bg_sub.apply(gray, learningRate=-1)
+        # MOG2 output is speckly — open to remove noise, dilate to fill gaps.
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        fg_mask = cv2.dilate(fg_mask, None, iterations=2)
+
+        motion_pixels = cv2.countNonZero(fg_mask)
+        total_pixels = fg_mask.size
+        motion_percent = (motion_pixels / total_pixels) * 100
+
+        # With MOG2 the feeder is learned as background, so a bird should be a small
+        # fraction of the frame. Lower ceiling 30->15 since persistent motion no longer inflates.
+        if motion_percent < 0.3 or motion_percent > 15:
+            return None, motion_percent
+
+        return fg_mask, motion_percent
 
     def _check_hummingbird_in_motion(self, bgr: np.ndarray, motion_mask: np.ndarray) -> bool:
         """Check for hummingbird colors only within the motion region."""
@@ -135,13 +193,25 @@ class MotionColorDetector(Detector):
 
         # Must be within size range — too small is noise, too big is not a hummingbird
         if colored_pixels < self.color_min_area:
+            if self._debug:
+                logger.debug(
+                    "  drop: below_min_area (colored=%d min=%d)",
+                    colored_pixels, self.color_min_area,
+                )
             return False
         if colored_pixels > self.color_max_area:
+            if self._debug:
+                logger.debug(
+                    "  drop: above_max_area (colored=%d max=%d)",
+                    colored_pixels, self.color_max_area,
+                )
             return False
 
         # Find contours to check shape — hummingbird should be a compact blob, not scattered
         contours, _ = cv2.findContours(color_in_motion, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
+            if self._debug:
+                logger.debug("  drop: no_contours")
             return False
 
         # Get the largest contour — should be a reasonably compact shape
@@ -151,6 +221,11 @@ class MotionColorDetector(Detector):
         # The largest blob should be at least half the total colored pixels
         # (scattered pixels across the frame = not a bird)
         if area < self.color_min_area * 0.5:
+            if self._debug:
+                logger.debug(
+                    "  drop: blob_too_scattered (largest=%d min=%d)",
+                    int(area), int(self.color_min_area * 0.5),
+                )
             return False
 
         # Count qualifying contours (potential simultaneous birds)
@@ -171,6 +246,11 @@ class MotionColorDetector(Detector):
         return True
 
     def reset(self):
-        """Reset state after a recording."""
+        """Reset state after a recording.
+
+        Note: the MOG2 background model (self._bg_sub) is deliberately NOT reset —
+        the feeder keeps swinging through the recording+cooldown, and re-learning
+        the background from scratch each time would reintroduce the wind-noise problem.
+        """
         self.prev_gray = None
         self._consecutive_detections = 0
