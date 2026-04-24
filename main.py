@@ -91,6 +91,18 @@ def setup_logging():
     # Suppress noisy websocket-client library logs (transient reconnect noise)
     logging.getLogger("websocket").setLevel(logging.WARNING)
 
+    # Route uncaught exceptions to the log file — otherwise they only hit
+    # stderr/journald, which makes silent crash-loops hard to diagnose.
+    def _log_unhandled(exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+            return
+        logging.getLogger().critical(
+            "Unhandled exception", exc_info=(exc_type, exc_value, exc_tb),
+        )
+
+    sys.excepthook = _log_unhandled
+
 
 logger = logging.getLogger(__name__)
 
@@ -430,7 +442,9 @@ class HummingbirdMonitor:
                 logger.info("Motion+color triggered — verifying with bird classifier...")
 
                 # Get a full-res frame for the classifier
-                verify_frame = self.camera.get_full_res_frame() or frame
+                verify_frame = self.camera.get_full_res_frame()
+                if verify_frame is None:
+                    verify_frame = frame
 
                 if not verify_hummingbird(verify_frame):
                     self.detection_state = "rejected"
