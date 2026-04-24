@@ -124,6 +124,36 @@ def _get_day_part(hour: int) -> str:
 _MILESTONES = {100, 250, 500, 1000, 1500, 2000, 2500, 3000, 5000, 10000}
 
 
+def _crop_to_bbox(frame, bbox_norm, padding: float = 0.4, min_size: int = 96):
+    """Crop *frame* to a padded region around *bbox_norm* (x0,y0,x1,y1 in 0..1).
+
+    The verify classifier downscales whatever we hand it to 224x224, so feeding it a
+    full 1280x720 frame means a bird that occupies 5% of the scene becomes ~50 px —
+    the classifier ends up voting on the whole yard. Cropping to the motion region
+    first lets it actually look at the thing that moved.
+    """
+    if bbox_norm is None or frame is None:
+        return frame
+    h, w = frame.shape[:2]
+    x0, y0, x1, y1 = bbox_norm
+    px0, py0 = int(x0 * w), int(y0 * h)
+    px1, py1 = int(x1 * w), int(y1 * h)
+    if px1 <= px0 or py1 <= py0:
+        return frame
+    bw, bh = px1 - px0, py1 - py0
+    pad_w, pad_h = int(bw * padding), int(bh * padding)
+    px0 = max(0, px0 - pad_w); py0 = max(0, py0 - pad_h)
+    px1 = min(w, px1 + pad_w); py1 = min(h, py1 + pad_h)
+    # Grow undersized crops outward so we don't feed the model a postage stamp.
+    if (px1 - px0) < min_size:
+        extra = (min_size - (px1 - px0) + 1) // 2
+        px0 = max(0, px0 - extra); px1 = min(w, px1 + extra)
+    if (py1 - py0) < min_size:
+        extra = (min_size - (py1 - py0) + 1) // 2
+        py0 = max(0, py0 - extra); py1 = min(h, py1 + extra)
+    return frame[py0:py1, px0:px1]
+
+
 class HummingbirdMonitor:
     """Main application controller."""
 
@@ -445,6 +475,15 @@ class HummingbirdMonitor:
                 verify_frame = self.camera.get_full_res_frame()
                 if verify_frame is None:
                     verify_frame = frame
+
+                # Crop to the motion bbox so MobileNetV2 sees the bird, not the whole yard.
+                bbox = getattr(self.detector, 'last_bbox', None)
+                if bbox is not None:
+                    verify_frame = _crop_to_bbox(verify_frame, bbox)
+                    logger.info(
+                        "Cropped verify frame to bbox %s -> %dx%d",
+                        bbox, verify_frame.shape[1], verify_frame.shape[0],
+                    )
 
                 if not verify_hummingbird(verify_frame):
                     self.detection_state = "rejected"

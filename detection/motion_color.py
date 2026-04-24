@@ -64,6 +64,9 @@ class MotionColorDetector(Detector):
         self.last_position_x: float | None = None
         self.last_position_y: float | None = None
         self.last_visit_duration_frames: int | None = None
+        # Normalized bbox (x0, y0, x1, y1) in 0..1 of the largest color-in-motion blob.
+        # main.py uses this to crop the full-res frame before the MobileNetV2 verify step.
+        self.last_bbox: tuple[float, float, float, float] | None = None
 
     def detect(self, frame: np.ndarray) -> bool:
         """
@@ -235,13 +238,21 @@ class MotionColorDetector(Detector):
 
         # Compute center of largest contour, normalized to 0-1
         M = cv2.moments(largest)
+        h, w = bgr.shape[:2]
         if M["m00"] > 0:
-            h, w = bgr.shape[:2]
             self.last_position_x = round(M["m10"] / M["m00"] / w, 4)
             self.last_position_y = round(M["m01"] / M["m00"] / h, 4)
         else:
             self.last_position_x = None
             self.last_position_y = None
+
+        bx, by, bw, bh = cv2.boundingRect(largest)
+        self.last_bbox = (
+            round(bx / w, 4),
+            round(by / h, 4),
+            round((bx + bw) / w, 4),
+            round((by + bh) / h, 4),
+        )
 
         return True
 
