@@ -44,6 +44,21 @@ def _hsv_to_bgr(h, s, v):
     return tuple(int(c) for c in bgr[0, 0])
 
 
+def _make_framediff_detector(**kwargs):
+    """Build a detector forced into framediff mode for synthetic-frame tests.
+
+    Production default is MOG2, which needs ~500 warmup frames before it'll
+    detect anything — far more than these synthetic tests feed. The motion+
+    color filter logic being tested is identical between modes; only the
+    motion-mask source differs.
+    """
+    detector = MotionColorDetector(**kwargs)
+    detector._method = "framediff"
+    detector._bg_sub = None
+    detector._warmup_frames_remaining = 0
+    return detector
+
+
 class TestFirstFrame:
     """First frame should return False (no previous frame to compare)."""
 
@@ -106,7 +121,7 @@ class TestMotionWithHummingbirdColors:
 
     def test_consecutive_frames_needed(self):
         """Detection requires 5 consecutive frames (not just one)."""
-        detector = MotionColorDetector(motion_threshold=15.0, color_min_area=50)
+        detector = _make_framediff_detector(motion_threshold=15.0, color_min_area=50)
         green_bgr = self._get_green_bgr()
 
         # Frame 0: baseline (dark)
@@ -125,7 +140,7 @@ class TestMotionWithHummingbirdColors:
 
     def test_detection_after_enough_consecutive(self):
         """After enough consecutive motion+color frames, detection returns True."""
-        detector = MotionColorDetector(motion_threshold=15.0, color_min_area=50)
+        detector = _make_framediff_detector(motion_threshold=15.0, color_min_area=50)
         detector._required_consecutive = 3  # lower for test speed
         green_bgr = self._get_green_bgr()
 
