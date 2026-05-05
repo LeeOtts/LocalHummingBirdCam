@@ -15,20 +15,20 @@ from detection.detector import Detector
 
 logger = logging.getLogger(__name__)
 
-# HSV ranges for hummingbird colors — tightened to reduce false positives
-# Iridescent green (most common body color)
-GREEN_LOWER = np.array([40, 60, 50])
+# HSV ranges for hummingbird colors — tuned for ruby-throated only (Memphis, TN).
+# Orange dropped: Rufous hummingbirds don't migrate through Memphis, and the orange
+# feeder body was producing color-in-motion false positives whenever any insect
+# moved across it.
+# Green tightened (S 60->130, V 50->80) so iridescent bird body still matches but
+# grass and dull foliage don't.
+GREEN_LOWER = np.array([40, 130, 80])
 GREEN_UPPER = np.array([80, 255, 255])
 
-# Ruby-red throat (male Anna's, Ruby-throated, etc.)
+# Ruby-red throat (male ruby-throated)
 RED_LOWER_1 = np.array([0, 120, 60])
 RED_UPPER_1 = np.array([8, 255, 255])
 RED_LOWER_2 = np.array([172, 120, 60])
 RED_UPPER_2 = np.array([180, 255, 255])
-
-# Rufous / orange (Rufous hummingbird)
-ORANGE_LOWER = np.array([10, 120, 60])
-ORANGE_UPPER = np.array([22, 255, 255])
 
 
 
@@ -41,7 +41,7 @@ class MotionColorDetector(Detector):
         self.color_max_area = int(getattr(config, 'COLOR_MAX_AREA', 5000))
         self.prev_gray = None
         self._consecutive_detections = 0
-        self._required_consecutive = 3  # catch brief visits (<333ms at 15fps)
+        self._required_consecutive = 5  # ~333ms at 15fps — long enough to reject darting insects
 
         self._method = getattr(config, "DETECTION_METHOD", "mog2")
         self._debug = getattr(config, "DETECTION_DEBUG", False)
@@ -184,10 +184,9 @@ class MotionColorDetector(Detector):
         mask_green = cv2.inRange(hsv, GREEN_LOWER, GREEN_UPPER)
         mask_red1 = cv2.inRange(hsv, RED_LOWER_1, RED_UPPER_1)
         mask_red2 = cv2.inRange(hsv, RED_LOWER_2, RED_UPPER_2)
-        mask_orange = cv2.inRange(hsv, ORANGE_LOWER, ORANGE_UPPER)
 
         # Combine all color masks
-        color_mask = mask_green | mask_red1 | mask_red2 | mask_orange
+        color_mask = mask_green | mask_red1 | mask_red2
 
         # Only keep colors that overlap with the motion region
         color_in_motion = cv2.bitwise_and(color_mask, motion_mask)

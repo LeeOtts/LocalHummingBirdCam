@@ -40,8 +40,10 @@ HUMMINGBIRD_KEYWORDS = [
     "hummingbird",
 ]
 
-# Minimum confidence to accept a hummingbird classification
-MIN_CONFIDENCE = 0.25
+# Minimum confidence to accept a hummingbird classification.
+# 0.40 rejects "I dunno, kinda bird-shaped?" cases without losing real hummingbirds,
+# which usually score 0.5-0.9 when actually present.
+MIN_CONFIDENCE = 0.40
 
 # SHA-256 checksum for integrity verification (empty string = skip check)
 _MODEL_SHA256 = ""  # Populated on first successful download if desired
