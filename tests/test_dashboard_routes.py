@@ -34,6 +34,8 @@ def mock_monitor():
     m._counter_lock = threading.Lock()
     m._sse_lock = threading.Lock()
     m._sse_subscribers = []
+    # Default DB return values — explicit since MagicMock auto-returns are truthy
+    m.sightings_db.mark_clip_deleted.return_value = False
     return m
 
 

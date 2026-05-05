@@ -635,6 +635,7 @@ def delete_clip(filename):
         caption_path = mp4_path.with_suffix(".txt")
         h264_path = mp4_path.with_suffix(".h264")
         thumb_path = config.CLIPS_DIR / filename.replace(".mp4", "_thumb.jpg")
+        file_existed = mp4_path.exists()
         for f in (mp4_path, caption_path, h264_path, thumb_path):
             try:
                 f.unlink(missing_ok=True)
@@ -642,8 +643,13 @@ def delete_clip(filename):
                 pass
 
         # Step 3: Mark deleted in DB so it drops from website exports
+        db_existed = False
         if _monitor and _monitor.sightings_db:
-            _monitor.sightings_db.mark_clip_deleted(filename)
+            db_existed = bool(_monitor.sightings_db.mark_clip_deleted(filename))
+
+        # If neither the file nor a DB row existed, the clip wasn't really here.
+        if not file_existed and not db_existed:
+            return {"ok": False, "error": "Clip not found"}, 404
 
         # Step 4: Regenerate and push site_data.json for immediate website update
         if config.WEBSITE_REMOTE_HOST and config.WEBSITE_REMOTE_USER:

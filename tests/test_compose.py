@@ -394,7 +394,9 @@ class TestGenerateManualPost:
         monkeypatch.setattr(config, "AZURE_OPENAI_ENDPOINT", "")
         monkeypatch.setattr(config, "AZURE_OPENAI_DEPLOYMENT", "")
 
-        from openai import OpenAIError
+        # openai is optional in dev; production code wraps its import the same way.
+        openai_module = pytest.importorskip("openai")
+        OpenAIError = openai_module.OpenAIError
 
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = OpenAIError("API down")

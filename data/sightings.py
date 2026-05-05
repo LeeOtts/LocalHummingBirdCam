@@ -593,16 +593,21 @@ class SightingsDB:
             finally:
                 conn.close()
 
-    def mark_clip_deleted(self, clip_filename: str):
-        """Mark a clip as deleted (nulls filename so it drops from website exports)."""
+    def mark_clip_deleted(self, clip_filename: str) -> bool:
+        """Mark a clip as deleted (nulls filename so it drops from website exports).
+
+        Returns True if a sighting row was actually updated, False if the
+        filename wasn't tracked.
+        """
         with self._lock:
             conn = self._get_conn()
             try:
-                conn.execute(
+                cursor = conn.execute(
                     "UPDATE sightings SET clip_filename = NULL WHERE clip_filename = ?",
                     (clip_filename,),
                 )
                 conn.commit()
+                return cursor.rowcount > 0
             finally:
                 conn.close()
 
