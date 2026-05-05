@@ -41,7 +41,9 @@ class MotionColorDetector(Detector):
         self.color_max_area = int(getattr(config, 'COLOR_MAX_AREA', 5000))
         self.prev_gray = None
         self._consecutive_detections = 0
-        self._required_consecutive = 5  # ~333ms at 15fps — long enough to reject darting insects
+        # ~333ms duration filter regardless of FPS — long enough to reject darting
+        # insects but short enough to catch brief hummingbird visits.
+        self._required_consecutive = max(1, config.VIDEO_FPS // 3)
 
         self._method = getattr(config, "DETECTION_METHOD", "mog2")
         self._debug = getattr(config, "DETECTION_DEBUG", False)
