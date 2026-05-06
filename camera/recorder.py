@@ -159,24 +159,23 @@ class ClipRecorder:
             # --- Step 4: Capture post-detection frames as they arrive ---
             # Frame-driven (not timer-driven): wait_next_frame blocks until the
             # capture thread delivers a unique new frame, so a capture stall
-            # shortens the clip slightly instead of producing duplicate
-            # frozen frames that look like the bird teleporting.
-            post_deadline = time.monotonic() + config.CLIP_POST_SECONDS
+            # produces fewer frames in the clip rather than duplicate frozen
+            # frames that look like the bird teleporting. We post-process the
+            # FPS metadata below so the file plays at correct wall-clock
+            # duration regardless of how many unique frames arrived.
+            post_start = time.monotonic()
+            post_deadline = post_start + config.CLIP_POST_SECONDS
             last_seq = 0
-            consecutive_timeouts = 0
 
-            logger.info("Recording up to ~%ds of post-detection frames...",
+            logger.info("Recording ~%ds of post-detection frames...",
                          config.CLIP_POST_SECONDS)
 
             while time.monotonic() < post_deadline:
-                full_frame, last_seq = self.camera.wait_next_frame(last_seq, timeout=0.5)
+                remaining = post_deadline - time.monotonic()
+                full_frame, last_seq = self.camera.wait_next_frame(
+                    last_seq, timeout=min(0.5, max(0.05, remaining)))
                 if full_frame is None:
-                    consecutive_timeouts += 1
-                    if consecutive_timeouts >= 4:  # ~2s with no new frame -> camera dead
-                        logger.warning("Capture stalled >2s; ending clip early")
-                        break
-                    continue
-                consecutive_timeouts = 0
+                    continue  # nothing new; deadline check will exit eventually
                 if writer is None:
                     h, w = full_frame.shape[:2]
                     writer = self._open_writer(video_path, w, h)
@@ -184,10 +183,25 @@ class ClipRecorder:
                     writer.write(full_frame)
                     total_frames += 1
 
+            post_duration = time.monotonic() - post_start
+
             # Release writer before muxing
             if writer:
                 writer.release()
                 writer = None
+
+            # --- Step 4b: Compute the FPS the file *should* declare so
+            # playback duration matches wall-clock recording duration.
+            # total_frames span CLIP_PRE_SECONDS (assumed full) + measured
+            # post_duration. With stalls we have fewer frames; the lower
+            # declared FPS stretches them across the full duration smoothly.
+            target_duration = float(config.CLIP_PRE_SECONDS) + post_duration
+            if total_frames > 0 and target_duration > 0:
+                measured_fps = total_frames / target_duration
+            else:
+                measured_fps = float(config.VIDEO_FPS)
+            # Clamp to sane bounds in case of pathological measurement
+            measured_fps = max(1.0, min(measured_fps, float(config.VIDEO_FPS) * 2))
 
             # Wait for audio to finish
             if audio_proc is not None:
@@ -210,10 +224,16 @@ class ClipRecorder:
                 return None
 
             # --- Step 5: Mux video + audio if we have audio ---
+            # `-r <measured_fps>` BEFORE `-i video.mp4` re-stamps the video's
+            # PTS without re-encoding (paired with `-c:v copy`). This makes
+            # playback duration match wall-clock recording duration even if
+            # the capture rate dipped below VIDEO_FPS.
+            fps_arg = f"{measured_fps:.3f}"
             if audio_proc is not None and audio_path.exists() and audio_path.stat().st_size > 0:
                 mux_result = subprocess.run(
                     [
                         "ffmpeg", "-y",
+                        "-r", fps_arg,
                         "-i", str(video_path),
                         "-i", str(audio_path),
                         "-c:v", "copy",
@@ -227,15 +247,17 @@ class ClipRecorder:
                 if mux_result.returncode != 0:
                     logger.warning("Audio mux failed, using video-only: %s",
                                    mux_result.stderr[-300:])
-                    # Fall back to video only — rename temp video to final path
-                    if video_path.exists():
-                        video_path.rename(mp4_path)
+                    # Fall back to video-only retime (no audio)
+                    self._retime_video_only(video_path, mp4_path, fps_arg)
 
                 self._cleanup_temp_files(video_path, audio_path)
             else:
-                # No audio — just rename video
-                video_path.rename(mp4_path)
+                # No audio — retime video only
+                self._retime_video_only(video_path, mp4_path, fps_arg)
                 self._cleanup_temp_files(audio_path)
+
+            logger.info("Clip retimed to %.2f fps (wallclock %.1fs, %d frames)",
+                        measured_fps, target_duration, total_frames)
 
             if mp4_path.exists():
                 size_mb = mp4_path.stat().st_size / 1_048_576
@@ -280,6 +302,35 @@ class ClipRecorder:
             return None
         return writer
 
+
+    @staticmethod
+    def _retime_video_only(video_path: Path, mp4_path: Path, fps_arg: str) -> None:
+        """Re-stamp the video's frame rate to ``fps_arg`` without re-encoding.
+
+        Used when there is no audio to mux. ``-r <fps>`` BEFORE ``-i`` tells
+        ffmpeg to interpret the input at that rate; ``-c copy`` keeps the
+        codec data unchanged so this is a fast container rewrite, not a
+        re-encode (important on Pi 3B+ where libx264 is slow).
+
+        Falls back to a plain rename if ffmpeg fails so we never lose the
+        clip entirely.
+        """
+        try:
+            result = subprocess.run(
+                ["ffmpeg", "-y", "-r", fps_arg, "-i", str(video_path),
+                 "-c", "copy", str(mp4_path)],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode == 0 and mp4_path.exists():
+                video_path.unlink(missing_ok=True)
+                return
+            logger.warning("Video retime failed (fps=%s): %s",
+                           fps_arg, result.stderr[-300:])
+        except Exception:
+            logger.exception("Video retime error")
+        # Fallback: keep the un-retimed video so we don't lose the clip.
+        if video_path.exists() and not mp4_path.exists():
+            video_path.rename(mp4_path)
 
     def _remux_h264_to_mp4(self, h264_path: Path, mp4_path: Path) -> Path | None:
         """Remux raw H264 to MP4 container using ffmpeg (no re-encoding)."""
