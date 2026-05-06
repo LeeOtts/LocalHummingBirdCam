@@ -1,6 +1,7 @@
 """Tests for CameraStream in camera/stream.py."""
 
 import threading
+import time
 from unittest.mock import MagicMock, patch, call
 
 import cv2
@@ -17,6 +18,8 @@ def _make_stream():
     s.rotation = 0
     s.circular_output = None
     s.frame_buffer = None
+    s._usb_frame_seq = 0
+    s._usb_frame_event = threading.Event()
     return s
 
 
@@ -271,3 +274,86 @@ class TestGetFullResFrame:
         s._backend.capture_array.side_effect = RuntimeError("no camera")
 
         assert s.get_full_res_frame() is None
+
+
+class TestWaitNextFrame:
+    """Test CameraStream.wait_next_frame() new-frame signaling."""
+
+    def test_returns_frame_when_new_seq_available(self):
+        s = _make_stream()
+        s.camera_type = "usb"
+        s._usb_lock = threading.Lock()
+        frame = np.ones((480, 640, 3), dtype=np.uint8) * 42
+        s._usb_latest_frame = frame
+        s._usb_frame_seq = 5
+
+        result_frame, result_seq = s.wait_next_frame(last_seq=4, timeout=0.1)
+        assert result_seq == 5
+        assert result_frame is not None
+        assert result_frame is not frame  # Should be a copy
+        np.testing.assert_array_equal(result_frame, frame)
+
+    def test_returns_none_on_timeout_when_no_new_frame(self):
+        s = _make_stream()
+        s.camera_type = "usb"
+        s._usb_lock = threading.Lock()
+        s._usb_latest_frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        s._usb_frame_seq = 7
+
+        # last_seq matches current seq -> no new frame -> timeout
+        result_frame, result_seq = s.wait_next_frame(last_seq=7, timeout=0.05)
+        assert result_frame is None
+        assert result_seq == 7
+
+    def test_unblocks_when_capture_thread_signals(self):
+        s = _make_stream()
+        s.camera_type = "usb"
+        s._usb_lock = threading.Lock()
+        s._usb_latest_frame = None
+        s._usb_frame_seq = 0
+
+        # Background thread that simulates the capture loop pushing a frame
+        def push_frame():
+            time.sleep(0.05)
+            new_frame = np.ones((10, 10, 3), dtype=np.uint8) * 9
+            with s._usb_lock:
+                s._usb_latest_frame = new_frame
+                s._usb_frame_seq = 1
+            s._usb_frame_event.set()
+
+        t = threading.Thread(target=push_frame, daemon=True)
+        t.start()
+
+        result_frame, result_seq = s.wait_next_frame(last_seq=0, timeout=2.0)
+        t.join(timeout=1)
+        assert result_frame is not None
+        assert result_seq == 1
+
+    def test_returns_none_for_unknown_camera_type(self):
+        s = _make_stream()
+        s.camera_type = None
+        result_frame, result_seq = s.wait_next_frame(last_seq=0, timeout=0.01)
+        assert result_frame is None
+        assert result_seq == 0
+
+    def test_picamera_path_returns_fresh_frame(self):
+        s = _make_stream()
+        s.camera_type = "picamera"
+        s._backend = MagicMock()
+        # picamera frames are RGB; get_full_res_frame converts to BGR
+        rgb_frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        s._backend.capture_array.return_value = rgb_frame
+
+        result_frame, result_seq = s.wait_next_frame(last_seq=3, timeout=0.1)
+        assert result_frame is not None
+        assert result_seq == 4  # incremented from last_seq
+
+    def test_picamera_path_returns_none_when_capture_fails(self):
+        s = _make_stream()
+        s.camera_type = "picamera"
+        s._backend = MagicMock()
+        s._backend.capture_array.side_effect = RuntimeError("no camera")
+
+        result_frame, result_seq = s.wait_next_frame(last_seq=3, timeout=0.1)
+        assert result_frame is None
+        assert result_seq == 3

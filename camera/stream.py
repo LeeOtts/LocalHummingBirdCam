@@ -147,6 +147,8 @@ class CameraStream:
         self._usb_running = True
         self._usb_latest_frame = None
         self._usb_lock = threading.Lock()
+        self._usb_frame_seq = 0
+        self._usb_frame_event = threading.Event()
         self._usb_thread = threading.Thread(target=self._usb_capture_loop, daemon=True)
         self._usb_thread.start()
 
@@ -171,8 +173,12 @@ class CameraStream:
         return frame
 
     def _usb_capture_loop(self):
-        """Background thread: continuously grab frames from USB camera."""
-        interval = 1.0 / config.VIDEO_FPS
+        """Background thread: continuously grab frames from USB camera.
+
+        cap.read() blocks on the camera's hardware-paced delivery, so no extra
+        sleep is needed — it just lengthens the loop and pushes us closer to
+        the cliff where stalls cause duplicate frames in recordings.
+        """
         _fail_count = 0
         _backoff_delays = [0.1, 1.0, 5.0, 10.0, 30.0]  # seconds between retries
 
@@ -196,10 +202,11 @@ class CameraStream:
 
             with self._usb_lock:
                 self._usb_latest_frame = frame
+                self._usb_frame_seq += 1
+            self._usb_frame_event.set()
 
             # Add to rolling buffer for recording
             self.frame_buffer.add(frame)
-            time.sleep(interval)
 
     def get_full_res_frame(self) -> np.ndarray | None:
         """Return a copy of the latest full-resolution frame, or None.
@@ -219,6 +226,36 @@ class CameraStream:
                     return self._usb_latest_frame.copy()
             return None
         return None
+
+    def wait_next_frame(self, last_seq: int, timeout: float):
+        """Block until a frame newer than ``last_seq`` is available.
+
+        Returns ``(frame_copy, new_seq)`` on success, or ``(None, last_seq)``
+        on timeout. The recorder uses this to write each unique frame exactly
+        once, so capture stalls produce a slightly shorter clip rather than
+        duplicate-frame freezes.
+
+        For picamera, every ``capture_array`` call returns a fresh frame so we
+        don't need event signaling — just synthesize an incrementing seq.
+        """
+        if self.camera_type == "picamera":
+            frame = self.get_full_res_frame()
+            if frame is None:
+                return None, last_seq
+            return frame, last_seq + 1
+        if self.camera_type != "usb":
+            return None, last_seq
+
+        deadline = time.monotonic() + timeout
+        while True:
+            with self._usb_lock:
+                if self._usb_frame_seq > last_seq and self._usb_latest_frame is not None:
+                    return self._usb_latest_frame.copy(), self._usb_frame_seq
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None, last_seq
+            self._usb_frame_event.clear()
+            self._usb_frame_event.wait(remaining)
 
     def capture_lores_array(self) -> np.ndarray:
         """Capture a low-resolution frame for detection."""

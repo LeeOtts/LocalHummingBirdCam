@@ -156,25 +156,33 @@ class ClipRecorder:
                         total_frames += 1
                 del pre_jpegs  # Free buffer copies immediately
 
-            # --- Step 4: Capture post-detection frames and write directly ---
-            fps = config.VIDEO_FPS
-            total_post_frames = int(config.CLIP_POST_SECONDS * fps)
-            interval = 1.0 / fps
+            # --- Step 4: Capture post-detection frames as they arrive ---
+            # Frame-driven (not timer-driven): wait_next_frame blocks until the
+            # capture thread delivers a unique new frame, so a capture stall
+            # shortens the clip slightly instead of producing duplicate
+            # frozen frames that look like the bird teleporting.
+            post_deadline = time.monotonic() + config.CLIP_POST_SECONDS
+            last_seq = 0
+            consecutive_timeouts = 0
 
-            logger.info("Recording %d post-detection frames (~%ds)...",
-                         total_post_frames, config.CLIP_POST_SECONDS)
+            logger.info("Recording up to ~%ds of post-detection frames...",
+                         config.CLIP_POST_SECONDS)
 
-            for _ in range(total_post_frames):
-                full_frame = self.camera.get_full_res_frame()
-                if full_frame is not None:
-                    # Open writer on first frame if pre-buffer was empty
-                    if writer is None:
-                        h, w = full_frame.shape[:2]
-                        writer = self._open_writer(video_path, w, h)
-                    if writer:
-                        writer.write(full_frame)
-                        total_frames += 1
-                time.sleep(interval)
+            while time.monotonic() < post_deadline:
+                full_frame, last_seq = self.camera.wait_next_frame(last_seq, timeout=0.5)
+                if full_frame is None:
+                    consecutive_timeouts += 1
+                    if consecutive_timeouts >= 4:  # ~2s with no new frame -> camera dead
+                        logger.warning("Capture stalled >2s; ending clip early")
+                        break
+                    continue
+                consecutive_timeouts = 0
+                if writer is None:
+                    h, w = full_frame.shape[:2]
+                    writer = self._open_writer(video_path, w, h)
+                if writer:
+                    writer.write(full_frame)
+                    total_frames += 1
 
             # Release writer before muxing
             if writer:
