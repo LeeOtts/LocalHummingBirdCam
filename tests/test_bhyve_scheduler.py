@@ -374,7 +374,7 @@ class TestNow:
 
     def test_falls_back_to_zoneinfo(self, monkeypatch):
         import config
-        monkeypatch.setattr(config, "LOCATION_TIMEZONE", "US/Central")
+        monkeypatch.setattr(config, "LOCATION_TIMEZONE", "America/Chicago")
 
         s = _make_scheduler()
         # Force ImportError on pytz
