@@ -18,6 +18,10 @@ data/sightings.db
 website/data/site_data.json
 website/hls/
 
+# Coverage
+.coverage
+htmlcov/
+
 # Project artifacts
 .post_state.json
 retry_queue.json

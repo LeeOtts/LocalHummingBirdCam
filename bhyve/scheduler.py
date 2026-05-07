@@ -193,10 +193,24 @@ class WateringScheduler:
             if next_slot and abs((now - next_slot).total_seconds()) < 120:
                 self._trigger_watering(next_slot)
 
+    def _is_raining(self) -> bool:
+        """Return True if current weather indicates precipitation."""
+        from analytics.patterns import get_weather
+        weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
+        if weather is None:
+            return False
+        condition = weather.get("condition", "")
+        return condition in ("Rain", "Drizzle", "Thunderstorm")
+
     def _trigger_watering(self, slot: datetime):
         """Actually start the mister for this slot."""
         if self._monitor.is_spraying:
             logger.info("Watering scheduler: skipping %s — already spraying",
+                        slot.strftime("%I:%M %p"))
+            return
+
+        if self._is_raining():
+            logger.info("Watering scheduler: skipping %s — it's raining, no need to waste water",
                         slot.strftime("%I:%M %p"))
             return
 

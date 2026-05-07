@@ -248,6 +248,62 @@ class TestStartStop:
 # _trigger_watering
 # ---------------------------------------------------------------------------
 
+class TestIsRaining:
+    def test_returns_false_when_no_weather_data(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "LOCATION_LAT", 35.1)
+        monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
+
+        s = _make_scheduler()
+        with patch("analytics.patterns.get_weather", return_value=None):
+            assert s._is_raining() is False
+
+    def test_returns_true_for_rain(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "LOCATION_LAT", 35.1)
+        monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
+
+        s = _make_scheduler()
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Rain"}):
+            assert s._is_raining() is True
+
+    def test_returns_true_for_drizzle(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "LOCATION_LAT", 35.1)
+        monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
+
+        s = _make_scheduler()
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Drizzle"}):
+            assert s._is_raining() is True
+
+    def test_returns_true_for_thunderstorm(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "LOCATION_LAT", 35.1)
+        monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
+
+        s = _make_scheduler()
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Thunderstorm"}):
+            assert s._is_raining() is True
+
+    def test_returns_false_for_clear(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "LOCATION_LAT", 35.1)
+        monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
+
+        s = _make_scheduler()
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Clear"}):
+            assert s._is_raining() is False
+
+    def test_returns_false_for_clouds(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "LOCATION_LAT", 35.1)
+        monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
+
+        s = _make_scheduler()
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Clouds"}):
+            assert s._is_raining() is False
+
+
 class TestTriggerWatering:
     def test_triggers_monitor(self, monkeypatch):
         import config
@@ -258,7 +314,8 @@ class TestTriggerWatering:
         monitor.start_watering.return_value = {"ok": True}
 
         s = _make_scheduler(monitor=monitor)
-        s._trigger_watering(datetime(2026, 4, 1, 8, 0))
+        with patch.object(s, "_is_raining", return_value=False):
+            s._trigger_watering(datetime(2026, 4, 1, 8, 0))
 
         monitor.start_watering.assert_called_once_with(run_time_minutes=5)
 
@@ -274,6 +331,19 @@ class TestTriggerWatering:
 
         monitor.start_watering.assert_not_called()
 
+    def test_skips_when_raining(self, monkeypatch):
+        import config
+        monkeypatch.setattr(config, "BHYVE_RUN_MINUTES", 5)
+
+        monitor = MagicMock()
+        monitor.is_spraying = False
+
+        s = _make_scheduler(monitor=monitor)
+        with patch.object(s, "_is_raining", return_value=True):
+            s._trigger_watering(datetime(2026, 4, 1, 8, 0))
+
+        monitor.start_watering.assert_not_called()
+
     def test_logs_warning_on_failure(self, monkeypatch):
         import config
         monkeypatch.setattr(config, "BHYVE_RUN_MINUTES", 3)
@@ -283,7 +353,8 @@ class TestTriggerWatering:
         monitor.start_watering.return_value = {"ok": False, "error": "timeout"}
 
         s = _make_scheduler(monitor=monitor)
-        s._trigger_watering(datetime(2026, 4, 1, 8, 0))
+        with patch.object(s, "_is_raining", return_value=False):
+            s._trigger_watering(datetime(2026, 4, 1, 8, 0))
 
         monitor.start_watering.assert_called_once()
 
@@ -303,7 +374,7 @@ class TestNow:
 
     def test_falls_back_to_zoneinfo(self, monkeypatch):
         import config
-        monkeypatch.setattr(config, "LOCATION_TIMEZONE", "US/Central")
+        monkeypatch.setattr(config, "LOCATION_TIMEZONE", "America/Chicago")
 
         s = _make_scheduler()
         # Force ImportError on pytz
