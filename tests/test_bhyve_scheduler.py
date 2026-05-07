@@ -255,7 +255,7 @@ class TestIsRaining:
         monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
 
         s = _make_scheduler()
-        with patch("bhyve.scheduler.get_weather", return_value=None):
+        with patch("analytics.patterns.get_weather", return_value=None):
             assert s._is_raining() is False
 
     def test_returns_true_for_rain(self, monkeypatch):
@@ -264,7 +264,7 @@ class TestIsRaining:
         monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
 
         s = _make_scheduler()
-        with patch("bhyve.scheduler.get_weather", return_value={"condition": "Rain"}):
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Rain"}):
             assert s._is_raining() is True
 
     def test_returns_true_for_drizzle(self, monkeypatch):
@@ -273,7 +273,7 @@ class TestIsRaining:
         monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
 
         s = _make_scheduler()
-        with patch("bhyve.scheduler.get_weather", return_value={"condition": "Drizzle"}):
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Drizzle"}):
             assert s._is_raining() is True
 
     def test_returns_true_for_thunderstorm(self, monkeypatch):
@@ -282,7 +282,7 @@ class TestIsRaining:
         monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
 
         s = _make_scheduler()
-        with patch("bhyve.scheduler.get_weather", return_value={"condition": "Thunderstorm"}):
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Thunderstorm"}):
             assert s._is_raining() is True
 
     def test_returns_false_for_clear(self, monkeypatch):
@@ -291,7 +291,7 @@ class TestIsRaining:
         monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
 
         s = _make_scheduler()
-        with patch("bhyve.scheduler.get_weather", return_value={"condition": "Clear"}):
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Clear"}):
             assert s._is_raining() is False
 
     def test_returns_false_for_clouds(self, monkeypatch):
@@ -300,7 +300,7 @@ class TestIsRaining:
         monkeypatch.setattr(config, "LOCATION_LNG", -89.8)
 
         s = _make_scheduler()
-        with patch("bhyve.scheduler.get_weather", return_value={"condition": "Clouds"}):
+        with patch("analytics.patterns.get_weather", return_value={"condition": "Clouds"}):
             assert s._is_raining() is False
 
 

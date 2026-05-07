@@ -17,7 +17,6 @@ from datetime import datetime, timedelta, date
 
 import config
 from schedule import _get_sun_times
-from analytics.patterns import get_weather
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +195,7 @@ class WateringScheduler:
 
     def _is_raining(self) -> bool:
         """Return True if current weather indicates precipitation."""
+        from analytics.patterns import get_weather
         weather = get_weather(config.LOCATION_LAT, config.LOCATION_LNG)
         if weather is None:
             return False
