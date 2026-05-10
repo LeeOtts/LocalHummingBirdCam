@@ -45,15 +45,19 @@ class ClipRecorder:
         self.camera = camera_stream
         config.CLIPS_DIR.mkdir(parents=True, exist_ok=True)
 
-    def record_clip(self) -> Path | None:
-        """
-        Record a 30-second clip (pre + post detection).
-        Returns the path to the final MP4 file, or None on failure.
+    def record_clip(self, detect_fn=None) -> Path | None:
+        """Record a clip (pre-roll + post-detection) and return the MP4 path.
+
+        detect_fn: optional callable that receives a full-res BGR frame and
+        returns True while the bird is still present.  Each True result resets
+        the recording deadline to now + CLIP_POST_SECONDS, so recording
+        continues as long as the bird remains.  CLIP_MAX_SECONDS caps the
+        total post-detection duration.
         """
         if self.camera.camera_type == "picamera":
             return self._record_picamera()
         else:
-            return self._record_usb()
+            return self._record_usb(detect_fn=detect_fn)
 
     def _record_picamera(self) -> Path | None:
         """Record using picamera2 CircularOutput."""
@@ -86,16 +90,16 @@ class ClipRecorder:
                 pass
             return None
 
-    def _record_usb(self) -> Path | None:
-        """
-        Record using frames from the existing USB capture thread.
+    def _record_usb(self, detect_fn=None) -> Path | None:
+        """Record using frames from the existing USB capture thread.
 
-        Streams frames directly to a VideoWriter to minimize memory usage —
-        only one decoded frame is in memory at a time (~6MB) instead of
-        accumulating all frames in a list (~30-50MB).
+        Streams frames directly to a VideoWriter to minimize memory usage.
+        Audio is captured separately via arecord and muxed into the final MP4.
 
-        Audio is captured separately via ffmpeg from the ALSA device and
-        muxed into the final MP4.
+        detect_fn: optional callable receiving a full-res BGR frame; returns
+        True while the bird is visible.  Each True result resets the recording
+        deadline to now + CLIP_POST_SECONDS, extending the clip while the
+        bird stays.  CLIP_MAX_SECONDS caps total post-detection duration.
         """
         timestamp = datetime.now(tz=_local_tz).strftime("%Y%m%d_%H%M%S")
         mp4_path = config.CLIPS_DIR / f"hummer_{timestamp}.mp4"
@@ -110,11 +114,12 @@ class ClipRecorder:
             logger.info("Got %d pre-detection frames from buffer", len(pre_jpegs))
 
             # --- Step 2: Start audio recording in background (if enabled) ---
+            # No -d flag: record indefinitely until stopped after the clip ends.
+            # This avoids the -shortest truncation bug where arecord exits early
+            # (ALSA buffer overrun) and ffmpeg cuts the video to match.
             if config.AUDIO_ENABLED:
                 audio_device = self._detect_audio_device()
                 try:
-                    # Use plughw for auto format conversion, stereo (2ch),
-                    # 16kHz sample rate — matches most USB camera mics
                     device = audio_device.replace("hw:", "plughw:")
                     arecord_cmd = [
                         "arecord",
@@ -122,7 +127,6 @@ class ClipRecorder:
                         "-f", "S16_LE",
                         "-r", "16000",
                         "-c", "2",
-                        "-d", str(config.CLIP_POST_SECONDS),
                         str(audio_path),
                     ]
                     logger.info("Starting audio: %s", " ".join(arecord_cmd))
@@ -148,34 +152,48 @@ class ClipRecorder:
                         total_frames += 1
                     del first
 
-                # Write remaining pre-detection frames one at a time
                 for jpeg in pre_jpegs[1:]:
                     frame = cv2.imdecode(jpeg, cv2.IMREAD_COLOR)
                     if frame is not None and writer:
                         writer.write(frame)
                         total_frames += 1
-                del pre_jpegs  # Free buffer copies immediately
+                del pre_jpegs
 
-            # --- Step 4: Capture post-detection frames as they arrive ---
-            # Frame-driven (not timer-driven): wait_next_frame blocks until the
-            # capture thread delivers a unique new frame, so a capture stall
-            # produces fewer frames in the clip rather than duplicate frozen
-            # frames that look like the bird teleporting. We post-process the
-            # FPS metadata below so the file plays at correct wall-clock
-            # duration regardless of how many unique frames arrived.
+            # --- Step 4: Capture post-detection frames, extending while bird present ---
+            # last_bird_time initialises to post_start so the minimum clip length
+            # is always CLIP_POST_SECONDS regardless of detect_fn results.
+            # Each True from detect_fn resets last_bird_time → deadline extends.
+            # CLIP_MAX_SECONDS is a hard cap to prevent runaway recordings.
             post_start = time.monotonic()
-            post_deadline = post_start + config.CLIP_POST_SECONDS
+            last_bird_time = post_start
+            max_end = post_start + config.CLIP_MAX_SECONDS
             last_seq = 0
 
-            logger.info("Recording ~%ds of post-detection frames...",
-                         config.CLIP_POST_SECONDS)
+            logger.info(
+                "Recording: %ds buffer after bird leaves (max %ds)...",
+                config.CLIP_POST_SECONDS, config.CLIP_MAX_SECONDS,
+            )
 
-            while time.monotonic() < post_deadline:
-                remaining = post_deadline - time.monotonic()
+            while True:
+                now = time.monotonic()
+                deadline = last_bird_time + config.CLIP_POST_SECONDS
+                if now >= deadline or now >= max_end:
+                    break
+
+                remaining = min(deadline, max_end) - now
                 full_frame, last_seq = self.camera.wait_next_frame(
                     last_seq, timeout=min(0.5, max(0.05, remaining)))
                 if full_frame is None:
-                    continue  # nothing new; deadline check will exit eventually
+                    continue
+
+                # Extend deadline if bird is still visible
+                if detect_fn is not None:
+                    try:
+                        if detect_fn(full_frame):
+                            last_bird_time = time.monotonic()
+                    except Exception:
+                        pass
+
                 if writer is None:
                     h, w = full_frame.shape[:2]
                     writer = self._open_writer(video_path, w, h)
@@ -190,27 +208,26 @@ class ClipRecorder:
                 writer.release()
                 writer = None
 
-            # --- Step 4b: Compute the FPS the file *should* declare so
-            # playback duration matches wall-clock recording duration.
-            # total_frames span CLIP_PRE_SECONDS (assumed full) + measured
-            # post_duration. With stalls we have fewer frames; the lower
-            # declared FPS stretches them across the full duration smoothly.
+            # --- Step 4b: Compute declared FPS so playback duration == wall-clock ---
             target_duration = float(config.CLIP_PRE_SECONDS) + post_duration
             if total_frames > 0 and target_duration > 0:
                 measured_fps = total_frames / target_duration
             else:
                 measured_fps = float(config.VIDEO_FPS)
-            # Clamp to sane bounds in case of pathological measurement
             measured_fps = max(1.0, min(measured_fps, float(config.VIDEO_FPS) * 2))
 
-            # Wait for audio to finish
+            # --- Step 4c: Stop audio recording ---
             if audio_proc is not None:
                 try:
-                    _, stderr_data = audio_proc.communicate(timeout=config.CLIP_POST_SECONDS + 10)
-                    if audio_proc.returncode != 0:
-                        logger.warning("arecord failed (exit %d): %s",
-                                       audio_proc.returncode,
-                                       stderr_data.decode(errors="replace")[-300:] if stderr_data else "no output")
+                    audio_proc.terminate()
+                    _, stderr_data = audio_proc.communicate(timeout=10)
+                    rc = audio_proc.returncode
+                    # SIGTERM (-15) is the expected exit on terminate()
+                    if rc not in (0, -15):
+                        logger.warning(
+                            "arecord exited %d: %s", rc,
+                            stderr_data.decode(errors="replace")[-300:] if stderr_data else "",
+                        )
                     elif audio_path.exists():
                         logger.info("Audio recorded: %s (%.1f KB)",
                                     audio_path.name, audio_path.stat().st_size / 1024)
@@ -223,36 +240,40 @@ class ClipRecorder:
                 self._cleanup_temp_files(video_path, audio_path)
                 return None
 
-            # --- Step 5: Mux video + audio if we have audio ---
-            # `-r <measured_fps>` BEFORE `-i video.mp4` re-stamps the video's
-            # PTS without re-encoding (paired with `-c:v copy`). This makes
-            # playback duration match wall-clock recording duration even if
-            # the capture rate dipped below VIDEO_FPS.
+            # --- Step 5: Mux video + audio ---
+            # `-r <fps>` BEFORE `-i video.mp4` re-stamps PTS without re-encoding.
+            # `-itsoffset CLIP_PRE_SECONDS` delays audio to align it with the
+            # post-detection phase of the video (audio starts when pre-roll ends).
+            # No -shortest: audio may be slightly shorter due to SIGTERM timing;
+            # the video timeline is authoritative.
             fps_arg = f"{measured_fps:.3f}"
-            if audio_proc is not None and audio_path.exists() and audio_path.stat().st_size > 0:
+            use_audio = (
+                audio_proc is not None
+                and self._audio_is_valid(audio_path, post_duration)
+            )
+            if use_audio:
                 mux_result = subprocess.run(
                     [
                         "ffmpeg", "-y",
                         "-r", fps_arg,
                         "-i", str(video_path),
+                        "-itsoffset", str(config.CLIP_PRE_SECONDS),
                         "-i", str(audio_path),
                         "-c:v", "copy",
                         "-c:a", "aac", "-b:a", "96k",
-                        "-shortest",
                         str(mp4_path),
                     ],
-                    capture_output=True, text=True, timeout=60,
+                    capture_output=True, text=True,
+                    timeout=max(60, int(target_duration) + 30),
                 )
 
                 if mux_result.returncode != 0:
                     logger.warning("Audio mux failed, using video-only: %s",
                                    mux_result.stderr[-300:])
-                    # Fall back to video-only retime (no audio)
                     self._retime_video_only(video_path, mp4_path, fps_arg)
 
                 self._cleanup_temp_files(video_path, audio_path)
             else:
-                # No audio — retime video only
                 self._retime_video_only(video_path, mp4_path, fps_arg)
                 self._cleanup_temp_files(audio_path)
 
@@ -302,6 +323,21 @@ class ClipRecorder:
             return None
         return writer
 
+
+    @staticmethod
+    def _audio_is_valid(audio_path: Path, expected_seconds: float) -> bool:
+        """Return True if the audio file covers at least 70% of expected_seconds.
+
+        16 kHz × 2 ch × 2 bytes/sample = 64 000 bytes/sec.  A WAV header is
+        44 bytes, so actual audio duration ≈ (size - 44) / 64000.  An overrun-
+        truncated file from arecord may be much shorter than expected_seconds,
+        which would previously cause -shortest to truncate the whole clip.
+        """
+        if not audio_path.exists():
+            return False
+        size = audio_path.stat().st_size
+        actual_seconds = max(0.0, size - 44) / 64_000
+        return actual_seconds >= expected_seconds * 0.7
 
     @staticmethod
     def _retime_video_only(video_path: Path, mp4_path: Path, fps_arg: str) -> None:

@@ -47,6 +47,7 @@ VIDEO_HEIGHT = int(os.getenv("VIDEO_HEIGHT", "1080"))
 VIDEO_FPS = int(os.getenv("VIDEO_FPS", "15"))
 CLIP_PRE_SECONDS = int(os.getenv("CLIP_PRE_SECONDS", "5"))
 CLIP_POST_SECONDS = int(os.getenv("CLIP_POST_SECONDS", "20"))
+CLIP_MAX_SECONDS = int(os.getenv("CLIP_MAX_SECONDS", "120"))
 VIDEO_BITRATE = int(os.getenv("VIDEO_BITRATE", "5000000"))
 
 # Derived

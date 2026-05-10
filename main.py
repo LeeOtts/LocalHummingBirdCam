@@ -531,8 +531,11 @@ class HummingbirdMonitor:
                 # Reset detector state during recording
                 self.detector.reset()
 
-                # Record clip (blocks for CLIP_POST_SECONDS)
-                clip_path = recorder.record_clip()
+                # Record clip — extends while bird is still detected in frame
+                clip_path = recorder.record_clip(
+                    detect_fn=self._make_record_detect_fn())
+                # Reset again: detector accumulated state inside record_clip
+                self.detector.reset()
                 if clip_path:
                     self.clip_queue.put(clip_path)
                     logger.info("Clip queued for posting: %s", clip_path.name)
@@ -548,6 +551,26 @@ class HummingbirdMonitor:
 
             # Small sleep to avoid busy-looping — detection at ~15-20 fps on Pi 3B+
             time.sleep(0.05)
+
+    def _make_record_detect_fn(self):
+        """Return a function that detects bird presence in a full-res frame.
+
+        Called on each frame during recording to extend the clip deadline
+        while the bird is still visible.  Uses motion+color only (no MobileNet)
+        so it's fast enough to run on every captured frame.
+        """
+        detector = self.detector
+        lores_w = config.LORES_WIDTH
+        lores_h = config.LORES_HEIGHT
+
+        def _detect(frame) -> bool:
+            try:
+                lores = cv2.resize(frame, (lores_w, lores_h))
+                return detector.detect(lores)
+            except Exception:
+                return False
+
+        return _detect
 
     def _cooldown_elapsed(self) -> bool:
         """Check if enough time has passed since the last detection."""
