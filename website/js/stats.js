@@ -402,9 +402,11 @@ function renderSpeciesChart(breakdown) {
 }
 
 /**
- * Render position heatmap on canvas (8x8 grid)
+ * Render position heatmap on canvas (8x8 grid), optionally with a feeder photo background.
+ * If bgImageUrl is provided, the photo is drawn first and heat cells are semi-transparent
+ * so the feeder shows through. Empty cells (count=0) are left fully transparent.
  */
-function renderHeatmapGrid(heatmap) {
+function renderHeatmapGrid(heatmap, bgImageUrl) {
     const canvas = document.getElementById('heatmapCanvas');
     if (!canvas || !heatmap || !heatmap.length) return;
 
@@ -413,30 +415,42 @@ function renderHeatmapGrid(heatmap) {
     const cellW = canvas.width / gridSize;
     const cellH = canvas.height / gridSize;
 
-    // Find max for normalization
     let maxVal = 0;
-    for (const row of heatmap) {
-        for (const v of row) {
-            if (v > maxVal) maxVal = v;
-        }
-    }
+    for (const row of heatmap) for (const v of row) if (v > maxVal) maxVal = v;
     if (maxVal === 0) return;
 
-    for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-            const intensity = heatmap[r][c] / maxVal;
-            const alpha = Math.min(intensity * 0.9 + 0.05, 1);
-            ctx.fillStyle = `rgba(92, 184, 76, ${alpha})`;
-            ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
-
-            // Show count if > 0
-            if (heatmap[r][c] > 0) {
-                ctx.fillStyle = intensity > 0.5 ? '#fff' : '#9098a8';
-                ctx.font = '11px monospace';
+    function drawOverlay() {
+        for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+                const intensity = heatmap[r][c] / maxVal;
+                if (intensity === 0) continue;
+                const alpha = Math.min(intensity * 0.7 + 0.15, 0.85);
+                ctx.fillStyle = `rgba(92, 184, 76, ${alpha})`;
+                ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
+                ctx.fillStyle = intensity > 0.5 ? '#fff' : '#e8f0ea';
+                ctx.font = 'bold 11px monospace';
                 ctx.textAlign = 'center';
                 ctx.fillText(heatmap[r][c], c * cellW + cellW / 2, r * cellH + cellH / 2 + 4);
             }
         }
+    }
+
+    if (bgImageUrl) {
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            drawOverlay();
+        };
+        img.onerror = () => {
+            ctx.fillStyle = '#0d1a12';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawOverlay();
+        };
+        img.src = bgImageUrl;
+    } else {
+        ctx.fillStyle = '#0d1a12';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawOverlay();
     }
 }
 
@@ -659,7 +673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         populateVisitPatterns(data);
         renderBehaviorChart(data.behavior_breakdown);
         renderSpeciesChart(data.species_breakdown);
-        renderHeatmapGrid(data.position_heatmap);
+        renderHeatmapGrid(data.position_heatmap, 'img/feeder.jpg');
         populateStreaks(data.activity_streaks);
         populateYoY(data.yoy_comparison);
         renderMonthlyChart(data.monthly_totals);
