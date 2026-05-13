@@ -345,6 +345,60 @@
             </div>
         </div>
 
+        <div class="section" id="analyticsSection">
+            <h2>Bird Analytics</h2>
+            <div id="analyticsLoading" style="color:#a3b8a6; text-align:center; padding:20px;">Loading analytics...</div>
+            <div id="analyticsContent" style="display:none;">
+
+                <!-- Summary cards -->
+                <div class="status-grid" style="margin-bottom:20px;">
+                    <div class="status-card">
+                        <div class="label">Visits Today</div>
+                        <div class="value green" id="a-visits-today">--</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="label">Visits This Week</div>
+                        <div class="value green" id="a-visits-week">--</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="label">Peak Hour</div>
+                        <div class="value yellow" id="a-peak-hour">--</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="label">Activity Streak</div>
+                        <div class="value" id="a-streak">--</div>
+                        <div style="font-size:0.75em; color:#a3b8a6; margin-top:4px;" id="a-streak-label">consecutive days</div>
+                    </div>
+                </div>
+
+                <!-- Heatmap + Hourly side by side -->
+                <div style="display:flex; flex-wrap:wrap; gap:20px; justify-content:center; margin-bottom:20px;">
+
+                    <!-- Position heatmap -->
+                    <div style="text-align:center;">
+                        <div style="color:#a3b8a6; font-size:0.8em; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Feeder Position Heatmap</div>
+                        <canvas id="dashHeatmapCanvas" width="280" height="280" style="border:1px solid #1e3625; border-radius:8px; display:block;"></canvas>
+                        <div style="color:#a3b8a6; font-size:0.72em; margin-top:6px;">Where birds appear in frame (30 days)</div>
+                    </div>
+
+                    <!-- Hourly activity bars -->
+                    <div style="flex:1; min-width:240px;">
+                        <div style="color:#a3b8a6; font-size:0.8em; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Hourly Activity</div>
+                        <div id="a-hourly-bars" style="display:flex; align-items:flex-end; gap:2px; height:100px; background:#0d1a12; border-radius:6px; padding:6px 4px; border:1px solid #1e3625;"></div>
+                        <div style="display:flex; justify-content:space-between; color:#a3b8a6; font-size:0.65em; margin-top:3px; padding:0 4px;">
+                            <span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Behavior breakdown -->
+                <div id="a-behavior-section" style="display:none;">
+                    <div style="color:#a3b8a6; font-size:0.8em; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Behavior Breakdown (30 days)</div>
+                    <div id="a-behavior-bars"></div>
+                </div>
+            </div>
+        </div>
+
         <div class="section">
             <h2>Hardware</h2>
             <div class="status-grid">
@@ -862,6 +916,115 @@
 
         refreshTrainingCount();
 
+        // Analytics section
+        function fmtHour(h) {
+            if (h === 0) return '12a';
+            if (h < 12) return h + 'a';
+            if (h === 12) return '12p';
+            return (h - 12) + 'p';
+        }
+
+        function renderDashHeatmap(heatmap) {
+            const canvas = document.getElementById('dashHeatmapCanvas');
+            if (!canvas || !heatmap || !heatmap.length) return;
+            const ctx = canvas.getContext('2d');
+            const gridSize = heatmap.length;
+            const cellW = canvas.width / gridSize;
+            const cellH = canvas.height / gridSize;
+            let maxVal = 0;
+            for (const row of heatmap) for (const v of row) if (v > maxVal) maxVal = v;
+            if (maxVal === 0) return;
+
+            function drawOverlay() {
+                for (let r = 0; r < gridSize; r++) {
+                    for (let c = 0; c < gridSize; c++) {
+                        const intensity = heatmap[r][c] / maxVal;
+                        if (intensity === 0) continue;
+                        const alpha = Math.min(intensity * 0.7 + 0.15, 0.85);
+                        ctx.fillStyle = `rgba(92, 184, 76, ${alpha})`;
+                        ctx.fillRect(c * cellW, r * cellH, cellW - 1, cellH - 1);
+                        ctx.fillStyle = intensity > 0.5 ? '#fff' : '#e8f0ea';
+                        ctx.font = 'bold 10px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(heatmap[r][c], c * cellW + cellW / 2, r * cellH + cellH / 2 + 3);
+                    }
+                }
+            }
+
+            const img = new Image();
+            img.onload = () => { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); drawOverlay(); };
+            img.onerror = () => { ctx.fillStyle = '#0d1a12'; ctx.fillRect(0, 0, canvas.width, canvas.height); drawOverlay(); };
+            img.src = '/static/feeder.jpg';
+        }
+
+        function renderHourlyBars(hourly) {
+            const container = document.getElementById('a-hourly-bars');
+            if (!container || !hourly || !hourly.length) return;
+            const maxH = Math.max(...hourly, 1);
+            container.innerHTML = hourly.map((v, i) => {
+                const pct = Math.round((v / maxH) * 100);
+                const label = fmtHour(i);
+                return `<div title="${label}: ${v} visits" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;">
+                    <div style="width:100%; background:${v > 0 ? '#5cb84c' : '#1e3625'}; height:${Math.max(pct, v > 0 ? 4 : 0)}%; border-radius:2px 2px 0 0; min-height:${v > 0 ? '3px' : '0'};"></div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderBehaviorBars(breakdown) {
+            const section = document.getElementById('a-behavior-section');
+            const container = document.getElementById('a-behavior-bars');
+            if (!section || !container || !breakdown) return;
+            const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+            if (!entries.length) return;
+            const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
+            const colors = { feeding: '#5cb84c', hovering: '#58a6ff', perching: '#f0c040', chasing: '#e05535' };
+            container.innerHTML = entries.map(([name, count]) => {
+                const pct = Math.round((count / total) * 100);
+                const color = colors[name] || '#a3b8a6';
+                return `<div style="margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.82em; color:#e8f0ea; margin-bottom:3px; text-transform:capitalize;">
+                        <span>${escapeHtml(name)}</span><span style="color:#a3b8a6;">${count} (${pct}%)</span>
+                    </div>
+                    <div style="background:#0d1a12; border-radius:4px; height:8px; overflow:hidden;">
+                        <div style="background:${color}; width:${pct}%; height:100%; border-radius:4px; transition:width 0.4s;"></div>
+                    </div>
+                </div>`;
+            }).join('');
+            section.style.display = '';
+        }
+
+        function loadAnalytics() {
+            fetch('/api/analytics')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('analyticsLoading').style.display = 'none';
+                    document.getElementById('analyticsContent').style.display = '';
+
+                    const vs = data.visit_stats || {};
+                    document.getElementById('a-visits-today').textContent = vs.visits_today != null ? vs.visits_today : '--';
+                    document.getElementById('a-visits-week').textContent = vs.visits_week != null ? vs.visits_week : '--';
+
+                    if (vs.peak_hour != null) {
+                        document.getElementById('a-peak-hour').textContent = fmtHour(vs.peak_hour);
+                    }
+
+                    const streaks = data.activity_streaks || {};
+                    if (streaks.current_streak != null) {
+                        document.getElementById('a-streak').textContent = streaks.current_streak;
+                        document.getElementById('a-streak').className = 'value ' + (streaks.current_streak > 7 ? 'green' : streaks.current_streak > 0 ? 'yellow' : '');
+                    }
+
+                    if (data.position_heatmap) renderDashHeatmap(data.position_heatmap);
+                    if (data.hourly_distribution) renderHourlyBars(data.hourly_distribution);
+                    if (data.behavior_breakdown) renderBehaviorBars(data.behavior_breakdown);
+                })
+                .catch(() => {
+                    document.getElementById('analyticsLoading').textContent = 'Analytics unavailable';
+                });
+        }
+
+        loadAnalytics();
+        setInterval(loadAnalytics, 120000);
 
         function checkForUpdate() {
             const btn = document.getElementById('updateBtn');
