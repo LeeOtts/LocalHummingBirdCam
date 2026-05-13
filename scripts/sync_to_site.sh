@@ -86,13 +86,11 @@ fi
 # Step 5: Sync video clips (only .mp4 files, skip temp files)
 if [ -d "$CLIPS_DIR" ]; then
     echo "[$(date)] Syncing clips..."
-    rsync -az --timeout=60 \
+    rsync -az --timeout=60 -e "ssh ${SSH_OPTS}" \
+        --exclude='_*' \
         --include='*.mp4' \
         --include='*_thumb.jpg' \
-        --exclude='_*' \
-        --exclude='*.h264' \
-        --exclude='*.wav' \
-        --exclude='*.txt' \
+        --exclude='*' \
         "$CLIPS_DIR/" \
         "${REMOTE}:${REMOTE_PATH}/clips/"
 fi
